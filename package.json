@@ -1,0 +1,24 @@
+{
+  "name": "omniq",
+  "version": "1.0.0",
+  "private": true,
+  "description": "OmniQ multi-vendor ecommerce marketplace monorepo.",
+  "scripts": {
+    "dev": "pnpm --parallel --filter frontend --filter admin --filter @omniq/api-gateway --filter @omniq/product-service --filter @omniq/order-service --filter @omniq/seller-service --filter @omniq/user-service --filter @omniq/location-service --filter @omniq/admin-service dev",
+    "dev:frontend": "pnpm --filter frontend dev",
+    "dev:admin": "pnpm --filter admin dev",
+    "dev:api": "pnpm --filter @omniq/api-gateway dev",
+    "build": "pnpm --recursive build",
+    "typecheck": "pnpm --recursive typecheck",
+    "test": "pnpm --recursive test",
+    "lint": "pnpm --recursive lint"
+  },
+  "engines": {
+    "node": "20.x",
+    "pnpm": ">=9.0.0"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "typescript": "^5.3.0"
+  }
+}

@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: omniq-product-service
+    env: node
+    plan: starter
+    buildCommand: pnpm install && pnpm --filter @omniq/product-service build
+    startCommand: pnpm --filter @omniq/product-service dev
+    healthCheckPath: /health
