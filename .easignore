@@ -1,0 +1,8 @@
+.git/
+.pnpm-store/
+node_modules/
+backend/
+supabase/
+Dockerfile
+docker-compose.yml
+.env

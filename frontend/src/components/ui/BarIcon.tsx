@@ -1,7 +1,7 @@
 import * as React from "react";
 import Svg, { Rect, SvgProps } from "react-native-svg";
 
-export const BarIcon = (props: SvgProps) => (
+export const BarIcon = (props: SvgProps & { size?: number }) => (
   <Svg
     width={props.size || 24}
     height={props.size || 24}

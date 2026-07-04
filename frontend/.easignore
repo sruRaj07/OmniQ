@@ -1,0 +1,9 @@
+.git
+.pnpm-store
+node_modules
+backend
+supabase
+android
+ios
+.expo
+.DS_Store

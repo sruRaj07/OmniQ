@@ -142,7 +142,7 @@ export default function ManageAdsScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Active Advertisements</Text>
         {isLoading ? (
-          <ActivityIndicator color={colors.primary} />
+          <ActivityIndicator color={colors.accent} />
         ) : ads?.length === 0 ? (
           <Text style={styles.emptyText}>No active advertisements found.</Text>
         ) : (
@@ -153,7 +153,7 @@ export default function ManageAdsScreen() {
                 <View style={styles.adContent}>
                   <Text style={styles.adTitle} numberOfLines={1}>{ad.title}</Text>
                   <Text style={styles.adLink} numberOfLines={1}>{ad.target_url || "No link"}</Text>
-                  <Button variant="outline" onPress={() => handleDelete(ad.id)} style={styles.deleteBtn}>
+                  <Button variant="danger" onPress={() => handleDelete(ad.id)} style={styles.deleteBtn}>
                     Delete
                   </Button>
                 </View>
@@ -257,7 +257,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   adLink: {
-    color: colors.primary,
+    color: colors.accent,
     fontSize: 12,
     marginBottom: 12,
   },

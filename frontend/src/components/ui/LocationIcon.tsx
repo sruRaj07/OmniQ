@@ -1,7 +1,7 @@
 import * as React from "react";
 import Svg, { Path, SvgProps } from "react-native-svg";
 
-export const LocationIcon = (props: SvgProps) => (
+export const LocationIcon = (props: SvgProps & { size?: number }) => (
   <Svg
     width={props.size || 16}
     height={props.size || 16}

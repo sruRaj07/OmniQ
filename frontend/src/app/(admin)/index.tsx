@@ -105,10 +105,9 @@ export default function AdminDashboardScreen() {
             <Text style={styles.actionCardTitle}>Manage Advertisements</Text>
             <Text style={styles.actionCardDesc}>Upload and manage home page promotional banners</Text>
           </View>
-          <GlobeIcon size={24} color={colors.primary} />
+          <GlobeIcon size={24} color={colors.accent} />
         </TouchableOpacity>
       </Screen>
-      
     </>
   );
 }

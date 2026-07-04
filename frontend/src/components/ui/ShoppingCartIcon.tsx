@@ -1,7 +1,7 @@
 import * as React from "react";
 import Svg, { Circle, Path, SvgProps } from "react-native-svg";
 
-export const ShoppingCartIcon = (props: SvgProps) => (
+export const ShoppingCartIcon = (props: SvgProps & { size?: number }) => (
   <Svg width={props.size || 24} height={props.size || 24} viewBox="0 0 24 24" fill="none" stroke={props.color || "currentColor"} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" {...props}>
     <Circle cx="9" cy="21" r="1" />
     <Circle cx="20" cy="21" r="1" />
