@@ -7,7 +7,9 @@ create table if not exists public.profiles (
   full_name text,
   avatar_url text,
   role text not null default 'buyer' check (role in ('buyer','seller','admin')),
-  phone text,
+  phone_number text,
+  address text,
+  pincode text,
   deleted_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()

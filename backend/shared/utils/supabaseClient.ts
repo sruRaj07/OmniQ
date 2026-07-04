@@ -7,9 +7,11 @@ dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || "";
 const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "";
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
 if (!supabaseUrl || !supabaseKey) {
   console.warn("WARNING: Supabase URL or Anon Key is missing from environment variables.");
 }
 
 export const supabase = createClient(supabaseUrl, supabaseKey);
+export const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);

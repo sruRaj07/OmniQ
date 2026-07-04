@@ -23,19 +23,19 @@ drop policy if exists "profiles update own" on public.profiles;
 create policy "profiles update own" on public.profiles for update using (id = auth.uid()) with check (id = auth.uid());
 
 drop policy if exists "sellers own or admin select" on public.sellers;
-create policy "sellers own or admin select" on public.sellers for select using (user_id = auth.uid() or public.current_role() = 'admin');
+create policy "sellers own or admin select" on public.sellers for select using (owner_id = auth.uid() or public.current_role() = 'admin');
 
 drop policy if exists "sellers own update" on public.sellers;
-create policy "sellers own update" on public.sellers for update using (user_id = auth.uid() or public.current_role() = 'admin');
+create policy "sellers own update" on public.sellers for update using (owner_id = auth.uid() or public.current_role() = 'admin');
 
 drop policy if exists "products public active select" on public.products;
 create policy "products public active select" on public.products for select using (is_active = true and is_flagged = false and deleted_at is null);
 
 drop policy if exists "products seller write" on public.products;
 create policy "products seller write" on public.products for all using (
-  seller_id in (select id from public.sellers where user_id = auth.uid()) or public.current_role() = 'admin'
+  seller_id in (select id from public.sellers where owner_id = auth.uid()) or public.current_role() = 'admin'
 ) with check (
-  seller_id in (select id from public.sellers where user_id = auth.uid()) or public.current_role() = 'admin'
+  seller_id in (select id from public.sellers where owner_id = auth.uid()) or public.current_role() = 'admin'
 );
 
 drop policy if exists "orders participant select" on public.orders;

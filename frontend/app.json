@@ -6,8 +6,9 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
-    "plugins": ["expo-router", "expo-secure-store"],
+    "plugins": [
+      "expo-router"
+    ],
     "experiments": {
       "typedRoutes": true
     },
@@ -15,12 +16,19 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.omniq.app",
       "adaptiveIcon": {
         "backgroundColor": "#0A0A0F"
       }
     },
     "web": {
       "bundler": "metro"
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "c20af53d-f1d3-4084-9243-7215568ab41b"
+      }
     }
   }
 }

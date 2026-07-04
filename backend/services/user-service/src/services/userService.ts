@@ -18,6 +18,7 @@ export async function getCurrentProfile(userId: string, jwtPayload?: any) {
     
     const newProfile = {
       id: userId,
+      email: metadata.email || jwtPayload?.email || "",
       full_name: metadata.full_name || metadata.name || "",
       role: metadata.role || "buyer"
     };

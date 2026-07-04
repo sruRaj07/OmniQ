@@ -45,18 +45,18 @@ export default function SignInScreen() {
     try {
       const res = await apiClient.post("/auth/login", data);
       
-      if (res.data?.data?.requires_2fa) {
-        // Redirect to OTP verification screen
-        router.replace({ 
-          pathname: "/(auth)/verify-otp", 
-          params: { email: res.data.data.email, role } 
-        } as any);
-      } else if (res.data?.data?.session) {
+      if (res.data?.data?.session) {
         await supabase.auth.setSession({
           access_token: res.data.data.session.access_token,
           refresh_token: res.data.data.session.refresh_token,
         });
-        router.replace("/(buyer)" as any);
+        
+        const userRole = res.data.data.session.user?.user_metadata?.role;
+        if (userRole === "admin") {
+          router.replace("/(admin)" as any);
+        } else {
+          router.replace(role === "seller" ? ("/(seller)" as any) : ("/(buyer)" as any));
+        }
       } else {
         throw new Error("Invalid response from server");
       }

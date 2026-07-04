@@ -2,7 +2,7 @@
 -- Author: OmniQ Team
 create table if not exists public.sellers (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid unique references public.profiles(id) on delete cascade,
+  owner_id uuid unique references auth.users(id) on delete cascade,
   business_name text not null,
   description text,
   gst_number text,

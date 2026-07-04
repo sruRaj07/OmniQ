@@ -14,9 +14,31 @@ export async function getAnalytics() {
   return { revenueByCategory: { Fashion: 42, Tech: 31, Jewellery: 18 }, topArea: "Koramangala" };
 }
 
+import { supabaseAdmin } from "../../../../shared/utils/supabaseClient";
+
 export async function moderateProduct(id: string, input: unknown) {
   const parsed = moderationSchema.parse(input);
-  return { id, ...parsed };
+  
+  if (parsed.action === "approve") {
+    const { data, error } = await supabaseAdmin
+      .from("products")
+      .update({ is_approved: true })
+      .eq("id", id)
+      .select()
+      .single();
+    if (error) throw new Error(`Approval failed: ${error.message}`);
+    return data;
+  } else if (parsed.action === "remove") {
+    // Or you could set is_approved = false, or delete the product
+    const { error } = await supabaseAdmin
+      .from("products")
+      .delete()
+      .eq("id", id);
+    if (error) throw new Error(`Removal failed: ${error.message}`);
+    return { id, removed: true };
+  }
+  
+  return { id, status: "unchanged" };
 }
 
 export async function upsertZone(input: unknown) {
@@ -58,4 +80,10 @@ export async function upsertZone(input: unknown) {
     if (error) throw new Error(`Failed to create zone: ${error.message}`);
     return data;
   }
+}
+
+export async function listZones() {
+  const { data, error } = await supabase.from("delivery_zones").select("*");
+  if (error) throw new Error(`Failed to fetch zones: ${error.message}`);
+  return data;
 }

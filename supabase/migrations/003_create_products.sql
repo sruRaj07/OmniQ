@@ -1,7 +1,7 @@
 -- OmniQ Supabase - products schema.
 -- Author: OmniQ Team
 create table if not exists public.products (
-  id uuid primary key default gen_random_uuid(),
+  id text primary key,
   seller_id uuid not null references public.sellers(id) on delete cascade,
   title text not null,
   description text,
@@ -11,7 +11,7 @@ create table if not exists public.products (
   category text not null,
   sku text unique,
   stock integer not null default 0 check (stock >= 0),
-  is_active boolean not null default true,
+  is_approved boolean not null default false,
   is_flagged boolean not null default false,
   flag_reason text,
   deleted_at timestamptz,

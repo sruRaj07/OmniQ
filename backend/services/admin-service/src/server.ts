@@ -7,7 +7,7 @@ import dotenv from "dotenv";
 import express from "express";
 import helmet from "helmet";
 import { ok } from "../../../shared/utils/responseFormatter";
-import { analyticsController, dashboardController, moderateProductController, zoneController } from "./controllers/adminController";
+import { analyticsController, dashboardController, moderateProductController, zoneController, listZonesController } from "./controllers/adminController";
 
 dotenv.config();
 const app = express();
@@ -20,6 +20,7 @@ app.get("/admin/dashboard", dashboardController);
 app.get("/admin/analytics", analyticsController);
 app.get("/admin/flagged-products", (_request, response) => response.json(ok([])));
 app.patch("/admin/products/:id/moderate", moderateProductController);
+app.get("/admin/zones", listZonesController);
 app.post("/admin/zones", zoneController);
 app.get("/admin/audit-log", (_request, response) => response.json(ok([])));
 app.listen(port, () => console.log(`OmniQ admin service running on ${port}`));

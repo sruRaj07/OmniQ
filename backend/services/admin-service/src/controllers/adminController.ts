@@ -4,7 +4,7 @@
  */
 import type { Request, Response } from "express";
 import { fail, ok } from "../../../../shared/utils/responseFormatter";
-import { getAnalytics, getDashboard, moderateProduct, upsertZone } from "../services/adminService";
+import { getAnalytics, getDashboard, moderateProduct, upsertZone, listZones } from "../services/adminService";
 
 export function dashboardController(_request: Request, response: Response): void {
   response.json(ok(getDashboard()));
@@ -28,5 +28,14 @@ export async function zoneController(request: Request, response: Response): Prom
     response.status(201).json(ok(zone));
   } catch (error: any) {
     response.status(400).json(fail("ZONE_VALIDATION_FAILED", error.message));
+  }
+}
+
+export async function listZonesController(_request: Request, response: Response): Promise<void> {
+  try {
+    const zones = await listZones();
+    response.json(ok(zones));
+  } catch (error: any) {
+    response.status(500).json(fail("FETCH_ZONES_FAILED", error.message));
   }
 }

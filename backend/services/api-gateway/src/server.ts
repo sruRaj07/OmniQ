@@ -31,17 +31,26 @@ app.get("/health", (_request, response) => {
   response.json(ok({ service: "api-gateway", status: "ok", uptime: process.uptime(), version: "1.0.0" }));
 });
 
-app.get("/products", productListLimiter, createProxyMiddleware({ target: process.env.PRODUCT_SERVICE_URL ?? "http://localhost:4001", changeOrigin: true }));
-app.use("/products", authMiddleware, createProxyMiddleware({ target: process.env.PRODUCT_SERVICE_URL ?? "http://localhost:4001", changeOrigin: true }));
-app.post("/orders", authMiddleware, orderLimiter, createProxyMiddleware({ target: process.env.ORDER_SERVICE_URL ?? "http://localhost:4002", changeOrigin: true }));
-app.use("/orders", authMiddleware, createProxyMiddleware({ target: process.env.ORDER_SERVICE_URL ?? "http://localhost:4002", changeOrigin: true }));
-app.use("/sellers", authMiddleware, createProxyMiddleware({ target: process.env.SELLER_SERVICE_URL ?? "http://localhost:4003", changeOrigin: true }));
-app.use("/users", authMiddleware, createProxyMiddleware({ target: process.env.USER_SERVICE_URL ?? "http://localhost:4004", changeOrigin: true }));
-app.post("/location/zone-check", authMiddleware, zoneCheckLimiter, createProxyMiddleware({ target: process.env.LOCATION_SERVICE_URL ?? "http://localhost:4005", changeOrigin: true }));
-app.use("/location", authMiddleware, createProxyMiddleware({ target: process.env.LOCATION_SERVICE_URL ?? "http://localhost:4005", changeOrigin: true }));
-app.use("/admin", authMiddleware, adminLimiter, createProxyMiddleware({ target: process.env.ADMIN_SERVICE_URL ?? "http://localhost:4006", changeOrigin: true }));
-app.use("/cart", authMiddleware, createProxyMiddleware({ target: process.env.ORDER_SERVICE_URL ?? "http://localhost:4002", changeOrigin: true }));
-app.use("/auth", createProxyMiddleware({ target: process.env.USER_SERVICE_URL ?? "http://localhost:4004", changeOrigin: true }));
+const proxyConfig = (target: string) => ({
+  target,
+  changeOrigin: true
+});
+
+app.get("/products*", productListLimiter, createProxyMiddleware(proxyConfig(process.env.PRODUCT_SERVICE_URL ?? "http://localhost:4001")));
+app.all("/products*", authMiddleware, createProxyMiddleware(proxyConfig(process.env.PRODUCT_SERVICE_URL ?? "http://localhost:4001")));
+
+app.post("/orders*", authMiddleware, orderLimiter, createProxyMiddleware(proxyConfig(process.env.ORDER_SERVICE_URL ?? "http://localhost:4002")));
+app.all("/orders*", authMiddleware, createProxyMiddleware(proxyConfig(process.env.ORDER_SERVICE_URL ?? "http://localhost:4002")));
+
+app.all("/sellers*", authMiddleware, createProxyMiddleware(proxyConfig(process.env.SELLER_SERVICE_URL ?? "http://localhost:4003")));
+app.all("/users*", authMiddleware, createProxyMiddleware(proxyConfig(process.env.USER_SERVICE_URL ?? "http://localhost:4004")));
+
+app.post("/location/zone-check", authMiddleware, zoneCheckLimiter, createProxyMiddleware(proxyConfig(process.env.LOCATION_SERVICE_URL ?? "http://localhost:4005")));
+app.all("/location*", authMiddleware, createProxyMiddleware(proxyConfig(process.env.LOCATION_SERVICE_URL ?? "http://localhost:4005")));
+
+app.all("/admin*", authMiddleware, adminLimiter, createProxyMiddleware(proxyConfig(process.env.ADMIN_SERVICE_URL ?? "http://localhost:4006")));
+app.all("/cart*", authMiddleware, createProxyMiddleware(proxyConfig(process.env.ORDER_SERVICE_URL ?? "http://localhost:4002")));
+app.all("/auth*", createProxyMiddleware(proxyConfig(process.env.USER_SERVICE_URL ?? "http://localhost:4004")));
 
 app.listen(port, () => {
   console.log(`OmniQ API gateway running on ${port}`);

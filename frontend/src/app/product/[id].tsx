@@ -3,21 +3,61 @@
  * Author: OmniQ Team
  */
 import { Link, useLocalSearchParams } from "expo-router";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View, Image, ActivityIndicator } from "react-native";
+import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Screen } from "@/components/shared/Screen";
 import { colors } from "@/constants/colors";
-import { products } from "@/lib/demoData";
 import { useCartStore } from "@/store/cartStore";
 import { formatCurrency } from "@/utils/formatCurrency";
+import { apiClient } from "@/lib/apiClient";
+import type { Product } from "@/types/product.types";
 
 export default function ProductDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const product = products.find((item) => item.id === id) ?? products[0];
+  const [product, setProduct] = useState<Product | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  
   const addItem = useCartStore((state) => state.addItem);
-  const discount = product.comparePrice ? Math.round(((product.comparePrice - product.price) / product.comparePrice) * 100) : 0;
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchProduct = async () => {
+      try {
+        const response = await apiClient.get(`/products/${id}`);
+        if (isMounted && response.data?.data) {
+          setProduct(response.data.data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch product detail:", error);
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    };
+    fetchProduct();
+    return () => { isMounted = false; };
+  }, [id]);
+
+  if (isLoading) {
+    return (
+      <Screen>
+        <ActivityIndicator size="large" color={colors.accent} style={{ marginTop: 100 }} />
+      </Screen>
+    );
+  }
+
+  if (!product) {
+    return (
+      <Screen>
+        <Text style={{ color: colors.textPrimary, textAlign: "center", marginTop: 100 }}>Product not found</Text>
+      </Screen>
+    );
+  }
+
+  const discount = product.compare_price ? Math.round(((product.compare_price - product.price) / product.compare_price) * 100) : 0;
+  const imageUrl = product.images && product.images.length > 0 ? product.images[0] : null;
   return (
     <Screen>
       <View style={styles.top}>
@@ -25,7 +65,11 @@ export default function ProductDetailScreen() {
         <Text style={styles.iconButton}>♥</Text>
       </View>
       <View style={styles.imagePanel}>
-        <Text style={styles.image}>{product.image}</Text>
+        {imageUrl ? (
+          <Image source={{ uri: imageUrl }} style={styles.productImage} resizeMode="contain" />
+        ) : (
+          <Text style={styles.image}>📦</Text>
+        )}
       </View>
       <View style={styles.dots}>
         <View style={styles.dotActive} />
@@ -37,21 +81,21 @@ export default function ProductDetailScreen() {
         <Badge label="Bestseller" />
         <Badge label="Fast Delivery" />
       </View>
-      <Text style={styles.title}>{product.title} — Limited Edition</Text>
+      <Text style={styles.title}>{product.title}</Text>
       <View style={styles.rating}>
-        <Text style={styles.ratingText}>★★★★★  {product.rating}</Text>
-        <Text style={styles.meta}>{product.reviews} reviews</Text>
-        <Text style={styles.meta}>1.2K sold</Text>
+        <Text style={styles.ratingText}>★★★★★  {product.rating || 5.0}</Text>
+        <Text style={styles.meta}>{product.reviews || 0} reviews</Text>
+        <Text style={styles.meta}>{(product.stock_quantity || 1200) > 1000 ? "1.2K sold" : `${product.stock_quantity || 0} left`}</Text>
       </View>
       <View style={styles.priceRow}>
         <Text style={styles.price}>{formatCurrency(product.price)}</Text>
-        {product.comparePrice ? <Text style={styles.compare}>{formatCurrency(product.comparePrice)}</Text> : null}
+        {product.compare_price ? <Text style={styles.compare}>{formatCurrency(product.compare_price)}</Text> : null}
         {discount > 0 ? <Text style={styles.discount}>↓ {discount}% off</Text> : null}
       </View>
       <Card style={styles.seller}>
-        <Text style={styles.sellerAvatar}>{product.seller.charAt(0)}</Text>
+        <Text style={styles.sellerAvatar}>{(product.seller || 'O').charAt(0)}</Text>
         <View style={styles.sellerInfo}>
-          <Text style={styles.sellerName}>{product.seller}</Text>
+          <Text style={styles.sellerName}>{product.seller || 'OmniQ Partner'}</Text>
           <Text style={styles.sellerMeta}>✓ Verified Seller · 4.9 ★</Text>
         </View>
         <Text style={styles.chevron}>›</Text>
@@ -96,10 +140,14 @@ const styles = StyleSheet.create({
   imagePanel: {
     height: 360,
     borderRadius: 24,
-    backgroundColor: "#2C1B70",
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
     alignItems: "center",
     justifyContent: "center",
     marginHorizontal: -24
+  },
+  productImage: {
+    width: "80%",
+    height: "80%"
   },
   image: {
     fontSize: 110

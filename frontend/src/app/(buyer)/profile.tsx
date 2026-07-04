@@ -3,8 +3,8 @@
  * Author: OmniQ Team
  */
 import { useState, useEffect } from "react";
-import { Link } from "expo-router";
-import { StyleSheet, Text, View, Alert } from "react-native";
+import { Link, useRouter } from "expo-router";
+import { StyleSheet, Text, View, Alert, ActivityIndicator } from "react-native";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -14,10 +14,15 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { BottomNavBar } from "@/components/ui/BottomNavBar";
+import { HomeIcon } from "@/components/ui/HomeIcon";
+import { ShoppingCartIcon } from "@/components/ui/ShoppingCartIcon";
+import { BoxIcon } from "@/components/ui/BoxIcon";
+import { UserIcon } from "@/components/ui/UserIcon";
 import { LocationGate } from "@/components/shared/LocationGate";
 import { Screen } from "@/components/shared/Screen";
 import { colors } from "@/constants/colors";
 import { useAuthStore } from "@/store/authStore";
+import { useSellerStatus } from "@/hooks/useSellerStatus";
 import { supabase } from "@/lib/supabase";
 import { apiClient } from "@/lib/apiClient";
 
@@ -33,7 +38,9 @@ type ProfileFormData = z.infer<typeof profileSchema>;
 export default function ProfileScreen() {
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
+  const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
+  const { sellerProfile, isLoading: isSellerLoading } = useSellerStatus();
 
   // Fetch the user's profile from the backend
   const { data: profileResponse, isLoading } = useQuery({
@@ -100,6 +107,19 @@ export default function ProfileScreen() {
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
+  };
+
+  const handleOpenSellerPortal = () => {
+    if (isSellerLoading) return;
+    if (!sellerProfile) {
+      router.push("/(seller)/apply" as any);
+    } else if (sellerProfile.status === "pending") {
+      router.push("/(seller)/pending" as any);
+    } else if (sellerProfile.status === "approved" || sellerProfile.status === "active") {
+      router.push("/(seller)/dashboard" as any);
+    } else {
+      Alert.alert("Account Status", `Your seller account is ${sellerProfile.status}.`);
+    }
   };
 
   return (
@@ -212,11 +232,15 @@ export default function ProfileScreen() {
           </View>
         )}
 
-        <LocationGate />
+        <LocationGate pincode={profile?.pincode} city={profile?.address} />
         
-        <Link href={"/(seller)/dashboard" as any} asChild>
-          <Button style={styles.actionButton}>Open Seller Portal</Button>
-        </Link>
+        <Button 
+          onPress={handleOpenSellerPortal} 
+          style={styles.actionButton}
+          disabled={isSellerLoading}
+        >
+          {isSellerLoading ? "Loading..." : "Open Seller Portal"}
+        </Button>
         <Button variant="danger" onPress={handleSignOut} style={styles.actionButton}>
           Sign Out
         </Button>
@@ -224,11 +248,10 @@ export default function ProfileScreen() {
 
       <BottomNavBar
         items={[
-          { href: "/(buyer)" as any, icon: "🏠", label: "Home" },
-          { href: "/(buyer)/explore" as any, icon: "🔎", label: "Explore" },
-          { href: "/(buyer)/cart" as any, icon: "🛒", label: "Cart" },
-          { href: "/(buyer)/orders" as any, icon: "📦", label: "Orders" },
-          { href: "/(buyer)/profile" as any, icon: "👤", label: "Profile" }
+          { href: "/(buyer)" as any, icon: HomeIcon, label: "" },
+          { href: "/(buyer)/cart" as any, icon: ShoppingCartIcon, label: "" },
+          { href: "/(buyer)/orders" as any, icon: BoxIcon, label: "" },
+          { href: "/(buyer)/profile" as any, icon: UserIcon, label: "" }
         ]}
       />
     </>

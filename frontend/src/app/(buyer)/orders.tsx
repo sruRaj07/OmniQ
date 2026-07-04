@@ -1,39 +1,87 @@
-/**
- * OmniQ mobile app - buyer order history.
- * Author: OmniQ Team
- */
-import { StyleSheet, Text } from "react-native";
+import { StyleSheet, Text, View, Image, ActivityIndicator } from "react-native";
 import { Card } from "@/components/ui/Card";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { BottomNavBar } from "@/components/ui/BottomNavBar";
+import { HomeIcon } from "@/components/ui/HomeIcon";
+import { ShoppingCartIcon } from "@/components/ui/ShoppingCartIcon";
+import { BoxIcon } from "@/components/ui/BoxIcon";
+import { UserIcon } from "@/components/ui/UserIcon";
 import { Screen } from "@/components/shared/Screen";
 import { colors } from "@/constants/colors";
 import { useOrders } from "@/hooks/useOrders";
 import { formatCurrency } from "@/utils/formatCurrency";
+import { Link } from "expo-router";
 
 export default function BuyerOrdersScreen() {
-  const { buyerOrders } = useOrders();
+  const { buyerOrders, isLoading } = useOrders();
+  
   return (
     <>
       <Screen>
         <Text style={styles.title}>Orders</Text>
-        {buyerOrders.map((order) => (
-          <Card key={order.id} style={styles.card}>
-            <Text style={styles.id}>{order.id}</Text>
-            <Text style={styles.name}>{order.productTitle}</Text>
-            <Text style={styles.meta}>{order.seller} · {order.createdAt}</Text>
-            <Text style={styles.amount}>{formatCurrency(order.amount)}</Text>
-            <StatusBadge status={order.status} />
-          </Card>
-        ))}
+        {isLoading ? (
+          <ActivityIndicator size="large" color={colors.accent} style={{ marginTop: 40 }} />
+        ) : buyerOrders?.length === 0 ? (
+          <Text style={{ color: colors.textSecondary, textAlign: 'center', marginTop: 40 }}>No orders found.</Text>
+        ) : (
+          buyerOrders.map((order: any) => {
+            const amount = order.total || order.amount || 0;
+            const createdAt = new Date(order.created_at || order.createdAt || Date.now());
+            
+            // Format date like "10th Jun 2026, 08:03 pm"
+            const dateText = createdAt.toLocaleDateString("en-US", { day: 'numeric', month: 'short', year: 'numeric' });
+            const timeText = createdAt.toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit' }).toLowerCase();
+            const placedText = `Placed at ${dateText}, ${timeText}`;
+            
+            const displayId = order.id.length > 8 ? `#OMQ-${order.id.split("-")[0].toUpperCase()}` : order.id;
+
+            return (
+              <Link key={order.id} href={`/order/${order.id}`} asChild>
+                <View style={styles.card}>
+                  <View style={styles.cardHeader}>
+                    <View>
+                      <View style={styles.statusRow}>
+                        <Text style={styles.statusText}>Order {order.status}</Text>
+                        <StatusBadge status={order.status} />
+                      </View>
+                      <Text style={styles.meta}>{placedText}</Text>
+                    </View>
+                    <Text style={styles.amount}>{formatCurrency(amount)}</Text>
+                  </View>
+
+                  <View style={styles.imagesRow}>
+                    {order.order_items?.map((item: any, index: number) => {
+                      if (index >= 5) return null; // Show max 5 images
+                      const product = item.product;
+                      const imageUrl = product?.images?.[0] || `https://picsum.photos/seed/${product?.id || item.product_id}/100`;
+                      return (
+                        <View key={item.id || index} style={styles.imageContainer}>
+                          <Image source={{ uri: imageUrl }} style={styles.image} resizeMode="cover" />
+                        </View>
+                      );
+                    })}
+                    {order.order_items?.length > 5 && (
+                      <View style={styles.moreItemsContainer}>
+                        <Text style={styles.moreItemsText}>+{order.order_items.length - 5}</Text>
+                      </View>
+                    )}
+                  </View>
+                  
+                  <View style={styles.actionRow}>
+                    <Text style={styles.viewDetailsText}>View Details</Text>
+                  </View>
+                </View>
+              </Link>
+            );
+          })
+        )}
       </Screen>
       <BottomNavBar
         items={[
-          { href: "/(buyer)", icon: "🏠", label: "Home" },
-          { href: "/(buyer)/explore", icon: "🔎", label: "Explore" },
-          { href: "/(buyer)/cart", icon: "🛒", label: "Cart" },
-          { href: "/(buyer)/orders", icon: "📦", label: "Orders" },
-          { href: "/(buyer)/profile", icon: "👤", label: "Profile" }
+          { href: "/(buyer)", icon: HomeIcon, label: "" },
+          { href: "/(buyer)/cart", icon: ShoppingCartIcon, label: "" },
+          { href: "/(buyer)/orders", icon: BoxIcon, label: "" },
+          { href: "/(buyer)/profile", icon: UserIcon, label: "" }
         ]}
       />
     </>
@@ -48,25 +96,85 @@ const styles = StyleSheet.create({
     marginBottom: 18
   },
   card: {
-    padding: 18,
-    marginBottom: 14,
-    gap: 7
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 3,
   },
-  id: {
+  cardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 16
+  },
+  statusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 4
+  },
+  statusText: {
+    color: colors.textPrimary,
+    fontSize: 16,
+    fontWeight: "800",
+    textTransform: "capitalize"
+  },
+  meta: {
     color: colors.textSecondary,
-    fontWeight: "900"
+    fontSize: 12
   },
-  name: {
+  amount: {
     color: colors.textPrimary,
     fontSize: 18,
     fontWeight: "900"
   },
-  meta: {
-    color: colors.textMuted
+  imagesRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 16
   },
-  amount: {
-    color: colors.goldLight,
-    fontSize: 20,
-    fontWeight: "900"
+  imageContainer: {
+    width: 52,
+    height: 52,
+    borderRadius: 8,
+    backgroundColor: colors.bgSecondary,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: colors.border
+  },
+  image: {
+    width: "100%",
+    height: "100%"
+  },
+  moreItemsContainer: {
+    width: 52,
+    height: 52,
+    borderRadius: 8,
+    backgroundColor: colors.bgSecondary,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: colors.border
+  },
+  moreItemsText: {
+    color: colors.textSecondary,
+    fontWeight: "700",
+    fontSize: 14
+  },
+  actionRow: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: 12,
+    alignItems: "center"
+  },
+  viewDetailsText: {
+    color: colors.accentLight,
+    fontWeight: "700",
+    fontSize: 14
   }
 });

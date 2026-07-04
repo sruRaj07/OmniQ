@@ -45,19 +45,14 @@ export default function SignUpScreen() {
     try {
       const res = await apiClient.post("/auth/signup", data);
       
-      if (res.data?.data?.requires_2fa) {
-        // Redirect to OTP verification screen
+      if (res.data?.data?.session) {
+        Alert.alert("Success", "Account created successfully! Please sign in to continue.");
         router.replace({ 
-          pathname: "/(auth)/verify-otp", 
-          params: { email: res.data.data.email, role: data.role } 
+          pathname: "/(auth)/sign-in", 
+          params: { role: data.role } 
         } as any);
-      } else if (res.data?.data?.session) {
-        await supabase.auth.setSession({
-          access_token: res.data.data.session.access_token,
-          refresh_token: res.data.data.session.refresh_token,
-        });
-        Alert.alert("Success", "Account created successfully!");
-        router.replace("/(buyer)" as any);
+      } else {
+        throw new Error("Invalid response from server");
       }
       
     } catch (err: any) {

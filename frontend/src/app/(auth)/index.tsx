@@ -41,15 +41,6 @@ export default function OnboardingScreen() {
             </Card>
           </TouchableOpacity>
 
-          <TouchableOpacity activeOpacity={0.8} onPress={() => handleRoleSelect("admin")}>
-            <Card style={styles.card}>
-              <Text style={styles.cardIcon}>🛡️</Text>
-              <View style={styles.cardContent}>
-                <Text style={styles.cardTitle}>I'm an Admin</Text>
-                <Text style={styles.cardDesc}>Oversee the platform, manage users, and handle support.</Text>
-              </View>
-            </Card>
-          </TouchableOpacity>
         </View>
       </View>
     </Screen>

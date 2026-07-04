@@ -18,22 +18,22 @@ export function generateAndStoreOtp(email: string, session: any): string {
   return otp;
 }
 
-export function verifyAndRetrieveSession(email: string, enteredOtp: string): any | null {
+export function verifyAndRetrieveSession(email: string, enteredOtp: string): { valid: boolean; session: any | null } {
   const record = otpStore.get(email);
-  if (!record) return null;
+  if (!record) return { valid: false, session: null };
 
   if (Date.now() > record.expiresAt) {
     otpStore.delete(email);
-    return null; // Expired
+    return { valid: false, session: null }; // Expired
   }
 
   if (record.otp !== enteredOtp) {
-    return null; // Invalid OTP
+    return { valid: false, session: null }; // Invalid OTP
   }
 
   // OTP is valid! Return session and delete the record so it can't be reused
   otpStore.delete(email);
-  return record.session;
+  return { valid: true, session: record.session };
 }
 
 import nodemailer from "nodemailer";

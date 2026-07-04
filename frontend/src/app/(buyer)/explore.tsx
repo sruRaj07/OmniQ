@@ -11,16 +11,22 @@ import { colors } from "@/constants/colors";
 import { useProducts } from "@/hooks/useProducts";
 
 export default function ExploreScreen() {
-  const { products } = useProducts();
+  const { products, isLoading } = useProducts();
   return (
     <>
       <Screen>
         <Text style={styles.title}>Explore</Text>
         <Input placeholder="Search products, brands, sellers..." />
         <View style={styles.grid}>
-          {products.map((product) => (
-            <ProductCard key={product.id} product={product} />
-          ))}
+          {isLoading ? (
+            <Text style={{ color: colors.textMuted, marginVertical: 20 }}>Loading products...</Text>
+          ) : products.length === 0 ? (
+            <Text style={{ color: colors.textMuted, marginVertical: 20 }}>No products found.</Text>
+          ) : (
+            products.map((product) => (
+              <ProductCard key={product.id} product={product} />
+            ))
+          )}
         </View>
       </Screen>
       <BottomNavBar

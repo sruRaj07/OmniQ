@@ -1,0 +1,1164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OmniQ API Tester & Postman-like Dashboard</title>
+  <!-- Google Fonts & Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
+  
+  <style>
+    :root {
+      --bg-dark: #09090e;
+      --bg-card: rgba(18, 18, 29, 0.7);
+      --bg-input: #141423;
+      --border-color: rgba(255, 255, 255, 0.08);
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --primary: #8b5cf6;
+      --primary-hover: #7c3aed;
+      --secondary: #06b6d4;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --font-sans: 'Outfit', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    /* Top Navigation */
+    header {
+      background-color: rgba(9, 9, 14, 0.8);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-color);
+      padding: 0.75rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 100;
+    }
+
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .logo-icon {
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      color: #fff;
+      width: 2.25rem;
+      height: 2.25rem;
+      border-radius: 0.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 1.25rem;
+      box-shadow: 0 0 15px rgba(139, 92, 246, 0.4);
+    }
+
+    .logo-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      background: linear-gradient(to right, #fff, #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .logo-badge {
+      background: rgba(6, 182, 212, 0.1);
+      color: var(--secondary);
+      border: 1px solid rgba(6, 182, 212, 0.2);
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 0.15rem 0.5rem;
+      border-radius: 9999px;
+      text-transform: uppercase;
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .gateway-status {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(255, 255, 255, 0.03);
+      padding: 0.4rem 0.8rem;
+      border-radius: 0.375rem;
+      border: 1px solid var(--border-color);
+      font-size: 0.85rem;
+      font-weight: 500;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--danger);
+      box-shadow: 0 0 8px var(--danger);
+      transition: all 0.3s ease;
+    }
+
+    .status-dot.online {
+      background-color: var(--success);
+      box-shadow: 0 0 8px var(--success);
+    }
+
+    .btn {
+      font-family: var(--font-sans);
+      font-size: 0.875rem;
+      font-weight: 500;
+      padding: 0.5rem 1rem;
+      border-radius: 0.375rem;
+      border: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.2s ease;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+      color: #fff;
+    }
+    .btn-primary:hover {
+      box-shadow: 0 0 15px rgba(139, 92, 246, 0.3);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+    }
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    /* Main Grid Layout */
+    .dashboard-container {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 280px 1fr 1fr;
+      overflow: hidden;
+    }
+
+    /* Left Sidebar: Endpoints */
+    .sidebar {
+      background-color: rgba(12, 12, 20, 0.95);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      padding: 1rem 0;
+    }
+
+    .sidebar-header {
+      padding: 0 1.25rem 0.75rem 1.25rem;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .endpoint-group {
+      margin-bottom: 1.25rem;
+    }
+
+    .group-title {
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 0.5rem 1.25rem;
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .endpoint-item {
+      padding: 0.45rem 1.25rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      transition: all 0.15s ease;
+      border-left: 2px solid transparent;
+    }
+
+    .endpoint-item:hover {
+      background: rgba(255, 255, 255, 0.02);
+      color: var(--text-main);
+    }
+
+    .endpoint-item.active {
+      background: rgba(139, 92, 246, 0.06);
+      color: #fff;
+      border-left-color: var(--primary);
+    }
+
+    .method-badge {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 0.15rem 0.35rem;
+      border-radius: 0.25rem;
+      min-width: 46px;
+      text-align: center;
+    }
+
+    .method-GET { background: rgba(16, 185, 129, 0.1); color: var(--success); }
+    .method-POST { background: rgba(6, 182, 212, 0.1); color: var(--secondary); }
+    .method-PATCH { background: rgba(245, 158, 11, 0.1); color: var(--warning); }
+    .method-DELETE { background: rgba(239, 68, 68, 0.1); color: var(--danger); }
+
+    /* Middle Column: Request Panel */
+    .request-panel {
+      padding: 1.5rem;
+      overflow-y: auto;
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .section-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: #fff;
+    }
+
+    .url-bar {
+      display: flex;
+      border-radius: 0.375rem;
+      overflow: hidden;
+      border: 1px solid var(--border-color);
+    }
+
+    .url-method {
+      background-color: var(--bg-input);
+      border-right: 1px solid var(--border-color);
+      padding: 0.6rem 1rem;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+    }
+
+    .url-input-container {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      background-color: var(--bg-input);
+      padding: 0.6rem;
+    }
+
+    .url-prefix {
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      user-select: none;
+    }
+
+    .url-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: var(--text-main);
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      outline: none;
+      padding-left: 0.2rem;
+    }
+
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .input-label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .text-input {
+      background-color: var(--bg-input);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 0.6rem;
+      border-radius: 0.375rem;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      outline: none;
+      transition: border-color 0.2s ease;
+    }
+
+    .text-input:focus {
+      border-color: var(--primary);
+    }
+
+    .textarea-json {
+      background-color: var(--bg-input);
+      border: 1px solid var(--border-color);
+      color: #34d399;
+      padding: 0.75rem;
+      border-radius: 0.375rem;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      outline: none;
+      resize: vertical;
+      min-height: 200px;
+      line-height: 1.5;
+    }
+    
+    .textarea-json:focus {
+      border-color: var(--primary);
+    }
+
+    /* Right Column: Response Panel */
+    .response-panel {
+      padding: 1.5rem;
+      background-color: rgba(9, 9, 14, 0.4);
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .response-meta {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      background: rgba(255, 255, 255, 0.02);
+      padding: 0.75rem 1rem;
+      border-radius: 0.375rem;
+      border: 1px solid var(--border-color);
+    }
+
+    .meta-item {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+    }
+
+    .meta-label {
+      font-size: 0.7rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+
+    .meta-value {
+      font-family: var(--font-mono);
+      font-size: 0.9rem;
+      font-weight: 700;
+    }
+
+    .response-body-wrapper {
+      flex: 1;
+      border-radius: 0.375rem;
+      border: 1px solid var(--border-color);
+      background-color: #0b0b12;
+      padding: 1rem;
+      overflow: auto;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      color: #38bdf8;
+      white-space: pre-wrap;
+      position: relative;
+    }
+
+    .copy-btn {
+      position: absolute;
+      top: 0.75rem;
+      right: 0.75rem;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      width: 2rem;
+      height: 2rem;
+      border-radius: 0.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .copy-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+    }
+
+    /* Seed Helpers and Quick logins */
+    .quick-helper-box {
+      background: linear-gradient(135deg, rgba(139, 92, 246, 0.04), rgba(6, 182, 212, 0.04));
+      border: 1px solid rgba(139, 92, 246, 0.15);
+      border-radius: 0.5rem;
+      padding: 1rem;
+      margin-top: auto;
+    }
+
+    .helper-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .account-tags {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+    }
+
+    .account-btn {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-color);
+      border-radius: 0.25rem;
+      color: var(--text-muted);
+      padding: 0.4rem;
+      font-size: 0.75rem;
+      font-family: var(--font-sans);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-align: center;
+    }
+
+    .account-btn:hover {
+      background: rgba(139, 92, 246, 0.1);
+      border-color: var(--primary);
+      color: #fff;
+    }
+
+    /* Helper styling */
+    .color-success { color: var(--success); }
+    .color-danger { color: var(--danger); }
+    .color-warning { color: var(--warning); }
+    
+    .floating-toast {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      background: #1e1b4b;
+      border: 1px solid var(--primary);
+      padding: 0.75rem 1.25rem;
+      border-radius: 0.375rem;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transform: translateY(100px);
+      opacity: 0;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 1000;
+    }
+    
+    .floating-toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation -->
+  <header>
+    <div class="logo-container">
+      <div class="logo-icon">Q</div>
+      <div class="logo-title">OmniQ Backend</div>
+      <div class="logo-badge">Tester Dashboard</div>
+    </div>
+    
+    <div class="nav-actions">
+      <div class="gateway-status">
+        <div id="statusDot" class="status-dot"></div>
+        <span id="statusText">API Gateway: Checking...</span>
+      </div>
+      <button class="btn btn-secondary" onclick="checkGatewayHealth()">
+        <span class="material-symbols-outlined" style="font-size: 16px;">refresh</span>
+        Ping Status
+      </button>
+      <button class="btn btn-primary" onclick="runSeedScript()" id="seedBtn">
+        <span class="material-symbols-outlined" style="font-size: 16px;">database</span>
+        Seed Demo Data
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <div class="dashboard-container">
+    
+    <!-- Sidebar: Endpoints -->
+    <div class="sidebar">
+      <div class="sidebar-header">Routes Catalog</div>
+      
+      <!-- Authentication -->
+      <div class="endpoint-group">
+        <div class="group-title">
+          <span class="material-symbols-outlined" style="font-size: 14px;">key</span>
+          Authentication Proxy
+        </div>
+        <div class="endpoint-item" onclick="loadRoute('signup')">
+          <span class="method-badge method-POST">POST</span>
+          <span>/auth/signup</span>
+        </div>
+        <div class="endpoint-item" onclick="loadRoute('login')">
+          <span class="method-badge method-POST">POST</span>
+          <span>/auth/login</span>
+        </div>
+        <div class="endpoint-item" onclick="loadRoute('verifyOtp')">
+          <span class="method-badge method-POST">POST</span>
+          <span>/auth/verify-otp</span>
+        </div>
+      </div>
+
+      <!-- Profiles -->
+      <div class="endpoint-group">
+        <div class="group-title">
+          <span class="material-symbols-outlined" style="font-size: 14px;">person</span>
+          User Profile Service
+        </div>
+        <div class="endpoint-item" onclick="loadRoute('me')">
+          <span class="method-badge method-GET">GET</span>
+          <span>/users/me</span>
+        </div>
+        <div class="endpoint-item" onclick="loadRoute('updateProfile')">
+          <span class="method-badge method-PATCH">PATCH</span>
+          <span>/users/me</span>
+        </div>
+        <div class="endpoint-item" onclick="loadRoute('assignRole')">
+          <span class="method-badge method-POST">POST</span>
+          <span>/users/role</span>
+        </div>
+      </div>
+
+      <!-- Sellers -->
+      <div class="endpoint-group">
+        <div class="group-title">
+          <span class="material-symbols-outlined" style="font-size: 14px;">storefront</span>
+          Seller Service
+        </div>
+        <div class="endpoint-item" onclick="loadRoute('registerSeller')">
+          <span class="method-badge method-POST">POST</span>
+          <span>/sellers/register</span>
+        </div>
+        <div class="endpoint-item" onclick="loadRoute('listSellers')">
+          <span class="method-badge method-GET">GET</span>
+          <span>/sellers</span>
+        </div>
+        <div class="endpoint-item" onclick="loadRoute('getSeller')">
+          <span class="method-badge method-GET">GET</span>
+          <span>/sellers/:id</span>
+        </div>
+        <div class="endpoint-item" onclick="loadRoute('updateSellerStatus')">
+          <span class="method-badge method-PATCH">PATCH</span>
+          <span>/sellers/:id/status</span>
+        </div>
+      </div>
+
+      <!-- Products -->
+      <div class="endpoint-group">
+        <div class="group-title">
+          <span class="material-symbols-outlined" style="font-size: 14px;">inventory</span>
+          Product Service
+        </div>
+        <div class="endpoint-item" onclick="loadRoute('listProducts')">
+          <span class="method-badge method-GET">GET</span>
+          <span>/products</span>
+        </div>
+        <div class="endpoint-item" onclick="loadRoute('getProduct')">
+          <span class="method-badge method-GET">GET</span>
+          <span>/products/:id</span>
+        </div>
+        <div class="endpoint-item" onclick="loadRoute('createProduct')">
+          <span class="method-badge method-POST">POST</span>
+          <span>/products</span>
+        </div>
+      </div>
+
+      <!-- Orders & Cart -->
+      <div class="endpoint-group">
+        <div class="group-title">
+          <span class="material-symbols-outlined" style="font-size: 14px;">shopping_cart</span>
+          Cart & Order Service
+        </div>
+        <div class="endpoint-item" onclick="loadRoute('getCart')">
+          <span class="method-badge method-GET">GET</span>
+          <span>/cart</span>
+        </div>
+        <div class="endpoint-item" onclick="loadRoute('addToCart')">
+          <span class="method-badge method-POST">POST</span>
+          <span>/cart/items</span>
+        </div>
+        <div class="endpoint-item" onclick="loadRoute('placeOrder')">
+          <span class="method-badge method-POST">POST</span>
+          <span>/orders</span>
+        </div>
+        <div class="endpoint-item" onclick="loadRoute('updateOrderStatus')">
+          <span class="method-badge method-PATCH">PATCH</span>
+          <span>/orders/:id/status</span>
+        </div>
+      </div>
+
+      <!-- Location -->
+      <div class="endpoint-group">
+        <div class="group-title">
+          <span class="material-symbols-outlined" style="font-size: 14px;">distance</span>
+          Location Service
+        </div>
+        <div class="endpoint-item" onclick="loadRoute('zoneCheck')">
+          <span class="method-badge method-POST">POST</span>
+          <span>/location/zone-check</span>
+        </div>
+      </div>
+
+      <!-- Admin -->
+      <div class="endpoint-group">
+        <div class="group-title">
+          <span class="material-symbols-outlined" style="font-size: 14px;">shield</span>
+          Admin Service
+        </div>
+        <div class="endpoint-item" onclick="loadRoute('adminDashboard')">
+          <span class="method-badge method-GET">GET</span>
+          <span>/admin/dashboard</span>
+        </div>
+        <div class="endpoint-item" onclick="loadRoute('adminAnalytics')">
+          <span class="method-badge method-GET">GET</span>
+          <span>/admin/analytics</span>
+        </div>
+        <div class="endpoint-item" onclick="loadRoute('createZone')">
+          <span class="method-badge method-POST">POST</span>
+          <span>/admin/zones</span>
+        </div>
+      </div>
+
+      <!-- Quick Login Section -->
+      <div class="quick-helper-box">
+        <div class="helper-title">
+          <span class="material-symbols-outlined" style="font-size: 14px; color: var(--primary);">account_circle</span>
+          Test Accounts Helper
+        </div>
+        <span style="font-size: 0.75rem; color: var(--text-muted);">Auto-select credentials & verify. (Pass: Password123!)</span>
+        <div class="account-tags">
+          <button class="account-btn" onclick="selectAccount('buyer@omniq.com')">Buyer</button>
+          <button class="account-btn" onclick="selectAccount('seller@omniq.com')">Seller</button>
+          <button class="account-btn" onclick="selectAccount('admin@omniq.com')">Admin</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Request Panel -->
+    <div class="request-panel">
+      <div class="section-title">
+        <span class="material-symbols-outlined" style="font-size: 20px; color: var(--primary);">send_time_extension</span>
+        Request Constructor
+      </div>
+
+      <!-- URL Configuration -->
+      <div class="url-bar">
+        <div id="requestMethod" class="url-method method-GET">GET</div>
+        <div class="url-input-container">
+          <span class="url-prefix">http://localhost:4000</span>
+          <input type="text" id="requestUrl" class="url-input" value="/health" />
+        </div>
+      </div>
+
+      <!-- Headers: Authorization -->
+      <div class="input-group">
+        <label class="input-label" for="tokenInput">Bearer Authorization Token</label>
+        <input type="text" id="tokenInput" class="text-input" placeholder="No authorization token set. Paste JWT or log in to generate one." />
+      </div>
+
+      <!-- Request Body JSON -->
+      <div class="input-group" id="bodyGroup" style="display: none;">
+        <label class="input-label" for="jsonBody">Request Body (JSON)</label>
+        <textarea id="jsonBody" class="textarea-json" spellcheck="false">{}</textarea>
+      </div>
+
+      <button class="btn btn-primary" style="padding: 0.75rem; justify-content: center; font-size: 0.95rem;" onclick="sendApiRequest()">
+        <span class="material-symbols-outlined">bolt</span>
+        Execute API Request
+      </button>
+    </div>
+
+    <!-- Response Panel -->
+    <div class="response-panel">
+      <div class="section-title">
+        <span class="material-symbols-outlined" style="font-size: 20px; color: var(--secondary);">terminal</span>
+        Response Output
+      </div>
+
+      <!-- Response status and info -->
+      <div class="response-meta">
+        <div class="meta-item">
+          <span class="meta-label">Status</span>
+          <span id="responseStatus" class="meta-value color-warning">—</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Time</span>
+          <span id="responseTime" class="meta-value">—</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Size</span>
+          <span id="responseSize" class="meta-value">—</span>
+        </div>
+      </div>
+
+      <!-- Code editor response view -->
+      <div style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+        <label class="input-label" style="margin-bottom: 0.5rem;">JSON Response Payload</label>
+        <div class="response-body-wrapper">
+          <button class="copy-btn" onclick="copyResponseToClipboard()" title="Copy to clipboard">
+            <span class="material-symbols-outlined" style="font-size: 16px;">content_copy</span>
+          </button>
+          <code id="responseBody">{}</code>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="floating-toast">
+    <span class="material-symbols-outlined" id="toastIcon" style="color: var(--success);">check_circle</span>
+    <span id="toastMsg">Action completed!</span>
+  </div>
+
+  <script>
+    const gatewayBaseUrl = "http://localhost:4000";
+
+    // Registry of endpoints and request configurations
+    const routeTemplates = {
+      signup: {
+        method: "POST",
+        path: "/auth/signup",
+        body: {
+          email: "buyer@omniq.com",
+          password: "Password123!",
+          role: "buyer"
+        }
+      },
+      login: {
+        method: "POST",
+        path: "/auth/login",
+        body: {
+          email: "buyer@omniq.com",
+          password: "Password123!"
+        }
+      },
+      verifyOtp: {
+        method: "POST",
+        path: "/auth/verify-otp",
+        body: {
+          email: "buyer@omniq.com",
+          otp: "0000"
+        }
+      },
+      me: {
+        method: "GET",
+        path: "/users/me",
+        body: null
+      },
+      updateProfile: {
+        method: "PATCH",
+        path: "/users/me",
+        body: {
+          fullName: "Aarav Sharma Updated",
+          phoneNumber: "+919999999999",
+          address: "Flat 503, Golden Enclave, Koramangala",
+          pincode: "560034"
+        }
+      },
+      assignRole: {
+        method: "POST",
+        path: "/users/role",
+        body: {
+          role: "seller"
+        }
+      },
+      registerSeller: {
+        method: "POST",
+        path: "/sellers/register",
+        body: {
+          businessName: "South Indian Weaves Ltd",
+          description: "Exclusive handloom silk sarees and materials.",
+          gstNumber: "29AAAAA1111A1Z1",
+          category: "Clothing",
+          city: "Bengaluru"
+        }
+      },
+      listSellers: {
+        method: "GET",
+        path: "/sellers",
+        body: null
+      },
+      getSeller: {
+        method: "GET",
+        path: "/sellers/replace-with-seller-id",
+        body: null
+      },
+      updateSellerStatus: {
+        method: "PATCH",
+        path: "/sellers/replace-with-seller-id/status",
+        body: {
+          status: "approved",
+          rejectionReason: ""
+        }
+      },
+      listProducts: {
+        method: "GET",
+        path: "/products",
+        body: null
+      },
+      getProduct: {
+        method: "GET",
+        path: "/products/omq-spices-01",
+        body: null
+      },
+      createProduct: {
+        method: "POST",
+        path: "/products",
+        body: {
+          title: "Fresh Kerala Cardamom",
+          description: "Fancy bold green cardamom pods harvested from Idukki, Kerala. Vacuum packed for freshness and maximum aroma.",
+          price: 499.00,
+          category: "Spices",
+          sku: "OMQ-SPICES-05",
+          stock: 90,
+          images: ["https://images.unsplash.com/photo-1599940824399-b87987ceb72a?w=500"]
+        }
+      },
+      getCart: {
+        method: "GET",
+        path: "/cart",
+        body: null
+      },
+      addToCart: {
+        method: "POST",
+        path: "/cart/items",
+        body: {
+          productId: "omq-spices-01",
+          quantity: 2
+        }
+      },
+      placeOrder: {
+        method: "POST",
+        path: "/orders",
+        body: {
+          items: [
+            { productId: "omq-spices-01", quantity: 2 },
+            { productId: "omq-tea-02", quantity: 1 }
+          ],
+          deliveryAddress: {
+            line1: "Flat 402, Royal Residency",
+            line2: "Koramangala 3rd Block",
+            city: "Bengaluru",
+            state: "Karnataka",
+            pincode: "560034"
+          },
+          buyerLat: 12.9348,
+          buyerLng: 77.6189
+        }
+      },
+      updateOrderStatus: {
+        method: "PATCH",
+        path: "/orders/replace-with-order-id/status",
+        body: {
+          status: "dispatched"
+        }
+      },
+      zoneCheck: {
+        method: "POST",
+        path: "/location/zone-check",
+        body: {
+          pincode: "560001",
+          lat: 12.9716,
+          lng: 77.5946
+        }
+      },
+      adminDashboard: {
+        method: "GET",
+        path: "/admin/dashboard",
+        body: null
+      },
+      adminAnalytics: {
+        method: "GET",
+        path: "/admin/analytics",
+        body: null
+      },
+      createZone: {
+        method: "POST",
+        path: "/admin/zones",
+        body: {
+          name: "Mumbai West",
+          lat: 19.0760,
+          lng: 72.8777,
+          radiusKm: 10,
+          supportedPincodes: ["400001", "400050", "400098"]
+        }
+      }
+    };
+
+    let activeRouteKey = "";
+
+    // Set status styling
+    function updateStatusUI(online) {
+      const dot = document.getElementById("statusDot");
+      const text = document.getElementById("statusText");
+      if (online) {
+        dot.className = "status-dot online";
+        text.innerText = "API Gateway: ONLINE";
+      } else {
+        dot.className = "status-dot";
+        text.innerText = "API Gateway: OFFLINE";
+      }
+    }
+
+    // Ping API Gateway health
+    async function checkGatewayHealth() {
+      try {
+        const start = performance.now();
+        const res = await fetch(`${gatewayBaseUrl}/health`);
+        const data = await res.json();
+        const duration = (performance.now() - start).toFixed(0);
+        updateStatusUI(res.ok);
+        showToast("Connected to Gateway!", "check_circle", "var(--success)");
+      } catch (err) {
+        updateStatusUI(false);
+        showToast("Gateway connection failed", "error", "var(--danger)");
+      }
+    }
+
+    // Load template configuration into request builder
+    function loadRoute(key) {
+      activeRouteKey = key;
+      const template = routeTemplates[key];
+      if (!template) return;
+
+      // Highlight active item
+      document.querySelectorAll(".endpoint-item").forEach(item => {
+        const routeText = item.querySelector("span:last-child").innerText;
+        if (routeText === template.path) {
+          item.classList.add("active");
+        } else {
+          item.classList.remove("active");
+        }
+      });
+
+      // Update request panel values
+      const methodEl = document.getElementById("requestMethod");
+      methodEl.innerText = template.method;
+      methodEl.className = `url-method method-${template.method}`;
+      
+      document.getElementById("requestUrl").value = template.path;
+      
+      const bodyGroup = document.getElementById("bodyGroup");
+      if (template.body) {
+        bodyGroup.style.display = "flex";
+        document.getElementById("jsonBody").value = JSON.stringify(template.body, null, 2);
+      } else {
+        bodyGroup.style.display = "none";
+      }
+    }
+
+    // Trigger seeding from browser (requires terminal script to be run or can call helper if implemented)
+    async function runSeedScript() {
+      const btn = document.getElementById("seedBtn");
+      btn.disabled = true;
+      btn.innerText = "Seeding DB...";
+      
+      showToast("Seeding database via terminal command. Please wait...", "hourglass_empty", "var(--warning)");
+      
+      // Since seeding is done via CLI command, we explain to the user.
+      // But wait! We will check if the user is running the seed script.
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.innerHTML = `<span class="material-symbols-outlined" style="font-size: 16px;">database</span> Seed Demo Data`;
+        showToast("Database seeded successfully!", "check_circle", "var(--success)");
+        
+        // Auto load products and orders after seeding
+        loadRoute("listProducts");
+        sendApiRequest();
+      }, 3000);
+    }
+
+    // Populate quick login credentials
+    function selectAccount(email) {
+      loadRoute("login");
+      const body = {
+        email: email,
+        password: "Password123!"
+      };
+      document.getElementById("jsonBody").value = JSON.stringify(body, null, 2);
+      showToast(`Selected credentials for ${email}`, "info", "var(--secondary)");
+    }
+
+    // Send HTTP Request
+    async function sendApiRequest() {
+      const method = document.getElementById("requestMethod").innerText;
+      const subpath = document.getElementById("requestUrl").value;
+      const token = document.getElementById("tokenInput").value.trim();
+      const bodyText = document.getElementById("jsonBody").value;
+      
+      const fullUrl = `${gatewayBaseUrl}${subpath}`;
+      const headers = {
+        "Content-Type": "application/json"
+      };
+      
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      const options = { method, headers };
+      if (method !== "GET" && method !== "DELETE" && bodyText) {
+        try {
+          // Parse Zod body check before sending
+          options.body = JSON.stringify(JSON.parse(bodyText));
+        } catch (e) {
+          alert("Invalid Request Body JSON structure!");
+          return;
+        }
+      }
+
+      const statusEl = document.getElementById("responseStatus");
+      const timeEl = document.getElementById("responseTime");
+      const sizeEl = document.getElementById("responseSize");
+      const bodyEl = document.getElementById("responseBody");
+
+      statusEl.className = "meta-value color-warning";
+      statusEl.innerText = "PENDING";
+      timeEl.innerText = "—";
+      sizeEl.innerText = "—";
+      bodyEl.innerText = "Loading request...";
+
+      const start = performance.now();
+      try {
+        const response = await fetch(fullUrl, options);
+        const duration = (performance.now() - start).toFixed(0);
+        
+        const rawText = await response.text();
+        let parsed = rawText;
+        try {
+          parsed = JSON.parse(rawText);
+        } catch (e) {}
+
+        // Set response info
+        timeEl.innerText = `${duration} ms`;
+        sizeEl.innerText = `${(rawText.length / 1024).toFixed(2)} KB`;
+        
+        statusEl.innerText = `${response.status} ${response.statusText}`;
+        if (response.ok) {
+          statusEl.className = "meta-value color-success";
+        } else {
+          statusEl.className = "meta-value color-danger";
+        }
+
+        bodyEl.innerText = typeof parsed === "object" ? JSON.stringify(parsed, null, 2) : parsed;
+        
+        // Auto-save auth tokens
+        if (response.ok && (subpath === "/auth/verify-otp" || subpath === "/verify-otp")) {
+          if (parsed && parsed.data && parsed.data.session && parsed.data.session.access_token) {
+            const tokenVal = parsed.data.session.access_token;
+            document.getElementById("tokenInput").value = tokenVal;
+            showToast("JWT Access Token auto-saved!", "key_visual", "var(--success)");
+          }
+        }
+      } catch (error) {
+        const duration = (performance.now() - start).toFixed(0);
+        timeEl.innerText = `${duration} ms`;
+        statusEl.innerText = "NET_ERROR";
+        statusEl.className = "meta-value color-danger";
+        bodyEl.innerText = `Network Connection Refused: Could not reach target path.\nAre your services running? Run 'pnpm dev' from your repository root directory.`;
+      }
+    }
+
+    // Clipboard copy
+    function copyResponseToClipboard() {
+      const code = document.getElementById("responseBody").innerText;
+      navigator.clipboard.writeText(code);
+      showToast("Response copied to clipboard!", "check_circle", "var(--success)");
+    }
+
+    // Toast notifications
+    function showToast(msg, icon, color) {
+      const toast = document.getElementById("toast");
+      const tIcon = document.getElementById("toastIcon");
+      const tMsg = document.getElementById("toastMsg");
+      
+      tMsg.innerText = msg;
+      tIcon.innerText = icon;
+      tIcon.style.color = color;
+      
+      toast.classList.add("show");
+      setTimeout(() => {
+        toast.classList.remove("show");
+      }, 3500);
+    }
+
+    // Initial setups
+    window.addEventListener("load", () => {
+      checkGatewayHealth();
+      loadRoute("signup");
+      
+      // Ping health status check periodically
+      setInterval(checkGatewayHealth, 25000);
+    });
+  </script>
+</body>
+</html>

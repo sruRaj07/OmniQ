@@ -8,34 +8,65 @@ import { BottomNavBar } from "@/components/ui/BottomNavBar";
 import { Card } from "@/components/ui/Card";
 import { Screen } from "@/components/shared/Screen";
 import { colors } from "@/constants/colors";
-import { useProducts } from "@/hooks/useProducts";
+import { useSellerProducts } from "@/hooks/useProducts";
 import { formatCurrency } from "@/utils/formatCurrency";
+import { Image, ActivityIndicator } from "react-native";
+import { HomeIcon } from "@/components/ui/HomeIcon";
+import { ListIcon } from "@/components/ui/ListIcon";
+import { BoxIcon } from "@/components/ui/BoxIcon";
+import { UserIcon } from "@/components/ui/UserIcon";
 
 export default function SellerProductsScreen() {
-  const { products } = useProducts();
+  const { products, isLoading } = useSellerProducts();
+
+  const getStatusBadge = (product: any) => {
+    if (product.is_approved) {
+      return <View style={[styles.badge, { backgroundColor: colors.success }]}><Text style={styles.badgeText}>APPROVED</Text></View>;
+    }
+    if (product.is_flagged) {
+      return <View style={[styles.badge, { backgroundColor: colors.danger }]}><Text style={styles.badgeText}>REJECTED</Text></View>;
+    }
+    return <View style={[styles.badge, { backgroundColor: colors.warning }]}><Text style={styles.badgeText}>PENDING</Text></View>;
+  };
+
   return (
     <>
       <Screen>
         <Text style={styles.title}>Products</Text>
         <ProductForm />
         <Text style={styles.section}>Live Inventory</Text>
-        {products.map((product) => (
-          <Card key={product.id} style={styles.product}>
-            <Text style={styles.image}>{product.image}</Text>
-            <View style={styles.info}>
-              <Text style={styles.name}>{product.title}</Text>
-              <Text style={styles.meta}>{product.category} · SKU {product.id.toUpperCase()}</Text>
-            </View>
-            <Text style={styles.price}>{formatCurrency(product.price)}</Text>
-          </Card>
-        ))}
+        {isLoading ? (
+          <View style={{ flex: 1, justifyContent: "center", alignItems: "center", paddingVertical: 20 }}>
+            <ActivityIndicator size="large" color={colors.primary} />
+          </View>
+        ) : products.length === 0 ? (
+          <Text style={{ color: colors.textSecondary, textAlign: "center", paddingVertical: 20 }}>No products listed yet.</Text>
+        ) : (
+          products.map((product) => (
+            <Card key={product.id} style={styles.product}>
+              {product.images && product.images.length > 0 ? (
+                <Image source={{ uri: product.images[0] }} style={styles.image} />
+              ) : (
+                <View style={[styles.image, styles.imagePlaceholder]}>
+                  <Text style={{ color: colors.textMuted }}>No img</Text>
+                </View>
+              )}
+              <View style={styles.info}>
+                <Text style={styles.name} numberOfLines={1}>{product.title}</Text>
+                <Text style={styles.meta}>{product.category} · SKU {product.id.toUpperCase()}</Text>
+                {getStatusBadge(product)}
+              </View>
+              <Text style={styles.price}>{formatCurrency(product.price)}</Text>
+            </Card>
+          ))
+        )}
       </Screen>
       <BottomNavBar
         items={[
-          { href: "/(seller)/dashboard", icon: "🏠", label: "Home" },
-          { href: "/(seller)/products", icon: "🏷", label: "Products" },
-          { href: "/(seller)/orders", icon: "📦", label: "Orders" },
-          { href: "/(seller)/profile", icon: "👤", label: "Profile" }
+          { href: "/(seller)/dashboard" as any, icon: HomeIcon, label: "" },
+          { href: "/(seller)/products" as any, icon: ListIcon, label: "" },
+          { href: "/(seller)/seller-orders" as any, icon: BoxIcon, label: "" },
+          { href: "/(seller)/seller-profile" as any, icon: UserIcon, label: "" }
         ]}
       />
     </>
@@ -64,10 +95,20 @@ const styles = StyleSheet.create({
     gap: 14
   },
   image: {
-    fontSize: 34
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    backgroundColor: colors.surface
+  },
+  imagePlaceholder: {
+    justifyContent: "center",
+    alignItems: "center",
+    borderColor: colors.border,
+    borderWidth: 1
   },
   info: {
-    flex: 1
+    flex: 1,
+    gap: 4
   },
   name: {
     color: colors.textPrimary,
@@ -76,11 +117,23 @@ const styles = StyleSheet.create({
   },
   meta: {
     color: colors.textMuted,
-    marginTop: 4
+    fontSize: 12
   },
   price: {
     color: colors.goldLight,
     fontWeight: "900",
     fontSize: 18
+  },
+  badge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+    marginTop: 2
+  },
+  badgeText: {
+    color: "#fff",
+    fontSize: 9,
+    fontWeight: "900"
   }
 });

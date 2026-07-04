@@ -16,16 +16,49 @@ export const orderCreateSchema = z.object({
 export async function placeOrder(buyerId: string, input: unknown) {
   const parsed = orderCreateSchema.parse(input);
   
-  // Calculate mock totals since we don't have product prices in this payload
-  const subtotal = parsed.items.length * 1999;
+  // 1. Fetch details for the products
+  const productIds = parsed.items.map(item => item.productId);
+  const { data: products, error: productsError } = await supabase
+    .from("products")
+    .select("id, price, seller_id, stock")
+    .in("id", productIds);
+
+  if (productsError) throw new Error(`Failed to verify products: ${productsError.message}`);
+  if (!products || products.length === 0) throw new Error("No valid products found for the order.");
+
+  // 2. Validate stock, calculate prices, and build order items
+  let subtotal = 0;
+  const resolvedItems: any[] = [];
+  const sellerId = products[0].seller_id; // Order is placed with the seller of the first product
+
+  for (const item of parsed.items) {
+    const product = products.find(p => p.id === item.productId);
+    if (!product) throw new Error(`Product ${item.productId} not found.`);
+    if (product.stock < item.quantity) {
+      throw new Error(`Insufficient stock for product ${product.id}. Available: ${product.stock}, Requested: ${item.quantity}`);
+    }
+    
+    const itemSubtotal = Number(product.price) * item.quantity;
+    subtotal += itemSubtotal;
+    
+    resolvedItems.push({
+      product_id: product.id,
+      quantity: item.quantity,
+      unit_price: product.price,
+      subtotal: itemSubtotal,
+      newStock: product.stock - item.quantity
+    });
+  }
+
   const platformFee = 29;
   const total = subtotal + platformFee;
 
-  // 1. Insert into orders table
+  // 3. Insert into orders table (with seller_id)
   const { data: order, error: orderError } = await supabase
     .from("orders")
     .insert({
       buyer_id: buyerId,
+      seller_id: sellerId,
       subtotal,
       platform_fee: platformFee,
       total,
@@ -39,11 +72,13 @@ export async function placeOrder(buyerId: string, input: unknown) {
 
   if (orderError) throw new Error(`Failed to create order: ${orderError.message}`);
 
-  // 2. Insert into order_items table
-  const orderItems = parsed.items.map(item => ({
+  // 4. Insert into order_items table (with unit_price & subtotal)
+  const orderItems = resolvedItems.map(item => ({
     order_id: order.id,
-    product_id: item.productId,
-    quantity: item.quantity
+    product_id: item.product_id,
+    quantity: item.quantity,
+    unit_price: item.unit_price,
+    subtotal: item.subtotal
   }));
 
   const { error: itemsError } = await supabase
@@ -51,8 +86,16 @@ export async function placeOrder(buyerId: string, input: unknown) {
     .insert(orderItems);
 
   if (itemsError) {
-    // Ideally we would rollback the order here or use a database function
+    // Note: In production we would delete the order or use database transactions to rollback
     throw new Error(`Failed to create order items: ${itemsError.message}`);
+  }
+
+  // 5. Decrement stock for purchased products
+  for (const item of resolvedItems) {
+    await supabase
+      .from("products")
+      .update({ stock: item.newStock })
+      .eq("id", item.product_id);
   }
 
   return order;
@@ -69,6 +112,28 @@ export async function updateOrderStatus(orderId: string, status: string) {
   if (error) throw new Error(`Failed to update order status: ${error.message}`);
   
   emitOrderStatusChanged(orderId, status);
+  return data;
+}
+
+export async function listOrders(buyerId: string) {
+  const { data, error } = await supabase
+    .from("orders")
+    .select("*, order_items(*, product:products(*))")
+    .eq("buyer_id", buyerId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw new Error(`Failed to fetch orders: ${error.message}`);
+  return data;
+}
+
+export async function listSellerOrders(sellerId: string) {
+  const { data, error } = await supabase
+    .from("orders")
+    .select("*, order_items(*, product:products(*))")
+    .eq("seller_id", sellerId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw new Error(`Failed to fetch seller orders: ${error.message}`);
   return data;
 }
 

@@ -8,15 +8,17 @@ import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { queryClient } from "@/lib/queryClient";
 
 import { AuthProvider } from "@/components/shared/AuthProvider";
-
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 export default function RootLayout() {
   return (
-    <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <Stack screenOptions={{ headerShown: false }} />
-        </AuthProvider>
-      </QueryClientProvider>
-    </ErrorBoundary>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ErrorBoundary>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <Stack screenOptions={{ headerShown: false }} />
+          </AuthProvider>
+        </QueryClientProvider>
+      </ErrorBoundary>
+    </GestureHandlerRootView>
   );
 }

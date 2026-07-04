@@ -16,3 +16,7 @@ export const sellerStatusSchema = z.object({
   status: z.enum(["pending", "approved", "suspended", "rejected"]),
   rejectionReason: z.string().optional()
 });
+
+export const sellerUpdateProfileSchema = z.object({
+  description: z.string().optional()
+});

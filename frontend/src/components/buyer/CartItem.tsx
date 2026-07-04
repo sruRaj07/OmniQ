@@ -2,7 +2,7 @@
  * OmniQ mobile app - cart item row.
  * Author: OmniQ Team
  */
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View, Image } from "react-native";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { colors } from "@/constants/colors";
@@ -17,12 +17,20 @@ type CartItemProps = {
 };
 
 export function CartItem({ item, onIncrement, onDecrement, onRemove }: CartItemProps) {
+  const imageUrl = item.product.images && item.product.images.length > 0 ? item.product.images[0] : null;
+
   return (
     <Card style={styles.card}>
-      <Text style={styles.image}>{item.product.image}</Text>
+      {imageUrl ? (
+        <View style={styles.imageContainer}>
+          <Image source={{ uri: imageUrl }} style={styles.image} resizeMode="contain" />
+        </View>
+      ) : (
+        <Text style={styles.placeholderImage}>📦</Text>
+      )}
       <View style={styles.info}>
-        <Text style={styles.title}>{item.product.title}</Text>
-        <Text style={styles.meta}>{item.product.seller}{item.size ? ` · Size ${item.size}` : ""}{item.color ? ` · ${item.color}` : ""}</Text>
+        <Text style={styles.title} numberOfLines={1}>{item.product.title}</Text>
+        <Text style={styles.meta}>{item.product.seller || 'OmniQ'}{item.size ? ` · Size ${item.size}` : ""}{item.color ? ` · ${item.color}` : ""}</Text>
         <Text style={styles.price}>{formatCurrency(item.product.price)}</Text>
       </View>
       <View style={styles.qty}>
@@ -43,7 +51,21 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     gap: 14
   },
+  imageContainer: {
+    width: 82,
+    height: 82,
+    borderRadius: 14,
+    backgroundColor: colors.card2,
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 4
+  },
   image: {
+    width: "100%",
+    height: "100%"
+  },
+  placeholderImage: {
     width: 82,
     height: 82,
     borderRadius: 14,

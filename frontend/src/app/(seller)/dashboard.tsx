@@ -1,9 +1,5 @@
-/**
- * OmniQ mobile app - seller dashboard.
- * Author: OmniQ Team
- */
 import { Link } from "expo-router";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View, ActivityIndicator } from "react-native";
 import { KpiCard } from "@/components/seller/KpiCard";
 import { OrderCard } from "@/components/seller/OrderCard";
 import { BottomNavBar } from "@/components/ui/BottomNavBar";
@@ -11,55 +7,149 @@ import { Card } from "@/components/ui/Card";
 import { Screen } from "@/components/shared/Screen";
 import { colors } from "@/constants/colors";
 import { useOrders } from "@/hooks/useOrders";
+import { useSellerProducts } from "@/hooks/useProducts";
+import { HomeIcon } from "@/components/ui/HomeIcon";
+import { ListIcon } from "@/components/ui/ListIcon";
+import { BoxIcon } from "@/components/ui/BoxIcon";
+import { UserIcon } from "@/components/ui/UserIcon";
+import { useQuery } from "@tanstack/react-query";
+import { apiClient } from "@/lib/apiClient";
+import { formatCurrency } from "@/utils/formatCurrency";
 
 export default function SellerDashboardScreen() {
-  const { sellerOrders } = useOrders();
+  const { sellerOrders, isLoading: isOrdersLoading } = useOrders();
+  const { products, isLoading: isProductsLoading } = useSellerProducts();
+
+  const { data: sellerData, isLoading: isSellerLoading } = useQuery({
+    queryKey: ["seller-profile"],
+    queryFn: async () => {
+      const { data } = await apiClient.get("/sellers/me");
+      return data.data;
+    }
+  });
+
+  const isLoading = isOrdersLoading || isProductsLoading || isSellerLoading;
+
+  const displayFullName = sellerData?.business_name || "OmniQ Seller";
+  const initial = displayFullName.charAt(0).toUpperCase();
+
+  // Compute Stats
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  const activeOrders = sellerOrders.filter(o => o.status !== 'cancelled');
+  
+  const todayOrders = activeOrders.filter(o => new Date(o.created_at) >= today);
+  const yesterdayOrders = activeOrders.filter(o => {
+    const d = new Date(o.created_at);
+    return d >= yesterday && d < today;
+  });
+
+  const revenueToday = todayOrders.reduce((sum, o) => sum + Number(o.total_amount), 0);
+  const revenueYesterday = yesterdayOrders.reduce((sum, o) => sum + Number(o.total_amount), 0);
+  
+  let revenueTrend = 0;
+  if (revenueYesterday > 0) {
+    revenueTrend = Math.round(((revenueToday - revenueYesterday) / revenueYesterday) * 100);
+  }
+  
+  const revenueTrendText = (revenueYesterday === 0 && revenueToday === 0) ? "No revenue yet" : 
+                           (revenueYesterday === 0) ? "↑ 100% vs yesterday" :
+                           revenueTrend >= 0 ? `↑ ${revenueTrend}% vs yesterday` : `↓ ${Math.abs(revenueTrend)}% vs yesterday`;
+
+  const newOrdersToday = todayOrders.length;
+  const newOrdersYesterday = yesterdayOrders.length;
+  
+  const ordersTrendText = (newOrdersYesterday === 0 && newOrdersToday === 0) ? "No orders yet" :
+                          newOrdersToday >= newOrdersYesterday ? `↑ ${newOrdersToday - newOrdersYesterday} vs yesterday` : 
+                          `↓ ${newOrdersYesterday - newOrdersToday} vs yesterday`;
+
+  const liveProductsCount = products.filter(p => p.is_approved).length;
+
+  // Chart Data
+  // Get last 7 days including today
+  const last7Days = Array.from({ length: 7 }).map((_, i) => {
+    const d = new Date(today);
+    d.setDate(d.getDate() - (6 - i));
+    return d;
+  });
+
+  const dailyRevenue = last7Days.map(date => {
+    const nextDate = new Date(date);
+    nextDate.setDate(nextDate.getDate() + 1);
+    const dayOrders = activeOrders.filter(o => {
+      const d = new Date(o.created_at);
+      return d >= date && d < nextDate;
+    });
+    return dayOrders.reduce((sum, o) => sum + Number(o.total_amount), 0);
+  });
+
+  // Calculate bar heights, minimum visible height of 4 so empty days still show a tiny tick
+  const maxRevenue = Math.max(...dailyRevenue, 1);
+  const normalizedBars = dailyRevenue.map(rev => Math.max((rev / maxRevenue) * 104, 4));
+  const dayNames = last7Days.map(d => d.toLocaleDateString("en-US", { weekday: "short" }).charAt(0));
+
   return (
     <>
       <Screen>
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.portal}>Seller Portal 🏪</Text>
-            <Text style={styles.title}>SportZone India</Text>
+        {isLoading ? (
+          <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+            <ActivityIndicator size="large" color={colors.primary} />
           </View>
-          <Text style={styles.avatar}>S</Text>
-        </View>
-        <View style={styles.kpiGrid}>
-          <KpiCard label="REVENUE TODAY" value="₹14,280" trend="↑ 12% vs yesterday" tone="gold" />
-          <KpiCard label="NEW ORDERS" value="24" trend="↑ 8 since morning" />
-          <KpiCard label="PRODUCTS LIVE" value="48" trend="↑ 2 added today" tone="success" />
-          <KpiCard label="AVG. RATING" value="4.9 ★" trend="Based on 284 reviews" tone="gold" />
-        </View>
-        <Card style={styles.chart}>
-          <View style={styles.chartHeader}>
-            <Text style={styles.chartTitle}>Weekly Revenue</Text>
-            <Text style={styles.segment}>7D</Text>
-          </View>
-          <View style={styles.bars}>
-            {[50, 72, 46, 82, 60, 92, 68].map((height, index) => (
-              <View key={index} style={[styles.bar, { height }]} />
-            ))}
-          </View>
-          <View style={styles.days}>
-            {["M", "T", "W", "T", "F", "S", "S"].map((day, index) => (
-              <Text key={`${day}-${index}`} style={styles.day}>{day}</Text>
-            ))}
-          </View>
-        </Card>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Recent Orders</Text>
-          <Link href="/(seller)/orders" style={styles.link}>View all</Link>
-        </View>
-        {sellerOrders.map((order) => (
-          <OrderCard key={order.id} order={order} />
-        ))}
+        ) : (
+          <>
+            <View style={styles.header}>
+              <View>
+                <Text style={styles.title}>{displayFullName}</Text>
+              </View>
+              <Text style={styles.avatar}>{initial}</Text>
+            </View>
+            <View style={styles.kpiGrid}>
+              <KpiCard label="REVENUE TODAY" value={formatCurrency(revenueToday)} trend={revenueTrendText} tone="gold" />
+              <KpiCard label="NEW ORDERS" value={newOrdersToday.toString()} trend={ordersTrendText} />
+              <KpiCard label="PRODUCTS LIVE" value={liveProductsCount.toString()} trend="Currently approved" tone="success" />
+              <KpiCard label="AVG. RATING" value="N/A" trend="No reviews yet" tone="gold" />
+            </View>
+            <Card style={styles.chart}>
+              <View style={styles.chartHeader}>
+                <Text style={styles.chartTitle}>Weekly Revenue</Text>
+                <Text style={styles.segment}>7D</Text>
+              </View>
+              <View style={styles.bars}>
+                {normalizedBars.map((height, index) => (
+                  <View key={index} style={[styles.bar, { height }]} />
+                ))}
+              </View>
+              <View style={styles.days}>
+                {dayNames.map((day, index) => (
+                  <Text key={`${day}-${index}`} style={styles.day}>{day}</Text>
+                ))}
+              </View>
+            </Card>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Recent Orders</Text>
+              <Link href="/(seller)/seller-orders" style={styles.link}>View all</Link>
+            </View>
+            
+            {sellerOrders.length === 0 ? (
+              <Text style={{ color: colors.textSecondary, textAlign: "center", paddingVertical: 20 }}>No recent orders.</Text>
+            ) : (
+              sellerOrders.slice(0, 3).map((order) => (
+                <OrderCard key={order.id} order={order} />
+              ))
+            )}
+          </>
+        )}
       </Screen>
       <BottomNavBar
         items={[
-          { href: "/(seller)/dashboard", icon: "🏠", label: "Home" },
-          { href: "/(seller)/products", icon: "🏷", label: "Products" },
-          { href: "/(seller)/orders", icon: "📦", label: "Orders" },
-          { href: "/(seller)/profile", icon: "👤", label: "Profile" }
+          { href: "/(seller)/dashboard" as any, icon: HomeIcon, label: "" },
+          { href: "/(seller)/products" as any, icon: ListIcon, label: "" },
+          { href: "/(seller)/seller-orders" as any, icon: BoxIcon, label: "" },
+          { href: "/(seller)/seller-profile" as any, icon: UserIcon, label: "" }
         ]}
       />
     </>
@@ -71,11 +161,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 22
-  },
-  portal: {
-    color: colors.textSecondary,
-    fontSize: 16
+    marginBottom: 22,
+    marginTop: 10
   },
   title: {
     color: colors.textPrimary,

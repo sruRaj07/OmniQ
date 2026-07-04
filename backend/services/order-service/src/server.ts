@@ -7,7 +7,7 @@ import dotenv from "dotenv";
 import express from "express";
 import helmet from "helmet";
 import { ok } from "../../../shared/utils/responseFormatter";
-import { placeOrderController, updateOrderStatusController, getCartController, addToCartController, removeFromCartController, clearCartController } from "./controllers/orderController";
+import { placeOrderController, updateOrderStatusController, listOrdersController, listSellerOrdersController, getCartController, addToCartController, removeFromCartController, clearCartController } from "./controllers/orderController";
 
 dotenv.config();
 const app = express();
@@ -17,7 +17,8 @@ app.use(cors());
 app.use(express.json());
 app.get("/health", (_request, response) => response.json(ok({ service: "order-service", status: "ok", uptime: process.uptime(), version: "1.0.0" })));
 app.post("/orders", placeOrderController);
-app.get("/orders", (_request, response) => response.json(ok([])));
+app.get("/orders", listOrdersController);
+app.get("/orders/seller", listSellerOrdersController);
 app.patch("/orders/:id/status", updateOrderStatusController);
 app.get("/orders/export", (_request, response) => response.type("text/csv").send("id,status,total\nOMQ-2847,pending,1999\n"));
 
