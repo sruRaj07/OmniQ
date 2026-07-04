@@ -1,7 +1,6 @@
-import { StyleSheet, Text, View, Image, ActivityIndicator } from "react-native";
+import { StyleSheet, Text, View, Image, ActivityIndicator, Pressable } from "react-native";
 import { Card } from "@/components/ui/Card";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { BottomNavBar } from "@/components/ui/BottomNavBar";
 import { HomeIcon } from "@/components/ui/HomeIcon";
 import { ShoppingCartIcon } from "@/components/ui/ShoppingCartIcon";
 import { BoxIcon } from "@/components/ui/BoxIcon";
@@ -17,7 +16,12 @@ export default function BuyerOrdersScreen() {
   
   return (
     <>
-      <Screen>
+      <Screen bottomNavItems={[
+          { href: "/(buyer)", icon: HomeIcon, label: "Home" },
+          { href: "/(buyer)/cart", icon: ShoppingCartIcon, label: "Cart" },
+          { href: "/(buyer)/orders", icon: BoxIcon, label: "Orders" },
+          { href: "/(buyer)/profile", icon: UserIcon, label: "Profile" }
+        ]}>
         <Text style={styles.title}>Orders</Text>
         {isLoading ? (
           <ActivityIndicator size="large" color={colors.accent} style={{ marginTop: 40 }} />
@@ -37,7 +41,7 @@ export default function BuyerOrdersScreen() {
 
             return (
               <Link key={order.id} href={`/order/${order.id}`} asChild>
-                <View style={styles.card}>
+                <Pressable style={styles.card}>
                   <View style={styles.cardHeader}>
                     <View>
                       <View style={styles.statusRow}>
@@ -70,20 +74,13 @@ export default function BuyerOrdersScreen() {
                   <View style={styles.actionRow}>
                     <Text style={styles.viewDetailsText}>View Details</Text>
                   </View>
-                </View>
+                </Pressable>
               </Link>
             );
           })
         )}
       </Screen>
-      <BottomNavBar
-        items={[
-          { href: "/(buyer)", icon: HomeIcon, label: "" },
-          { href: "/(buyer)/cart", icon: ShoppingCartIcon, label: "" },
-          { href: "/(buyer)/orders", icon: BoxIcon, label: "" },
-          { href: "/(buyer)/profile", icon: UserIcon, label: "" }
-        ]}
-      />
+      
     </>
   );
 }

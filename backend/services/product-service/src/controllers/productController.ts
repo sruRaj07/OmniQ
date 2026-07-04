@@ -103,3 +103,22 @@ export async function createProductController(request: Request, response: Respon
     response.status(400).json(fail("PRODUCT_VALIDATION_FAILED", error.message || error.toString()));
   }
 }
+
+export async function getAdvertisementsController(request: Request, response: Response): Promise<void> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("advertisements")
+      .select("*")
+      .eq("is_active", true)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      throw new Error(`Failed to fetch advertisements: ${error.message}`);
+    }
+
+    response.json(ok(data));
+  } catch (error: any) {
+    console.error("FETCH ADVERTISEMENTS ERROR:", error);
+    response.status(500).json(fail("SERVER_ERROR", error.message || error.toString()));
+  }
+}

@@ -4,10 +4,10 @@
  */
 import React from "react";
 import { Link, usePathname, type Href } from "expo-router";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View, Pressable } from "react-native";
 import { colors } from "@/constants/colors";
 
-type NavItem = {
+export type NavItem = {
   href: Href;
   icon: string | React.ComponentType<{ size?: number; color?: string }>;
   label: string;
@@ -31,15 +31,17 @@ export function BottomNavBar({ items }: BottomNavBarProps) {
           pathname === item.href || 
           (targetPath !== '/' && pathname.startsWith(targetPath));
         return (
-          <Link key={item.href as string} href={item.href} style={styles.link}>
-            <View style={styles.iconContainer}>
-              {typeof item.icon === "string" ? (
-                <Text style={styles.icon}>{item.icon}</Text>
-              ) : (
-                <item.icon size={22} color={active ? colors.accentLight : colors.textMuted} />
-              )}
-            </View>
-            {item.label ? <Text style={[styles.label, active && styles.active]}>{item.label}</Text> : null}
+          <Link key={item.href as string} href={item.href} asChild>
+            <Pressable style={styles.navItem}>
+              <View style={styles.iconContainer}>
+                {typeof item.icon === "string" ? (
+                  <Text style={styles.icon}>{item.icon}</Text>
+                ) : (
+                  <item.icon size={26} color={active ? colors.textPrimary : colors.textMuted} />
+                )}
+              </View>
+              {item.label ? <Text style={[styles.label, active && styles.active]}>{item.label}</Text> : null}
+            </Pressable>
           </Link>
         );
       })}
@@ -50,34 +52,36 @@ export function BottomNavBar({ items }: BottomNavBarProps) {
 const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
-    justifyContent: "space-around",
-    paddingVertical: 14,
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 28,
     borderTopColor: colors.border,
     borderTopWidth: 1,
     backgroundColor: colors.bgSecondary
   },
-  link: {
-    minWidth: 58,
-    textAlign: "center",
-    alignItems: "center"
+  navItem: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4
   },
   iconContainer: {
-    height: 26,
     justifyContent: "center",
-    alignItems: "center"
+    alignItems: "center",
+    height: 28
   },
   icon: {
     textAlign: "center",
-    fontSize: 22
+    fontSize: 24
   },
   label: {
     color: colors.textMuted,
-    fontSize: 12,
+    fontSize: 11,
     textAlign: "center",
-    fontWeight: "700",
-    marginTop: 3
+    fontWeight: "800"
   },
   active: {
-    color: colors.accentLight
+    color: colors.textPrimary
   }
 });

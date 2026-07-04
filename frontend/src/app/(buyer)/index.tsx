@@ -4,16 +4,15 @@
  */
 import { StyleSheet, Text, View } from "react-native";
 import { CategoryScroll } from "@/components/buyer/CategoryScroll";
+import { AdvertisementCarousel } from "@/components/buyer/AdvertisementCarousel";
 import { HeroBanner } from "@/components/buyer/HeroBanner";
 import { ProductCard } from "@/components/buyer/ProductCard";
 import { AnimatedCartButton } from "@/components/buyer/AnimatedCartButton";
-import { BottomNavBar } from "@/components/ui/BottomNavBar";
 import { HomeIcon } from "@/components/ui/HomeIcon";
 import { ShoppingCartIcon } from "@/components/ui/ShoppingCartIcon";
 import { BoxIcon } from "@/components/ui/BoxIcon";
 import { UserIcon } from "@/components/ui/UserIcon";
-import { SearchIcon } from "@/components/ui/SearchIcon";
-import { Input } from "@/components/ui/Input";
+import { SearchInput } from "@/components/buyer/SearchInput";
 import { ListIcon } from "@/components/ui/ListIcon";
 import { Screen } from "@/components/shared/Screen";
 import { colors } from "@/constants/colors";
@@ -26,23 +25,20 @@ export default function BuyerHomeScreen() {
 
   return (
     <>
-      <Screen>
+      <Screen bottomNavItems={[
+          { href: "/(buyer)", icon: HomeIcon, label: "Home" },
+          { href: "/(buyer)/cart", icon: ShoppingCartIcon, label: "Cart" },
+          { href: "/(buyer)/orders", icon: BoxIcon, label: "Orders" },
+          { href: "/(buyer)/profile", icon: UserIcon, label: "Profile" }
+        ]}>
         <View style={styles.header}>
           <View>
             <Text style={styles.logo}>Omni<Text style={styles.logoAccent}>Q</Text></Text>
           </View>
           <AnimatedCartButton onPress={() => router.push("/(buyer)/cart")} />
         </View>
-        <Input 
-          placeholder="Search products, brands..." 
-          leftIcon={<SearchIcon size={20} color={colors.textMuted} />} 
-          rightIcon={
-            <View style={styles.filterBtn}>
-              <ListIcon size={14} color={colors.accentLight} />
-              <Text style={styles.filterText}>Filter</Text>
-            </View>
-          }
-        />
+        <SearchInput placeholder="Search Amazon.in" />
+        <AdvertisementCarousel />
         <HeroBanner />
         <CategoryScroll />
         <View style={styles.sectionHeader}>
@@ -55,20 +51,13 @@ export default function BuyerHomeScreen() {
           ) : products.length === 0 ? (
             <Text style={{ color: colors.textMuted, marginVertical: 20 }}>No products found.</Text>
           ) : (
-            products.map((product) => (
-              <ProductCard key={product.id} product={product} />
+            products.map((product, i) => (
+              <ProductCard key={product.id} product={product} index={i} />
             ))
           )}
         </View>
       </Screen>
-      <BottomNavBar
-        items={[
-          { href: "/(buyer)", icon: HomeIcon, label: "" },
-          { href: "/(buyer)/cart", icon: ShoppingCartIcon, label: "" },
-          { href: "/(buyer)/orders", icon: BoxIcon, label: "" },
-          { href: "/(buyer)/profile", icon: UserIcon, label: "" }
-        ]}
-      />
+      
     </>
   );
 }
@@ -118,6 +107,6 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 14
+    justifyContent: "space-between"
   }
 });

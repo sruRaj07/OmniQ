@@ -1,9 +1,8 @@
 import { useState } from "react";
-import { Link } from "expo-router";
+import { Link, useRouter } from "expo-router";
 import { StyleSheet, Text, View, ScrollView, ActivityIndicator, TextInput, TouchableOpacity } from "react-native";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { BottomNavBar } from "@/components/ui/BottomNavBar";
 import { Screen } from "@/components/shared/Screen";
 import { colors } from "@/constants/colors";
 import { useAuthStore } from "@/store/authStore";
@@ -22,8 +21,12 @@ export default function SellerProfileScreen() {
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [editDescriptionValue, setEditDescriptionValue] = useState("");
   
+  const router = useRouter();
+  
   const handleSignOut = async () => {
     await supabase.auth.signOut();
+    useAuthStore.getState().setSession(null);
+    router.replace("/");
   };
 
   const { data: sellerData, isLoading } = useQuery({
@@ -68,7 +71,12 @@ export default function SellerProfileScreen() {
 
   return (
     <>
-      <Screen>
+      <Screen bottomNavItems={[
+          { href: "/(seller)/dashboard" as any, icon: HomeIcon, label: "Home" },
+          { href: "/(seller)/products" as any, icon: ListIcon, label: "Products" },
+          { href: "/(seller)/seller-orders" as any, icon: BoxIcon, label: "Orders" },
+          { href: "/(seller)/seller-profile" as any, icon: UserIcon, label: "Profile" }
+        ]}>
         <Text style={styles.title}>Seller Profile</Text>
         
         {isLoading ? (
@@ -161,14 +169,7 @@ export default function SellerProfileScreen() {
           </ScrollView>
         )}
       </Screen>
-      <BottomNavBar
-        items={[
-          { href: "/(seller)/dashboard" as any, icon: HomeIcon, label: "" },
-          { href: "/(seller)/products" as any, icon: ListIcon, label: "" },
-          { href: "/(seller)/seller-orders" as any, icon: BoxIcon, label: "" },
-          { href: "/(seller)/seller-profile" as any, icon: UserIcon, label: "" }
-        ]}
-      />
+      
     </>
   );
 }

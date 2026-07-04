@@ -13,13 +13,20 @@
       "typedRoutes": true
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "UIStatusBarHidden": true,
+        "UIViewControllerBasedStatusBarAppearance": false
+      }
     },
     "android": {
       "package": "com.omniq.app",
       "adaptiveIcon": {
         "backgroundColor": "#0A0A0F"
       }
+    },
+    "androidStatusBar": {
+      "hidden": true
     },
     "web": {
       "bundler": "metro"

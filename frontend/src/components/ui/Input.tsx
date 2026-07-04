@@ -32,18 +32,19 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     borderColor: colors.border2,
     borderWidth: 1,
-    paddingHorizontal: 22,
+    paddingHorizontal: 16,
   },
   iconContainer: {
-    marginRight: 10,
+    marginRight: 8,
   },
   rightIconContainer: {
-    marginLeft: 10,
+    marginLeft: 8,
   },
   inputWithIcon: {
     flex: 1,
+    minWidth: 0,
     color: colors.textPrimary,
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "600",
   },
   input: {
@@ -53,8 +54,8 @@ const styles = StyleSheet.create({
     borderColor: colors.border2,
     borderWidth: 1,
     color: colors.textPrimary,
-    paddingHorizontal: 22,
-    fontSize: 18,
+    paddingHorizontal: 16,
+    fontSize: 16,
     fontWeight: "600"
   }
 });

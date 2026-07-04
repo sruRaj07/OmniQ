@@ -8,7 +8,6 @@ import { StyleSheet, Text, View, Alert, ActivityIndicator, Modal, Animated } fro
 import { CartItem } from "@/components/buyer/CartItem";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { BottomNavBar } from "@/components/ui/BottomNavBar";
 import { HomeIcon } from "@/components/ui/HomeIcon";
 import { ShoppingCartIcon } from "@/components/ui/ShoppingCartIcon";
 import { BoxIcon } from "@/components/ui/BoxIcon";
@@ -89,7 +88,12 @@ export default function CartScreen() {
 
   return (
     <>
-      <Screen>
+      <Screen bottomNavItems={[
+          { href: "/(buyer)", icon: HomeIcon, label: "Home" },
+          { href: "/(buyer)/cart", icon: ShoppingCartIcon, label: "Cart" },
+          { href: "/(buyer)/orders", icon: BoxIcon, label: "Orders" },
+          { href: "/(buyer)/profile", icon: UserIcon, label: "Profile" }
+        ]}>
         <View style={styles.header}>
           <Link href="/(buyer)" style={styles.back}>←</Link>
           <Text style={styles.title}>My Cart</Text>
@@ -141,14 +145,7 @@ export default function CartScreen() {
         </View>
       </Modal>
 
-      <BottomNavBar
-        items={[
-          { href: "/(buyer)", icon: HomeIcon, label: "" },
-          { href: "/(buyer)/cart", icon: ShoppingCartIcon, label: "" },
-          { href: "/(buyer)/orders", icon: BoxIcon, label: "" },
-          { href: "/(buyer)/profile", icon: UserIcon, label: "" }
-        ]}
-      />
+      
     </>
   );
 }

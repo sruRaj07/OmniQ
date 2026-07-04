@@ -337,7 +337,7 @@ export default function SplashScreen() {
     // ═══════════════════════════════════════
     const checkAuthAndRedirect = async () => {
       const startTime = Date.now();
-      let targetRoute = "/(auth)/sign-in?role=buyer";
+      let targetRoute = "/(auth)";
 
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -359,9 +359,9 @@ export default function SplashScreen() {
         console.error("Auth check failed during splash:", err);
       }
 
-      // Ensure splash is visible for at least 6s so the full animation plays
+      // Ensure splash is visible for at least 4.3s so the full animation plays
       const elapsed = Date.now() - startTime;
-      const remainingTime = Math.max(0, 6000 - elapsed);
+      const remainingTime = Math.max(0, 4300 - elapsed);
 
       setTimeout(() => {
         Animated.timing(masterOpacity, {

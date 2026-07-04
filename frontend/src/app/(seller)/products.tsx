@@ -4,7 +4,6 @@
  */
 import { StyleSheet, Text, View } from "react-native";
 import { ProductForm } from "@/components/seller/ProductForm";
-import { BottomNavBar } from "@/components/ui/BottomNavBar";
 import { Card } from "@/components/ui/Card";
 import { Screen } from "@/components/shared/Screen";
 import { colors } from "@/constants/colors";
@@ -31,7 +30,12 @@ export default function SellerProductsScreen() {
 
   return (
     <>
-      <Screen>
+      <Screen bottomNavItems={[
+          { href: "/(seller)/dashboard" as any, icon: HomeIcon, label: "Home" },
+          { href: "/(seller)/products" as any, icon: ListIcon, label: "Products" },
+          { href: "/(seller)/seller-orders" as any, icon: BoxIcon, label: "Orders" },
+          { href: "/(seller)/seller-profile" as any, icon: UserIcon, label: "Profile" }
+        ]}>
         <Text style={styles.title}>Products</Text>
         <ProductForm />
         <Text style={styles.section}>Live Inventory</Text>
@@ -61,14 +65,7 @@ export default function SellerProductsScreen() {
           ))
         )}
       </Screen>
-      <BottomNavBar
-        items={[
-          { href: "/(seller)/dashboard" as any, icon: HomeIcon, label: "" },
-          { href: "/(seller)/products" as any, icon: ListIcon, label: "" },
-          { href: "/(seller)/seller-orders" as any, icon: BoxIcon, label: "" },
-          { href: "/(seller)/seller-profile" as any, icon: UserIcon, label: "" }
-        ]}
-      />
+      
     </>
   );
 }

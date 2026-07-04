@@ -2,7 +2,6 @@ import { Link } from "expo-router";
 import { StyleSheet, Text, View, ActivityIndicator } from "react-native";
 import { KpiCard } from "@/components/seller/KpiCard";
 import { OrderCard } from "@/components/seller/OrderCard";
-import { BottomNavBar } from "@/components/ui/BottomNavBar";
 import { Card } from "@/components/ui/Card";
 import { Screen } from "@/components/shared/Screen";
 import { colors } from "@/constants/colors";
@@ -94,7 +93,12 @@ export default function SellerDashboardScreen() {
 
   return (
     <>
-      <Screen>
+      <Screen bottomNavItems={[
+          { href: "/(seller)/dashboard" as any, icon: HomeIcon, label: "Home" },
+          { href: "/(seller)/products" as any, icon: ListIcon, label: "Products" },
+          { href: "/(seller)/seller-orders" as any, icon: BoxIcon, label: "Orders" },
+          { href: "/(seller)/seller-profile" as any, icon: UserIcon, label: "Profile" }
+        ]}>
         {isLoading ? (
           <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
             <ActivityIndicator size="large" color={colors.primary} />
@@ -144,14 +148,7 @@ export default function SellerDashboardScreen() {
           </>
         )}
       </Screen>
-      <BottomNavBar
-        items={[
-          { href: "/(seller)/dashboard" as any, icon: HomeIcon, label: "" },
-          { href: "/(seller)/products" as any, icon: ListIcon, label: "" },
-          { href: "/(seller)/seller-orders" as any, icon: BoxIcon, label: "" },
-          { href: "/(seller)/seller-profile" as any, icon: UserIcon, label: "" }
-        ]}
-      />
+      
     </>
   );
 }

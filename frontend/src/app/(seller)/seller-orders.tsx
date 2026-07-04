@@ -4,7 +4,6 @@
  */
 import { StyleSheet, Text, ActivityIndicator, View } from "react-native";
 import { OrderCard } from "@/components/seller/OrderCard";
-import { BottomNavBar } from "@/components/ui/BottomNavBar";
 import { Screen } from "@/components/shared/Screen";
 import { colors } from "@/constants/colors";
 import { useOrders } from "@/hooks/useOrders";
@@ -17,7 +16,12 @@ export default function SellerOrdersScreen() {
   const { sellerOrders, isLoading } = useOrders();
   return (
     <>
-      <Screen>
+      <Screen bottomNavItems={[
+          { href: "/(seller)/dashboard" as any, icon: HomeIcon, label: "Home" },
+          { href: "/(seller)/products" as any, icon: ListIcon, label: "Products" },
+          { href: "/(seller)/seller-orders" as any, icon: BoxIcon, label: "Orders" },
+          { href: "/(seller)/seller-profile" as any, icon: UserIcon, label: "Profile" }
+        ]}>
         <Text style={styles.title}>Incoming Orders</Text>
         {isLoading ? (
           <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
@@ -31,14 +35,7 @@ export default function SellerOrdersScreen() {
           ))
         )}
       </Screen>
-      <BottomNavBar
-        items={[
-          { href: "/(seller)/dashboard" as any, icon: HomeIcon, label: "" },
-          { href: "/(seller)/products" as any, icon: ListIcon, label: "" },
-          { href: "/(seller)/seller-orders" as any, icon: BoxIcon, label: "" },
-          { href: "/(seller)/seller-profile" as any, icon: UserIcon, label: "" }
-        ]}
-      />
+      
     </>
   );
 }

@@ -81,3 +81,9 @@ jobs:
             EXPO_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
             SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
             PORT=${{ matrix.port }}
+            PRODUCT_SERVICE_URL=https://product-service.redbay-317d5a3d.eastus.azurecontainerapps.io
+            ORDER_SERVICE_URL=https://order-service.redbay-317d5a3d.eastus.azurecontainerapps.io
+            LOCATION_SERVICE_URL=https://location-service.redbay-317d5a3d.eastus.azurecontainerapps.io
+            SELLER_SERVICE_URL=https://seller-service.redbay-317d5a3d.eastus.azurecontainerapps.io
+            ADMIN_SERVICE_URL=https://admin-service.redbay-317d5a3d.eastus.azurecontainerapps.io
+            USER_SERVICE_URL=https://user-service.redbay-317d5a3d.eastus.azurecontainerapps.io

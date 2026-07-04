@@ -4,7 +4,6 @@
  */
 import { StyleSheet, Text, View, ActivityIndicator, Alert, TouchableOpacity } from "react-native";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { BottomNavBar } from "@/components/ui/BottomNavBar";
 import { Screen } from "@/components/shared/Screen";
 import { BarIcon } from "@/components/ui/BarIcon";
 import { UsersIcon } from "@/components/ui/UsersIcon";
@@ -67,15 +66,7 @@ export default function AdminModerationScreen() {
           </View>
         )}
       </Screen>
-      <BottomNavBar
-        items={[
-          { href: "/(admin)", icon: BarIcon, label: "" },
-          { href: "/(admin)/sellers", icon: UsersIcon, label: "" },
-          { href: "/(admin)/moderation", icon: FlagIcon, label: "" },
-          { href: "/(admin)/zones", icon: GlobeIcon, label: "" },
-          { href: "/(admin)/orders", icon: BoxIcon, label: "" }
-        ]}
-      />
+      
     </>
   );
 }

@@ -13,7 +13,6 @@ import * as z from "zod";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
-import { BottomNavBar } from "@/components/ui/BottomNavBar";
 import { HomeIcon } from "@/components/ui/HomeIcon";
 import { ShoppingCartIcon } from "@/components/ui/ShoppingCartIcon";
 import { BoxIcon } from "@/components/ui/BoxIcon";
@@ -107,6 +106,8 @@ export default function ProfileScreen() {
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
+    useAuthStore.getState().setSession(null);
+    router.replace("/");
   };
 
   const handleOpenSellerPortal = () => {
@@ -246,14 +247,7 @@ export default function ProfileScreen() {
         </Button>
       </Screen>
 
-      <BottomNavBar
-        items={[
-          { href: "/(buyer)" as any, icon: HomeIcon, label: "" },
-          { href: "/(buyer)/cart" as any, icon: ShoppingCartIcon, label: "" },
-          { href: "/(buyer)/orders" as any, icon: BoxIcon, label: "" },
-          { href: "/(buyer)/profile" as any, icon: UserIcon, label: "" }
-        ]}
-      />
+      
     </>
   );
 }

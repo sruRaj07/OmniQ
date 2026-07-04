@@ -52,7 +52,7 @@ export default function AdminLoginScreen() {
   };
 
   return (
-    <Screen scroll={false}>
+    <Screen scroll={true}>
       <View style={styles.wrap}>
         <View style={styles.shield}><Text style={styles.shieldText}>🛡</Text></View>
         <Text style={styles.title}>Admin Portal</Text>
@@ -77,7 +77,7 @@ export default function AdminLoginScreen() {
             {loading ? "Authenticating..." : "Sign In to Admin Panel"}
           </Button>
         </View>
-        <Link href={"/(auth)/sign-in" as any} style={styles.backLink}>← Back to standard login</Link>
+        <Link href={"/(auth)" as any} style={styles.backLink}>← Back to standard login</Link>
         <Text style={styles.footer}>Protected by OmniQ Security</Text>
       </View>
     </Screen>
@@ -86,8 +86,9 @@ export default function AdminLoginScreen() {
 
 const styles = StyleSheet.create({
   wrap: {
-    flex: 1,
-    justifyContent: "center"
+    paddingTop: 60,
+    paddingHorizontal: 20,
+    paddingBottom: 40,
   },
   shield: {
     alignSelf: "center",

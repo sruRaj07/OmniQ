@@ -4,7 +4,6 @@
  */
 import { StyleSheet, Text, View } from "react-native";
 import { ProductCard } from "@/components/buyer/ProductCard";
-import { BottomNavBar } from "@/components/ui/BottomNavBar";
 import { Input } from "@/components/ui/Input";
 import { Screen } from "@/components/shared/Screen";
 import { colors } from "@/constants/colors";
@@ -14,7 +13,13 @@ export default function ExploreScreen() {
   const { products, isLoading } = useProducts();
   return (
     <>
-      <Screen>
+      <Screen bottomNavItems={[
+          { href: "/(buyer)", icon: "🏠", label: "Home" },
+          { href: "/(buyer)/explore", icon: "🔎", label: "Explore" },
+          { href: "/(buyer)/cart", icon: "🛒", label: "Cart" },
+          { href: "/(buyer)/orders", icon: "📦", label: "Orders" },
+          { href: "/(buyer)/profile", icon: "👤", label: "Profile" }
+        ]}>
         <Text style={styles.title}>Explore</Text>
         <Input placeholder="Search products, brands, sellers..." />
         <View style={styles.grid}>
@@ -29,15 +34,7 @@ export default function ExploreScreen() {
           )}
         </View>
       </Screen>
-      <BottomNavBar
-        items={[
-          { href: "/(buyer)", icon: "🏠", label: "Home" },
-          { href: "/(buyer)/explore", icon: "🔎", label: "Explore" },
-          { href: "/(buyer)/cart", icon: "🛒", label: "Cart" },
-          { href: "/(buyer)/orders", icon: "📦", label: "Orders" },
-          { href: "/(buyer)/profile", icon: "👤", label: "Profile" }
-        ]}
-      />
+      
     </>
   );
 }

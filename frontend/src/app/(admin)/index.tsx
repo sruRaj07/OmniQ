@@ -8,7 +8,6 @@ import { router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/authStore";
-import { BottomNavBar } from "@/components/ui/BottomNavBar";
 import { BarIcon } from "@/components/ui/BarIcon";
 import { UsersIcon } from "@/components/ui/UsersIcon";
 import { FlagIcon } from "@/components/ui/FlagIcon";
@@ -93,16 +92,23 @@ export default function AdminDashboardScreen() {
             </View>
           </View>
         )}
+
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Management</Text>
+        </View>
+
+        <TouchableOpacity 
+          style={styles.actionCard} 
+          onPress={() => router.push("/(admin)/manage-ads")}
+        >
+          <View>
+            <Text style={styles.actionCardTitle}>Manage Advertisements</Text>
+            <Text style={styles.actionCardDesc}>Upload and manage home page promotional banners</Text>
+          </View>
+          <GlobeIcon size={24} color={colors.primary} />
+        </TouchableOpacity>
       </Screen>
-      <BottomNavBar
-        items={[
-          { href: "/(admin)", icon: BarIcon, label: "" },
-          { href: "/(admin)/sellers", icon: UsersIcon, label: "" },
-          { href: "/(admin)/moderation", icon: FlagIcon, label: "" },
-          { href: "/(admin)/zones", icon: GlobeIcon, label: "" },
-          { href: "/(admin)/orders", icon: BoxIcon, label: "" }
-        ]}
-      />
+      
     </>
   );
 }
@@ -165,6 +171,28 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontSize: 28,
     fontWeight: "900"
+  },
+  actionCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 12
+  },
+  actionCardTitle: {
+    color: colors.textPrimary,
+    fontSize: 18,
+    fontWeight: "800",
+    marginBottom: 4
+  },
+  actionCardDesc: {
+    color: colors.textMuted,
+    fontSize: 14,
+    fontWeight: "600"
   },
   dropdownMenu: {
     position: "absolute",
