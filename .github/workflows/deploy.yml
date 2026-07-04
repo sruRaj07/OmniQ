@@ -73,3 +73,8 @@ jobs:
           imageToDeploy: ${{ env.ACR_NAME }}.azurecr.io/${{ matrix.service }}:${{ github.sha }}
           ingress: external
           targetPort: ${{ matrix.port }}
+          environmentVariables: >-
+            EXPO_PUBLIC_SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+            EXPO_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
+            SUPABASE_SERVICE_ROLE_KEY=secretref:supabase-service-role-key
+            PORT=${{ matrix.port }}
