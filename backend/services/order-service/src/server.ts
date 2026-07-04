@@ -27,4 +27,4 @@ app.get("/cart", getCartController);
 app.post("/cart/items", addToCartController);
 app.delete("/cart/items/:productId", removeFromCartController);
 app.delete("/cart", clearCartController);
-app.listen(port, () => console.log(`OmniQ order service running on ${port}`));
+app.listen(port, "0.0.0.0", () => console.log(`OmniQ order service running on ${port}`));

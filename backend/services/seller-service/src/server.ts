@@ -23,4 +23,4 @@ app.get("/sellers", listSellersController);
 app.get("/sellers/:id", getSellerByIdController);
 app.patch("/sellers/:id/status", updateSellerStatusController);
 app.delete("/sellers/:id", (_request, response) => response.json(ok({ deleted: true })));
-app.listen(port, () => console.log(`OmniQ seller service running on ${port}`));
+app.listen(port, "0.0.0.0", () => console.log(`OmniQ seller service running on ${port}`));

@@ -32,4 +32,4 @@ app.post("/login", signInController);
 app.post("/auth/verify-otp", verifyOtpController);
 app.post("/verify-otp", verifyOtpController);
 
-app.listen(port, () => console.log(`OmniQ user service running on ${port}`));
+app.listen(port, "0.0.0.0", () => console.log(`OmniQ user service running on ${port}`));

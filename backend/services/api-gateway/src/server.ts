@@ -52,6 +52,6 @@ app.all("/admin*", authMiddleware, adminLimiter, createProxyMiddleware(proxyConf
 app.all("/cart*", authMiddleware, createProxyMiddleware(proxyConfig(process.env.ORDER_SERVICE_URL ?? "http://localhost:4002")));
 app.all("/auth*", createProxyMiddleware(proxyConfig(process.env.USER_SERVICE_URL ?? "http://localhost:4004")));
 
-app.listen(port, () => {
+app.listen(port, "0.0.0.0", () => {
   console.log(`OmniQ API gateway running on ${port}`);
 });

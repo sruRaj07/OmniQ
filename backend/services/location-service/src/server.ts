@@ -17,4 +17,4 @@ app.use(cors());
 app.use(express.json());
 app.get("/health", (_request, response) => response.json(ok({ service: "location-service", status: "ok", uptime: process.uptime(), version: "1.0.0" })));
 app.post("/location/zone-check", zoneCheckController);
-app.listen(port, () => console.log(`OmniQ location service running on ${port}`));
+app.listen(port, "0.0.0.0", () => console.log(`OmniQ location service running on ${port}`));
