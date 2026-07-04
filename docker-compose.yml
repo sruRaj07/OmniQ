@@ -1,0 +1,85 @@
+version: '3.8'
+
+x-common: &common
+  build:
+    context: .
+    dockerfile: Dockerfile
+  env_file: .env
+
+services:
+  api-gateway:
+    <<: *common
+    build:
+      context: .
+      args:
+        SERVICE_NAME: api-gateway
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+
+  product-service:
+    <<: *common
+    build:
+      context: .
+      args:
+        SERVICE_NAME: product-service
+    ports:
+      - "4001:4001"
+    environment:
+      - PORT=4001
+
+  order-service:
+    <<: *common
+    build:
+      context: .
+      args:
+        SERVICE_NAME: order-service
+    ports:
+      - "4002:4002"
+    environment:
+      - PORT=4002
+
+  seller-service:
+    <<: *common
+    build:
+      context: .
+      args:
+        SERVICE_NAME: seller-service
+    ports:
+      - "4003:4003"
+    environment:
+      - PORT=4003
+
+  user-service:
+    <<: *common
+    build:
+      context: .
+      args:
+        SERVICE_NAME: user-service
+    ports:
+      - "4004:4004"
+    environment:
+      - PORT=4004
+
+  location-service:
+    <<: *common
+    build:
+      context: .
+      args:
+        SERVICE_NAME: location-service
+    ports:
+      - "4005:4005"
+    environment:
+      - PORT=4005
+
+  admin-service:
+    <<: *common
+    build:
+      context: .
+      args:
+        SERVICE_NAME: admin-service
+    ports:
+      - "4006:4006"
+    environment:
+      - PORT=4006
