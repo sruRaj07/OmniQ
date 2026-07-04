@@ -17,6 +17,7 @@ import { authMiddleware } from "./middleware/authMiddleware";
 dotenv.config();
 
 const app = express();
+app.set("trust proxy", 1);
 const port = Number(process.env.PORT ?? 4000);
 const allowedOrigins = [process.env.FRONTEND_URL, process.env.ADMIN_URL].filter((origin): origin is string => Boolean(origin));
 
