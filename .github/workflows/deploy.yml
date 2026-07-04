@@ -67,6 +67,9 @@ jobs:
       - name: Deploy to Azure Container Apps
         uses: azure/container-apps-deploy-action@v1
         with:
+          registryUrl: ${{ env.ACR_NAME }}.azurecr.io
+          registryUsername: ${{ secrets.ACR_USERNAME }}
+          registryPassword: ${{ secrets.ACR_PASSWORD }}
           resourceGroup: ${{ env.RESOURCE_GROUP }}
           containerAppEnvironment: ${{ env.CONTAINER_APP_ENV }}
           containerAppName: ${{ matrix.service }}
