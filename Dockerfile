@@ -5,16 +5,14 @@ WORKDIR /app
 # Enable corepack for pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# Copy workspace configuration and package files
+# Copy workspace configuration
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
-COPY backend/shared/package.json ./backend/shared/
-COPY backend/services/*/package.json ./backend/services/
+
+# Copy all source code (preserves exact directory structure)
+COPY backend/ ./backend/
 
 # Install dependencies
-RUN pnpm install --frozen-lockfile
-
-# Copy the rest of the source code
-COPY backend/ ./backend/
+RUN pnpm config set ignore-scripts true && pnpm install --frozen-lockfile
 
 FROM node:23-slim
 
