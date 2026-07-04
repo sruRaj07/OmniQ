@@ -1,0 +1,12 @@
+node_modules
+npm-debug.log
+.DS_Store
+.git
+.github
+.env
+.env.*
+.vscode
+frontend
+build
+dist
+supabase
