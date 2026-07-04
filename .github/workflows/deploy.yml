@@ -21,14 +21,21 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: 
-          - api-gateway
-          - product-service
-          - admin-service
-          - location-service
-          - order-service
-          - seller-service
-          - user-service
+        include:
+          - service: api-gateway
+            port: 4000
+          - service: product-service
+            port: 4001
+          - service: admin-service
+            port: 4006
+          - service: location-service
+            port: 4005
+          - service: order-service
+            port: 4002
+          - service: seller-service
+            port: 4003
+          - service: user-service
+            port: 4004
     
     steps:
       - name: Checkout code
@@ -61,5 +68,8 @@ jobs:
         uses: azure/container-apps-deploy-action@v1
         with:
           resourceGroup: ${{ env.RESOURCE_GROUP }}
+          containerAppEnvironment: ${{ env.CONTAINER_APP_ENV }}
           containerAppName: ${{ matrix.service }}
           imageToDeploy: ${{ env.ACR_NAME }}.azurecr.io/${{ matrix.service }}:${{ github.sha }}
+          ingress: external
+          targetPort: ${{ matrix.port }}
