@@ -126,15 +126,24 @@ export async function listOrders(buyerId: string) {
   return data;
 }
 
-export async function listSellerOrders(sellerId: string) {
+export async function listSellerOrders(ownerId: string) {
+  const { data: seller, error: sellerError } = await supabase
+    .from("sellers")
+    .select("id")
+    .eq("owner_id", ownerId)
+    .maybeSingle();
+
+  if (sellerError) throw new Error(`Failed to verify seller profile: ${sellerError.message}`);
+  if (!seller) return []; // If no seller profile, they have no orders
+
   const { data, error } = await supabase
     .from("orders")
     .select("*, order_items(*, product:products(*))")
-    .eq("seller_id", sellerId)
+    .eq("seller_id", seller.id)
     .order("created_at", { ascending: false });
 
   if (error) throw new Error(`Failed to fetch seller orders: ${error.message}`);
-  return data;
+  return data || [];
 }
 
 // --- Cart Logic ---

@@ -47,8 +47,8 @@ export default function SellerDashboardScreen() {
     return d >= yesterday && d < today;
   });
 
-  const revenueToday = todayOrders.reduce((sum, o) => sum + Number(o.total_amount), 0);
-  const revenueYesterday = yesterdayOrders.reduce((sum, o) => sum + Number(o.total_amount), 0);
+  const revenueToday = todayOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
+  const revenueYesterday = yesterdayOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
   
   let revenueTrend = 0;
   if (revenueYesterday > 0) {
@@ -83,7 +83,7 @@ export default function SellerDashboardScreen() {
       const d = new Date(o.created_at);
       return d >= date && d < nextDate;
     });
-    return dayOrders.reduce((sum, o) => sum + Number(o.total_amount), 0);
+    return dayOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
   });
 
   // Calculate bar heights, minimum visible height of 4 so empty days still show a tiny tick

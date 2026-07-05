@@ -4,11 +4,12 @@
  */
 import { useState, useEffect } from "react";
 import { Link, useRouter } from "expo-router";
-import { StyleSheet, Text, View, Alert, ActivityIndicator } from "react-native";
+import { StyleSheet, Text, View, Alert, TouchableOpacity, ScrollView, Image } from "react-native";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import Svg, { Path, Circle, Rect, Polyline } from "react-native-svg";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -17,11 +18,13 @@ import { HomeIcon } from "@/components/ui/HomeIcon";
 import { ShoppingCartIcon } from "@/components/ui/ShoppingCartIcon";
 import { BoxIcon } from "@/components/ui/BoxIcon";
 import { UserIcon } from "@/components/ui/UserIcon";
+import { SearchIcon } from "@/components/ui/SearchIcon";
 import { LocationGate } from "@/components/shared/LocationGate";
 import { Screen } from "@/components/shared/Screen";
 import { colors } from "@/constants/colors";
 import { useAuthStore } from "@/store/authStore";
 import { useSellerStatus } from "@/hooks/useSellerStatus";
+import { useOrders } from "@/hooks/useOrders";
 import { supabase } from "@/lib/supabase";
 import { apiClient } from "@/lib/apiClient";
 
@@ -34,12 +37,40 @@ const profileSchema = z.object({
 
 type ProfileFormData = z.infer<typeof profileSchema>;
 
+function BellIcon({ color = colors.textPrimary, size = 24 }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+      <Path d="M13.73 21a2 2 0 0 1-3.46 0" />
+    </Svg>
+  );
+}
+
+function SettingsIcon({ color = colors.textPrimary, size = 24 }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <Circle cx="12" cy="12" r="3" />
+      <Path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </Svg>
+  );
+}
+
+function ChevronDownIcon({ color = colors.textPrimary, size = 20 }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <Polyline points="6 9 12 15 18 9" />
+    </Svg>
+  );
+}
+
 export default function ProfileScreen() {
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
+  
   const { sellerProfile, isLoading: isSellerLoading } = useSellerStatus();
+  const { buyerOrders, isLoading: isLoadingOrders } = useOrders();
 
   // Fetch the user's profile from the backend
   const { data: profileResponse, isLoading } = useQuery({
@@ -55,8 +86,7 @@ export default function ProfileScreen() {
   
   // Fallback to Supabase meta if backend profile isn't fully set up yet
   const displayFullName = profile?.full_name || user?.user_metadata?.full_name || "Buyer";
-  const displayRole = profile?.role || user?.user_metadata?.role || "buyer";
-  const initial = displayFullName.charAt(0).toUpperCase();
+  const displayFirstName = displayFullName.split(' ')[0];
 
   const { control, handleSubmit, reset, formState: { errors } } = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
@@ -82,7 +112,6 @@ export default function ProfileScreen() {
 
   const updateProfileMutation = useMutation({
     mutationFn: async (data: ProfileFormData) => {
-      // 1. Update Profile fields
       await apiClient.patch("/users/me", {
         fullName: data.fullName,
         phoneNumber: data.phoneNumber || undefined,
@@ -124,23 +153,100 @@ export default function ProfileScreen() {
   };
 
   return (
-    <>
-      <Screen scroll={true}>
-        <Text style={styles.title}>Profile</Text>
-        
-        <Card style={styles.card}>
-          <Text style={styles.avatar}>{initial}</Text>
-          <View style={styles.cardInfo}>
-            <Text style={styles.name}>{displayFullName}</Text>
-            <Text style={styles.meta}>{user?.email || "Buyer account"}</Text>
-            {displayRole && <Text style={styles.roleBadge}>{displayRole.toUpperCase()}</Text>}
-          </View>
-        </Card>
+    <Screen 
+      scroll={true}
+      bottomNavItems={[
+        { href: "/(buyer)", icon: HomeIcon, label: "Home" },
+        { href: "/(buyer)/cart", icon: ShoppingCartIcon, label: "Cart" },
+        { href: "/(buyer)/orders", icon: BoxIcon, label: "Orders" },
+        { href: "/(buyer)/profile", icon: UserIcon, label: "Profile" }
+      ]}
+    >
+      {/* Top Header / Greeting */}
+      <View style={styles.header}>
+        <View style={styles.greetingContainer}>
+          <Text style={styles.greetingText}>Hello, {displayFirstName}</Text>
+          <ChevronDownIcon size={18} color={colors.textSecondary} />
+        </View>
+        <View style={styles.headerIcons}>
+          <TouchableOpacity style={styles.iconButton}>
+            <SearchIcon size={24} color={colors.textPrimary} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.iconButton} onPress={() => setIsEditing(true)}>
+            <SettingsIcon size={24} color={colors.textPrimary} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.iconButton}>
+            <BellIcon size={24} color={colors.textPrimary} />
+          </TouchableOpacity>
+        </View>
+      </View>
 
+      {/* Quick Action Pills */}
+      <View style={styles.pillGrid}>
+        <TouchableOpacity style={styles.pill} onPress={() => router.push("/(buyer)/orders")}>
+          <Text style={styles.pillText}>Your Orders</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.pill} onPress={() => {}}>
+          <Text style={styles.pillText}>Buy Again</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.pill} onPress={() => setIsEditing(true)}>
+          <Text style={styles.pillText}>Your Account</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.pill} onPress={handleOpenSellerPortal}>
+          <Text style={styles.pillText}>{isSellerLoading ? 'Loading...' : 'Seller Portal'}</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Your Orders Horizontal Scroll */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Your Orders</Text>
+          <TouchableOpacity onPress={() => router.push("/(buyer)/orders")}>
+            <Text style={styles.seeAll}>See all</Text>
+          </TouchableOpacity>
+        </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
+          {isLoadingOrders ? (
+            <Text style={styles.meta}>Loading orders...</Text>
+          ) : buyerOrders?.length > 0 ? (
+            buyerOrders.slice(0, 5).map((order: any) => {
+              const product = order.order_items?.[0]?.product;
+              const imageUrl = product?.images?.[0] || product?.imageUrl;
+              return (
+                <TouchableOpacity key={order.id} style={styles.orderCard}>
+                  {imageUrl ? (
+                    <Image source={{ uri: imageUrl }} style={styles.orderImage} />
+                  ) : (
+                    <View style={styles.orderImagePlaceholder}>
+                      <BoxIcon color={colors.textMuted} size={40} />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })
+          ) : (
+            <Card style={styles.emptyCard}>
+              <Text style={styles.meta}>No recent orders. Time to shop!</Text>
+            </Card>
+          )}
+        </ScrollView>
+      </View>
+
+      {/* Buy Again Placeholder */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Buy Again</Text>
+        <Card style={styles.emptyCard}>
+          <Text style={styles.meta}>Sorry, we are having trouble loading Buy Again items. Tap below to visit Buy Again.</Text>
+          <Button variant="secondary" style={{marginTop: 16}}>Visit Buy Again</Button>
+        </Card>
+      </View>
+
+      {/* Account Settings & Details */}
+      <View style={[styles.section, { paddingBottom: 40 }]}>
+        <Text style={styles.sectionTitle}>Account Information</Text>
+        
         {isEditing ? (
           <View style={styles.formContainer}>
-            <Text style={styles.sectionTitle}>Edit Details</Text>
-            
             <Controller
               control={control}
               name="fullName"
@@ -189,29 +295,23 @@ export default function ProfileScreen() {
               )}
             />
 
-            <Button 
-              onPress={handleSubmit(onSubmit)} 
-              style={styles.actionButton}
-            >
+            <Button onPress={handleSubmit(onSubmit)} style={styles.actionButton}>
               {updateProfileMutation.isPending ? "Saving..." : "Save Details"}
             </Button>
-            <Button 
-              variant="secondary" 
-              onPress={() => {
-                reset();
-                setIsEditing(false);
-              }} 
-              style={styles.actionButton}
-            >
+            <Button variant="secondary" onPress={() => { reset(); setIsEditing(false); }} style={styles.actionButton}>
               Cancel
             </Button>
           </View>
         ) : (
           <View style={styles.detailsContainer}>
             {isLoading ? (
-              <Text style={styles.loadingText}>Loading details...</Text>
+              <Text style={styles.meta}>Loading details...</Text>
             ) : (
               <>
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Email:</Text>
+                  <Text style={styles.detailValue}>{user?.email}</Text>
+                </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Phone:</Text>
                   <Text style={styles.detailValue}>{profile?.phone_number || "Not provided"}</Text>
@@ -233,119 +333,168 @@ export default function ProfileScreen() {
           </View>
         )}
 
-        <LocationGate pincode={profile?.pincode} city={profile?.address} />
-        
-        <Button 
-          onPress={handleOpenSellerPortal} 
-          style={styles.actionButton}
-          disabled={isSellerLoading}
-        >
-          {isSellerLoading ? "Loading..." : "Open Seller Portal"}
-        </Button>
-        <Button variant="danger" onPress={handleSignOut} style={styles.actionButton}>
+        <View style={{ marginTop: 24 }}>
+          <LocationGate pincode={profile?.pincode} city={profile?.address} />
+        </View>
+
+        <Button variant="danger" onPress={handleSignOut} style={{ marginTop: 24 }}>
           Sign Out
         </Button>
-      </Screen>
+      </View>
 
-      
-    </>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  title: {
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    marginTop: 8,
+  },
+  greetingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  greetingText: {
     color: colors.textPrimary,
-    fontSize: 32,
-    fontWeight: "900",
-    marginBottom: 18
+    fontSize: 24,
+    fontWeight: '800',
+    letterSpacing: -0.5,
   },
-  card: {
-    padding: 20,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16
+  headerIcons: {
+    flexDirection: 'row',
+    gap: 16,
   },
-  cardInfo: {
-    flex: 1,
+  iconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  avatar: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    backgroundColor: colors.accent,
+  pillGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 32,
+  },
+  pill: {
+    flexBasis: '47%',
+    flexGrow: 1,
+    backgroundColor: colors.card,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pillText: {
     color: colors.textPrimary,
-    textAlign: "center",
-    lineHeight: 58,
-    fontSize: 26,
-    fontWeight: "900",
-    overflow: "hidden"
+    fontWeight: '600',
+    fontSize: 15,
   },
-  name: {
+  section: {
+    marginBottom: 32,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  sectionTitle: {
     color: colors.textPrimary,
     fontSize: 20,
-    fontWeight: "900"
+    fontWeight: '800',
+    letterSpacing: -0.3,
   },
-  meta: {
-    color: colors.textMuted,
-    marginTop: 3
+  seeAll: {
+    color: colors.accentLight,
+    fontWeight: '700',
+    fontSize: 14,
   },
-  roleBadge: {
-    backgroundColor: colors.accent,
-    color: colors.textPrimary,
-    alignSelf: "flex-start",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    fontSize: 10,
-    fontWeight: "bold",
-    marginTop: 8,
+  horizontalScroll: {
+    paddingRight: 24,
+    gap: 16,
+  },
+  orderCard: {
+    width: 140,
+    height: 140,
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  orderImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  orderImagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.card2,
+  },
+  emptyCard: {
+    padding: 24,
+    width: '100%',
+    alignItems: 'center',
   },
   detailsContainer: {
     backgroundColor: colors.card,
-    padding: 20,
-    borderRadius: 16,
-    marginTop: 14,
-    gap: 12,
+    padding: 24,
+    borderRadius: 20,
+    marginTop: 12,
+    gap: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   detailRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
-    paddingBottom: 8,
+    paddingBottom: 12,
   },
   detailLabel: {
     color: colors.textSecondary,
     fontWeight: "600",
+    fontSize: 15,
   },
   detailValue: {
     color: colors.textPrimary,
-    fontWeight: "500",
-  },
-  loadingText: {
-    color: colors.textMuted,
-    textAlign: "center",
+    fontWeight: "600",
+    fontSize: 15,
   },
   formContainer: {
     backgroundColor: colors.card,
-    padding: 20,
-    borderRadius: 16,
-    marginTop: 14,
-  },
-  sectionTitle: {
-    color: colors.textPrimary,
-    fontSize: 20,
-    fontWeight: "800",
-    marginBottom: 16,
+    padding: 24,
+    borderRadius: 20,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   inputGroup: {
-    marginBottom: 12,
+    marginBottom: 16,
   },
   label: {
     color: colors.textSecondary,
-    marginBottom: 6,
-    fontWeight: "600",
+    marginBottom: 8,
+    fontWeight: "700",
     fontSize: 14,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   error: {
     color: colors.danger,
@@ -353,6 +502,11 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   actionButton: {
-    marginTop: 14
+    marginTop: 16
+  },
+  meta: {
+    color: colors.textMuted,
+    fontSize: 15,
+    textAlign: "center"
   }
 });

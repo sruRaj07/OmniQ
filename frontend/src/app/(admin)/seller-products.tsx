@@ -5,15 +5,19 @@
 import { StyleSheet, Text, View, ActivityIndicator, Alert, TouchableOpacity, ScrollView, Image } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Screen } from "@/components/shared/Screen";
 import { colors } from "@/constants/colors";
 import { apiClient } from "@/lib/apiClient";
 import { formatCurrency } from "@/utils/formatCurrency";
+import { LinearGradient } from "expo-linear-gradient";
+import { ShieldIcon } from "@/components/ui/ShieldIcon";
 
 export default function AdminSellerProductsScreen() {
   const { sellerId, storeName } = useLocalSearchParams<{ sellerId: string; storeName: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   
   const { data: products, isLoading } = useQuery({
     queryKey: ["adminSellerProducts", sellerId],
@@ -36,6 +40,13 @@ export default function AdminSellerProductsScreen() {
     }
   });
 
+  const formatDate = (dateString: string) => {
+    if (!dateString) return "N/A";
+    return new Date(dateString).toLocaleString('en-GB', { 
+      day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' 
+    });
+  };
+
   return (
     <Screen scroll>
       <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
@@ -46,45 +57,101 @@ export default function AdminSellerProductsScreen() {
       <Text style={styles.subtitle}>Review and approve inventory</Text>
 
       {isLoading ? (
-        <ActivityIndicator size="large" color={colors.accent} style={{ marginTop: 40 }} />
+        <ActivityIndicator size="large" color="#6C63FF" style={{ marginTop: 40 }} />
       ) : products?.length === 0 ? (
-        <Text style={{ color: colors.textMuted, marginVertical: 20 }}>No products found for this seller.</Text>
+        <View style={styles.emptyState}>
+          <ShieldIcon size={48} color="rgba(255,255,255,0.1)" />
+          <Text style={styles.emptyText}>No products found for this seller.</Text>
+        </View>
       ) : (
         <View style={styles.list}>
-          {products?.map((product: any) => (
-            <View key={product.id} style={styles.card}>
-              <View style={styles.cardHeader}>
-                <Text style={styles.productName}>{product.title}</Text>
-                <View style={[styles.badge, product.is_approved ? styles.badgeSuccess : styles.badgeWarning]}>
-                  <Text style={styles.badgeText}>{product.is_approved ? "Approved" : "Pending"}</Text>
-                </View>
-              </View>
-              
-              <Text style={styles.price}>{formatCurrency(product.price)}</Text>
-              <Text style={styles.mutedText} numberOfLines={2}>{product.description}</Text>
-              
-              {product.images && product.images.length > 0 && (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageScroll}>
-                  {product.images.map((uri: string, idx: number) => (
-                    <Image key={idx} source={{ uri }} style={styles.image} />
-                  ))}
-                </ScrollView>
-              )}
+          {products?.map((product: any) => {
+            const isExpanded = expandedId === product.id;
+            return (
+              <TouchableOpacity 
+                key={product.id} 
+                activeOpacity={0.9} 
+                onPress={() => setExpandedId(isExpanded ? null : product.id)}
+              >
+                <LinearGradient
+                  colors={["rgba(30, 30, 45, 0.7)", "rgba(15, 15, 26, 0.9)"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.card}
+                >
+                  <View style={styles.cardHeader}>
+                    <Text style={styles.productName} numberOfLines={isExpanded ? undefined : 2}>
+                      {product.title}
+                    </Text>
+                    <View style={[styles.statusBadge, product.is_approved ? styles.badgeSuccess : styles.badgeWarning]}>
+                      <Text style={[styles.badgeText, product.is_approved ? { color: "#4CAF50" } : { color: "#FFC107" }]}>
+                        {product.is_approved ? "APPROVED" : "PENDING"}
+                      </Text>
+                    </View>
+                  </View>
+                  
+                  <Text style={styles.price}>{formatCurrency(product.price)}</Text>
+                  
+                  <Text style={styles.mutedText} numberOfLines={isExpanded ? undefined : 2}>
+                    {product.description}
+                  </Text>
+                  
+                  {product.images && product.images.length > 0 && (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageScroll}>
+                      {product.images.map((uri: string, idx: number) => (
+                        <Image key={idx} source={{ uri }} style={styles.image} />
+                      ))}
+                    </ScrollView>
+                  )}
 
-              <View style={styles.actions}>
-                {!product.is_approved && (
-                  <TouchableOpacity style={[styles.button, styles.btnSuccess]} onPress={() => moderateProduct.mutate({ id: product.id, action: "approve" })}>
-                    <Text style={styles.btnText}>Approve</Text>
-                  </TouchableOpacity>
-                )}
-                <TouchableOpacity style={[styles.button, styles.btnDanger]} onPress={() => moderateProduct.mutate({ id: product.id, action: "remove" })}>
-                  <Text style={styles.btnText}>Reject / Delete</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))}
+                  {isExpanded && (
+                    <View style={styles.expandedInfo}>
+                      <View style={styles.infoRow}>
+                        <Text style={styles.infoLabel}>Product ID:</Text>
+                        <Text style={styles.infoValue} selectable>{product.id}</Text>
+                      </View>
+                      <View style={styles.infoRow}>
+                        <Text style={styles.infoLabel}>Category:</Text>
+                        <Text style={styles.infoValue}>{product.category_id || "Uncategorized"}</Text>
+                      </View>
+                      <View style={styles.infoRow}>
+                        <Text style={styles.infoLabel}>Stock Available:</Text>
+                        <Text style={styles.infoValue}>{product.stock_quantity ?? "0"} units</Text>
+                      </View>
+                      <View style={styles.infoRow}>
+                        <Text style={styles.infoLabel}>Added On:</Text>
+                        <Text style={styles.infoValue}>{formatDate(product.created_at)}</Text>
+                      </View>
+                      <View style={styles.infoRow}>
+                        <Text style={styles.infoLabel}>Last Updated:</Text>
+                        <Text style={styles.infoValue}>{formatDate(product.updated_at)}</Text>
+                      </View>
+                    </View>
+                  )}
+
+                  <View style={styles.actions}>
+                    {!product.is_approved && (
+                      <TouchableOpacity 
+                        style={[styles.button, styles.btnSuccess]} 
+                        onPress={() => moderateProduct.mutate({ id: product.id, action: "approve" })}
+                      >
+                        <Text style={[styles.btnText, { color: "#4CAF50" }]}>Approve</Text>
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity 
+                      style={[styles.button, styles.btnDanger]} 
+                      onPress={() => moderateProduct.mutate({ id: product.id, action: "remove" })}
+                    >
+                      <Text style={[styles.btnText, { color: "#F93C65" }]}>Reject / Delete</Text>
+                    </TouchableOpacity>
+                  </View>
+                </LinearGradient>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       )}
+      <View style={{ height: 60 }} />
     </Screen>
   );
 }
@@ -92,95 +159,160 @@ export default function AdminSellerProductsScreen() {
 const styles = StyleSheet.create({
   backButton: {
     marginBottom: 16,
-    paddingVertical: 8
+    paddingVertical: 8,
+    alignSelf: "flex-start",
   },
   backText: {
-    color: colors.accentLight,
-    fontWeight: "700",
-    fontSize: 16
+    color: "#6C63FF",
+    fontWeight: "800",
+    fontSize: 14,
+    letterSpacing: 0.5,
   },
   title: {
-    color: colors.textPrimary,
-    fontSize: 28,
+    color: "#FFF",
+    fontSize: 32,
     fontWeight: "900",
+    marginBottom: 4,
+    letterSpacing: -0.5,
   },
   subtitle: {
-    color: colors.textSecondary,
+    color: colors.textMuted,
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: 24,
+  },
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 60,
+  },
+  emptyText: {
+    color: colors.textMuted,
+    marginTop: 16,
     fontSize: 16,
-    marginBottom: 20
+    fontWeight: "600",
   },
   list: {
     gap: 16
   },
   card: {
-    backgroundColor: colors.card,
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 20,
+    padding: 20,
     borderWidth: 1,
-    borderColor: colors.border
+    borderColor: "rgba(255, 255, 255, 0.05)",
   },
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 4
-  },
-  productName: {
-    color: colors.textPrimary,
-    fontSize: 18,
-    fontWeight: "800",
-    flex: 1,
-    marginRight: 8
-  },
-  price: {
-    color: colors.textPrimary,
-    fontSize: 16,
-    fontWeight: "700",
     marginBottom: 8
   },
+  productName: {
+    color: "#FFF",
+    fontSize: 18,
+    fontWeight: "900",
+    flex: 1,
+    marginRight: 12,
+    lineHeight: 24,
+  },
+  price: {
+    color: "#FFF",
+    fontSize: 18,
+    fontWeight: "800",
+    marginBottom: 12,
+  },
   mutedText: {
-    color: colors.textSecondary,
+    color: "rgba(255, 255, 255, 0.5)",
     fontSize: 14,
     marginBottom: 16,
-    lineHeight: 20
+    lineHeight: 20,
+    fontWeight: "500",
   },
   imageScroll: {
     flexDirection: "row",
-    marginBottom: 16
+    marginBottom: 16,
+    marginHorizontal: -4,
   },
   image: {
-    width: 60,
-    height: 60,
-    borderRadius: 8,
-    marginRight: 8,
-    backgroundColor: colors.bgSecondary
+    width: 64,
+    height: 64,
+    borderRadius: 12,
+    marginHorizontal: 4,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
   },
-  badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12
+  statusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
   },
-  badgeSuccess: { backgroundColor: "rgba(46, 204, 113, 0.2)" },
-  badgeWarning: { backgroundColor: "rgba(241, 196, 15, 0.2)" },
+  badgeSuccess: { 
+    backgroundColor: "rgba(76, 175, 80, 0.1)",
+    borderColor: "rgba(76, 175, 80, 0.3)"
+  },
+  badgeWarning: { 
+    backgroundColor: "rgba(255, 193, 7, 0.1)",
+    borderColor: "rgba(255, 193, 7, 0.3)"
+  },
   badgeText: {
-    color: colors.textPrimary,
-    fontSize: 12,
-    fontWeight: "800",
+    fontSize: 11,
+    fontWeight: "900",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  expandedInfo: {
+    backgroundColor: "rgba(0,0,0,0.2)",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.03)",
+  },
+  infoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    paddingVertical: 4,
+  },
+  infoLabel: {
+    color: "rgba(255,255,255,0.4)",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  infoValue: {
+    color: "rgba(255,255,255,0.8)",
+    fontSize: 13,
+    fontWeight: "600",
+    textAlign: "right",
+    flex: 1,
+    marginLeft: 16,
   },
   actions: {
     flexDirection: "row",
-    gap: 10
+    gap: 12
   },
   button: {
     flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: "center"
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  btnSuccess: { backgroundColor: "rgba(46, 204, 113, 0.15)", borderWidth: 1, borderColor: "rgba(46,204,113,0.5)" },
-  btnDanger: { backgroundColor: "rgba(231, 76, 60, 0.15)", borderWidth: 1, borderColor: "rgba(231,76,60,0.5)" },
+  btnSuccess: { 
+    backgroundColor: "rgba(76, 175, 80, 0.05)", 
+    borderWidth: 1, 
+    borderColor: "rgba(76, 175, 80, 0.2)" 
+  },
+  btnDanger: { 
+    backgroundColor: "rgba(249, 60, 101, 0.05)", 
+    borderWidth: 1, 
+    borderColor: "rgba(249, 60, 101, 0.2)" 
+  },
   btnText: {
-    color: colors.textPrimary,
-    fontWeight: "800"
+    fontSize: 13,
+    fontWeight: "900",
+    letterSpacing: 0.5,
   }
 });

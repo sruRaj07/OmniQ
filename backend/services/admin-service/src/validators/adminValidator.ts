@@ -10,6 +10,7 @@ export const moderationSchema = z.object({
 });
 
 export const zoneSchema = z.object({
+  id: z.string().uuid().optional(),
   name: z.string().min(2),
   centreLat: z.number(),
   centreLng: z.number(),

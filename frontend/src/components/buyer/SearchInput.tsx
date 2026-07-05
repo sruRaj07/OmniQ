@@ -1,27 +1,35 @@
+/**
+ * OmniQ mobile app - search input bar (tappable on home, navigates to search screen).
+ * Author: OmniQ Team
+ */
 import React from "react";
-import { StyleSheet, TextInput, View, TouchableOpacity, Text, type TextInputProps } from "react-native";
+import { StyleSheet, Text, View, TouchableOpacity, type ViewStyle } from "react-native";
+import { useRouter } from "expo-router";
 import { SearchIcon } from "@/components/ui/SearchIcon";
 import { ListIcon } from "@/components/ui/ListIcon";
 
-export interface SearchInputProps extends TextInputProps {
-  onFilterPress?: () => void;
+export interface SearchInputProps {
+  placeholder?: string;
+  style?: ViewStyle;
 }
 
-export function SearchInput({ onFilterPress, style, ...props }: SearchInputProps) {
+export function SearchInput({ placeholder = "Search OmniQ", style }: SearchInputProps) {
+  const router = useRouter();
+
   return (
-    <View style={[styles.container, style]}>
+    <TouchableOpacity
+      style={[styles.container, style]}
+      activeOpacity={0.8}
+      onPress={() => router.push("/(buyer)/search")}
+    >
       <View style={styles.iconContainer}>
         <SearchIcon size={22} color="#333333" />
       </View>
-      <TextInput 
-        placeholderTextColor="#888888" 
-        style={styles.input} 
-        {...props} 
-      />
-      <TouchableOpacity activeOpacity={0.7} style={styles.filterBtn} onPress={onFilterPress}>
+      <Text style={styles.placeholderText}>{placeholder}</Text>
+      <View style={styles.filterBtn}>
         <ListIcon size={16} color="#333333" />
-      </TouchableOpacity>
-    </View>
+      </View>
+    </TouchableOpacity>
   );
 }
 
@@ -44,13 +52,11 @@ const styles = StyleSheet.create({
   iconContainer: {
     marginRight: 10,
   },
-  input: {
+  placeholderText: {
     flex: 1,
-    minWidth: 0,
-    color: "#000000",
+    color: "#888888",
     fontSize: 16,
     fontWeight: "500",
-    height: "100%",
   },
   filterBtn: {
     padding: 6,

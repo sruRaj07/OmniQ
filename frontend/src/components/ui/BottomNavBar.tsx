@@ -3,7 +3,7 @@
  * Author: OmniQ Team
  */
 import React from "react";
-import { Link, usePathname, type Href } from "expo-router";
+import { Link, usePathname, useSegments, type Href } from "expo-router";
 import { StyleSheet, Text, View, Pressable } from "react-native";
 import { colors } from "@/constants/colors";
 
@@ -19,16 +19,24 @@ type BottomNavBarProps = {
 
 export function BottomNavBar({ items }: BottomNavBarProps) {
   const pathname = usePathname();
+  const segments = useSegments();
+  
   return (
     <View style={styles.container}>
       {items.map((item) => {
-        const normalizedHref = (item.href as string).replace(/\/\([^)]+\)/g, '');
+        const itemHref = item.href as string;
+        const normalizedHref = itemHref.replace(/\/\([^)]+\)/g, '');
         const targetPath = normalizedHref === '' ? '/' : normalizedHref;
+        
+        // Construct the full current route from segments (e.g. "/(seller)/dashboard")
+        const currentRoute = '/' + segments.join('/');
         
         // Exact match or prefix match for sub-screens (e.g. /orders/123 matches /orders)
         const active = 
+          currentRoute === itemHref ||
+          (itemHref !== '/' && currentRoute.startsWith(itemHref)) ||
           pathname === targetPath || 
-          pathname === item.href || 
+          pathname === itemHref || 
           (targetPath !== '/' && pathname.startsWith(targetPath));
         return (
           <Link key={item.href as string} href={item.href} asChild>

@@ -6,8 +6,13 @@ import type { Request, Response } from "express";
 import { fail, ok } from "../../../../shared/utils/responseFormatter";
 import { getAnalytics, getDashboard, moderateProduct, upsertZone, listZones } from "../services/adminService";
 
-export function dashboardController(_request: Request, response: Response): void {
-  response.json(ok(getDashboard()));
+export async function dashboardController(_request: Request, response: Response): Promise<void> {
+  try {
+    const data = await getDashboard();
+    response.json(ok(data));
+  } catch (error: any) {
+    response.status(500).json(fail("DASHBOARD_ERROR", error.message));
+  }
 }
 
 export function analyticsController(_request: Request, response: Response): void {
@@ -37,5 +42,15 @@ export async function listZonesController(_request: Request, response: Response)
     response.json(ok(zones));
   } catch (error: any) {
     response.status(500).json(fail("FETCH_ZONES_FAILED", error.message));
+  }
+}
+
+export async function listAllOrdersController(_request: Request, response: Response): Promise<void> {
+  try {
+    const { listAllOrders } = await import("../services/adminService");
+    const orders = await listAllOrders();
+    response.json(ok(orders));
+  } catch (error: any) {
+    response.status(500).json(fail("FETCH_ALL_ORDERS_FAILED", error.message));
   }
 }

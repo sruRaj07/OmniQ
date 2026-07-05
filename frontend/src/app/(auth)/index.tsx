@@ -61,7 +61,7 @@ export default function SignInScreen() {
         throw new Error("Invalid response from server");
       }
     } catch (err: any) {
-      Alert.alert("Sign In Failed", err?.response?.data?.message || err.message);
+      Alert.alert("Sign In Failed", err?.response?.data?.error?.message || err?.response?.data?.message || err.message);
     } finally {
       setLoading(false);
     }

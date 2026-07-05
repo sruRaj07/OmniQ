@@ -25,7 +25,7 @@ export function KpiCard({ label, value, trend, tone = "accent" }: KpiCardProps) 
 
 const styles = StyleSheet.create({
   card: {
-    width: "48%",
+    width: "47%",
     padding: 22,
     minHeight: 128
   },

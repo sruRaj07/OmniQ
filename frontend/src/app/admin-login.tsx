@@ -45,7 +45,7 @@ export default function AdminLoginScreen() {
         throw new Error("Invalid response from server");
       }
     } catch (err: any) {
-      Alert.alert("Admin Login Failed", err?.response?.data?.message || err.message);
+      Alert.alert("Admin Login Failed", err?.response?.data?.error?.message || err?.response?.data?.message || err.message);
     } finally {
       setLoading(false);
     }

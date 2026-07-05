@@ -4,7 +4,8 @@
  */
 import type { PropsWithChildren } from "react";
 import { useRef } from "react";
-import { StyleSheet, View, Animated } from "react-native";
+import { StyleSheet, View, Animated, Platform, StatusBar } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "@/constants/colors";
 import { BottomNavBar, type NavItem } from "@/components/ui/BottomNavBar";
 
@@ -48,43 +49,50 @@ export function Screen({ children, scroll = true, bottomNavItems }: ScreenProps)
   );
 
   return (
-    <View style={styles.root}>
-      {scroll ? (
-        <Animated.ScrollView 
-          style={styles.root} 
-          contentContainerStyle={[styles.content, bottomNavItems ? { paddingBottom: 110 } : {}]}
-          onScroll={Animated.event(
-            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-            { useNativeDriver: true }
-          )}
-          scrollEventThrottle={16}
-          showsVerticalScrollIndicator={false}
-          bounces={true}
-        >
-          {content}
-        </Animated.ScrollView>
-      ) : (
-        <View style={[styles.root, bottomNavItems ? { paddingBottom: 90 } : {}]}>{content}</View>
-      )}
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.root}>
+        {scroll ? (
+          <Animated.ScrollView 
+            style={styles.root} 
+            contentContainerStyle={[styles.content, bottomNavItems ? { paddingBottom: 110 } : {}]}
+            onScroll={Animated.event(
+              [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+              { useNativeDriver: true }
+            )}
+            scrollEventThrottle={16}
+            showsVerticalScrollIndicator={false}
+            bounces={true}
+          >
+            {content}
+          </Animated.ScrollView>
+        ) : (
+          <View style={[styles.root, bottomNavItems ? { paddingBottom: 90 } : {}]}>{content}</View>
+        )}
 
-      {bottomNavItems && (
-        <Animated.View 
-          style={[
-            styles.navContainer, 
-            { 
-              transform: [{ translateY }],
-              opacity 
-            }
-          ]}
-        >
-          <BottomNavBar items={bottomNavItems} />
-        </Animated.View>
-      )}
-    </View>
+        {bottomNavItems && (
+          <Animated.View 
+            style={[
+              styles.navContainer, 
+              { 
+                transform: [{ translateY }],
+                opacity 
+              }
+            ]}
+          >
+            <BottomNavBar items={bottomNavItems} />
+          </Animated.View>
+        )}
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: colors.bgPrimary,
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+  },
   root: {
     flex: 1,
     backgroundColor: colors.bgPrimary

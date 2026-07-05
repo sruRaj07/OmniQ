@@ -4,7 +4,7 @@
  */
 import type { Request, Response } from "express";
 import { fail, ok } from "../../../../shared/utils/responseFormatter";
-import { createProduct, getProduct, listProducts, listSellerProducts } from "../services/productService";
+import { createProduct, getProduct, listProducts, listSellerProducts, searchProducts } from "../services/productService";
 
 export async function listProductsController(request: Request, response: Response): Promise<void> {
   try {
@@ -120,5 +120,38 @@ export async function getAdvertisementsController(request: Request, response: Re
   } catch (error: any) {
     console.error("FETCH ADVERTISEMENTS ERROR:", error);
     response.status(500).json(fail("SERVER_ERROR", error.message || error.toString()));
+  }
+}
+
+export async function searchProductsController(request: Request, response: Response): Promise<void> {
+  try {
+    const q = request.query.q as string | undefined;
+    const category = request.query.category as string | undefined;
+    const minPrice = request.query.minPrice ? Number(request.query.minPrice) : undefined;
+    const maxPrice = request.query.maxPrice ? Number(request.query.maxPrice) : undefined;
+    const sort = (request.query.sort as string | undefined) || "relevance";
+    const limit = request.query.limit ? Number(request.query.limit) : 20;
+    const offset = request.query.offset ? Number(request.query.offset) : 0;
+    const suggestions = request.query.suggestions === "true";
+
+    const result = await searchProducts({
+      q,
+      category,
+      minPrice,
+      maxPrice,
+      sort: sort as any,
+      limit,
+      offset,
+      suggestions,
+    });
+
+    response.json(ok(result.products, {
+      total: result.total,
+      limit,
+      offset,
+      ...(result.suggestions ? { suggestions: result.suggestions } : {}),
+    }));
+  } catch (error: any) {
+    response.status(500).json(fail("SERVER_ERROR", error.message));
   }
 }

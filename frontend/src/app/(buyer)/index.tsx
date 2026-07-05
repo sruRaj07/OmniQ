@@ -37,7 +37,7 @@ export default function BuyerHomeScreen() {
           </View>
           <AnimatedCartButton onPress={() => router.push("/(buyer)/cart")} />
         </View>
-        <SearchInput placeholder="Search Amazon.in" />
+        <SearchInput placeholder="Search OmniQ" />
         <AdvertisementCarousel />
         <HeroBanner />
         <CategoryScroll />
