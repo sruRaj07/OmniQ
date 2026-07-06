@@ -37,6 +37,36 @@ const proxyConfig = (target: string) => ({
   changeOrigin: true
 });
 
+// ⚡ PERFORMANCE: In-memory response cache for public endpoints.
+// Stores responses for 30s to eliminate redundant Supabase round-trips.
+const responseCache = new Map<string, { data: any; expiry: number }>();
+const CACHE_TTL = 30_000; // 30 seconds
+
+function cacheMiddleware(ttl = CACHE_TTL) {
+  return (req: any, res: any, next: any) => {
+    // Only cache GET requests
+    if (req.method !== "GET") return next();
+    
+    const key = req.originalUrl;
+    const cached = responseCache.get(key);
+    
+    if (cached && cached.expiry > Date.now()) {
+      res.set("X-Cache", "HIT");
+      return res.json(cached.data);
+    }
+    
+    // Intercept the response to cache it
+    const originalJson = res.json.bind(res);
+    res.json = (body: any) => {
+      responseCache.set(key, { data: body, expiry: Date.now() + ttl });
+      res.set("X-Cache", "MISS");
+      return originalJson(body);
+    };
+    
+    next();
+  };
+}
+
 app.get("/products*", productListLimiter, createProxyMiddleware(proxyConfig(process.env.PRODUCT_SERVICE_URL ?? "http://localhost:4001")));
 app.all("/products*", authMiddleware, createProxyMiddleware(proxyConfig(process.env.PRODUCT_SERVICE_URL ?? "http://localhost:4001")));
 

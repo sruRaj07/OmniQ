@@ -14,9 +14,11 @@
     },
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.omniq.app",
       "infoPlist": {
         "UIStatusBarHidden": true,
-        "UIViewControllerBasedStatusBarAppearance": false
+        "UIViewControllerBasedStatusBarAppearance": false,
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {

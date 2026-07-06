@@ -6,3 +6,4 @@ supabase/
 Dockerfile
 docker-compose.yml
 .env
+.watchman-cookie-*
