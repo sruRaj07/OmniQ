@@ -7,7 +7,7 @@ import dotenv from "dotenv";
 import express from "express";
 import helmet from "helmet";
 import { ok } from "../../../shared/utils/responseFormatter";
-import { createProductController, getProductController, listProductsController, listSellerProductsController, getAdvertisementsController, searchProductsController } from "./controllers/productController";
+import { createProductController, updateProductController, getProductController, listProductsController, listSellerProductsController, getAdvertisementsController, searchProductsController } from "./controllers/productController";
 import multer from "multer";
 
 dotenv.config();
@@ -26,7 +26,7 @@ app.get("/products/search", searchProductsController);
 app.get("/products/seller", listSellerProductsController);
 app.get("/products/:id", getProductController);
 app.post("/products", upload.array("images", 5), createProductController);
-app.put("/products/:id", upload.array("images", 5), createProductController);
+app.put("/products/:id", upload.array("images", 5), updateProductController);
 app.delete("/products/:id", (_request, response) => response.json(ok({ deleted: true })));
 app.patch("/products/:id/stock", (_request, response) => response.json(ok({ updated: true })));
 app.post("/products/:id/flag", (_request, response) => response.json(ok({ flagged: true })));

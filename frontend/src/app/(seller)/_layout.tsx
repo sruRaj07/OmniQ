@@ -10,8 +10,7 @@ export default function SellerLayout() {
     <Stack
       screenOptions={{
         headerShown: false,
-        animation: "slide_from_right",
-        animationDuration: 280,
+        freezeOnBlur: true,
         gestureEnabled: true,
         gestureDirection: "horizontal",
         contentStyle: { backgroundColor: "#0A0A0F" },

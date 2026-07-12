@@ -11,29 +11,23 @@ import { AuthProvider } from "@/components/shared/AuthProvider";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
 
-/**
- * Smooth fade + slide transition config for all root-level navigation.
- * This handles splash → auth, auth → buyer/seller/admin transitions.
- */
-const smoothTransition = {
-  animation: "fade_from_bottom" as const,
-  animationDuration: 350,
-};
+import { useAppTheme } from "@/store/useThemeStore";
 
 export default function RootLayout() {
+  const { colors, mode } = useAppTheme();
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <StatusBar hidden />
+      <StatusBar style={mode === 'dark' ? 'light' : 'dark'} hidden />
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
             <Stack
               screenOptions={{
                 headerShown: false,
-                ...smoothTransition,
+                freezeOnBlur: true,
                 gestureEnabled: true,
                 gestureDirection: "horizontal",
-                contentStyle: { backgroundColor: "#0A0A0F" },
+                contentStyle: { backgroundColor: colors.bgPrimary },
               }}
             />
           </AuthProvider>

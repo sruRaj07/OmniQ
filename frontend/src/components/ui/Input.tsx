@@ -3,27 +3,32 @@
  * Author: OmniQ Team
  */
 import { StyleSheet, TextInput, View, type TextInputProps } from "react-native";
-import { colors } from "@/constants/colors";
-
+import { useAppTheme } from "@/store/useThemeStore";
+import { typography } from "@/constants/typography";
 export interface InputProps extends TextInputProps {
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
 }
-
-export function Input({ leftIcon, rightIcon, style, ...props }: InputProps) {
+export function Input({
+  leftIcon,
+  rightIcon,
+  style,
+  ...props
+}: InputProps) {
+  const {
+    colors
+  } = useAppTheme();
+  const styles = getStyles(colors);
   if (leftIcon || rightIcon) {
-    return (
-      <View style={[styles.inputContainer, style]}>
+    return <View style={[styles.inputContainer, style as any]}>
         {leftIcon && <View style={styles.iconContainer}>{leftIcon}</View>}
         <TextInput placeholderTextColor={colors.textMuted} {...props} style={styles.inputWithIcon} />
         {rightIcon && <View style={styles.rightIconContainer}>{rightIcon}</View>}
-      </View>
-    );
+      </View>;
   }
   return <TextInput placeholderTextColor={colors.textMuted} {...props} style={[styles.input, style]} />;
 }
-
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -32,20 +37,19 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     borderColor: colors.border2,
     borderWidth: 1,
-    paddingHorizontal: 16,
+    paddingHorizontal: 16
   },
   iconContainer: {
-    marginRight: 8,
+    marginRight: 8
   },
   rightIconContainer: {
-    marginLeft: 8,
+    marginLeft: 8
   },
   inputWithIcon: {
     flex: 1,
     minWidth: 0,
     color: colors.textPrimary,
-    fontSize: 16,
-    fontWeight: "600",
+    ...typography.input,
   },
   input: {
     minHeight: 62,
@@ -55,7 +59,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     color: colors.textPrimary,
     paddingHorizontal: 16,
-    fontSize: 16,
-    fontWeight: "600"
+    ...typography.input,
   }
 });

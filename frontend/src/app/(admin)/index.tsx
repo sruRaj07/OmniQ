@@ -6,6 +6,7 @@ import { StyleSheet, Text, View, ScrollView, ActivityIndicator, TouchableOpacity
 import { useState } from "react";
 import { router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/authStore";
 import { LocationIcon } from "@/components/ui/LocationIcon";
@@ -17,24 +18,31 @@ import { ShieldIcon } from "@/components/ui/ShieldIcon";
 import { GridIcon } from "@/components/ui/GridIcon";
 import { SearchIcon } from "@/components/ui/SearchIcon";
 import { Screen } from "@/components/shared/Screen";
-import { colors } from "@/constants/colors";
+import { useAppTheme } from "@/store/useThemeStore";
 import { apiClient } from "@/lib/apiClient";
 import { LinearGradient } from "expo-linear-gradient";
 import { MetricCard } from "@/components/admin/MetricCard";
 import { QuickActionCard } from "@/components/admin/QuickActionCard";
 import { TopSellerCard } from "@/components/admin/TopSellerCard";
-
 export default function AdminDashboardScreen() {
+  const {
+    colors,
+    mode,
+    setMode
+  } = useAppTheme();
+  const styles = getStyles(colors);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-
-  const { data, isLoading, error } = useQuery({
+  const {
+    data,
+    isLoading,
+    error
+  } = useQuery({
     queryKey: ["adminDashboard"],
     queryFn: async () => {
       const res = await apiClient.get("/admin/dashboard");
       return res.data.data;
-    },
-  });
-
+    }
+  }, queryClient);
   const handleLogout = async () => {
     setIsMenuOpen(false);
     await supabase.auth.signOut();
@@ -43,32 +51,31 @@ export default function AdminDashboardScreen() {
   };
 
   // Mock date
-  const today = new Date().toLocaleDateString('en-GB', { 
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' 
+  const today = new Date().toLocaleDateString('en-GB', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
   });
-
-  return (
-    <Screen scroll>
+  return <Screen scroll>
       {/* HEADER */}
       <View style={styles.header}>
         <View style={styles.headerContent}>
-          <View style={styles.superAdminRow}>
-            <View style={styles.dot} />
-            <Text style={styles.superAdminText}>SUPER ADMIN</Text>
-          </View>
           <Text style={styles.overviewTitle}>Overview</Text>
           <Text style={styles.dateText}>{today}</Text>
         </View>
-        <TouchableOpacity onPress={handleLogout}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>R</Text>
-          </View>
-        </TouchableOpacity>
+        <View style={styles.topRightActions}>
+          <TouchableOpacity onPress={() => setMode(mode === 'dark' ? 'light' : 'dark')} style={styles.actionBtn}>
+            <Text style={styles.actionText}>{mode === 'dark' ? 'Light Mode' : 'Dark Mode'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleLogout} style={styles.actionBtn}>
+            <Text style={[styles.actionText, { color: colors.danger }]}>Logout</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* WARNING BANNER */}
-      {data?.pendingSellers > 0 && (
-        <View style={styles.warningBanner}>
+      {data?.pendingSellers > 0 && <View style={styles.warningBanner}>
           <View style={styles.warningIconContainer}>
             <Text style={styles.warningIcon}>⚠️</Text>
           </View>
@@ -79,359 +86,247 @@ export default function AdminDashboardScreen() {
           <TouchableOpacity>
             <Text style={styles.warningLink}>Review ›</Text>
           </TouchableOpacity>
-        </View>
-      )}
+        </View>}
 
       {/* PLATFORM METRICS */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>PLATFORM METRICS</Text>
         
         {/* TOTAL GMV CARD */}
-        <LinearGradient
-          colors={["#161622", "#0F0F1A"]}
-          style={styles.gmvCard}
-        >
+        {/* TOTAL GMV CARD */}
+        <View style={styles.gmvCard}>
           <View style={styles.gmvHeader}>
             <Text style={styles.gmvTitle}>TOTAL GMV</Text>
-            <View style={styles.trendPill}>
-              <Text style={styles.trendPillText}>^ +18% this week</Text>
-            </View>
           </View>
           <Text style={styles.gmvValue}>
             ₹{(data?.gmv ?? 0).toLocaleString("en-IN")}
           </Text>
-          <Text style={styles.gmvSub}>Gross merchandise value — all time</Text>
           
           <View style={styles.graphRow}>
             {/* Mock horizontal graph lines */}
             {[0.2, 0.4, 0.6, 0.8, 1, 0.9, 0.3].map((op, i) => (
-              <View 
-                key={i} 
-                style={[
-                  styles.graphLine, 
-                  i === 5 ? { backgroundColor: "#FFC107" } : { backgroundColor: "#6C63FF", opacity: op }
-                ]} 
-              />
+              <View key={i} style={[styles.graphLine, i === 5 ? {
+                backgroundColor: colors.accent
+              } : {
+                backgroundColor: colors.border,
+                opacity: op
+              }]} />
             ))}
           </View>
-        </LinearGradient>
+        </View>
 
         {/* METRICS GRID */}
         <View style={styles.metricsGrid}>
-          <MetricCard 
-            title="ORDERS" 
-            value={(data?.orders ?? 0).toLocaleString("en-IN")}
-            trend="" 
-            trendColor="#4CAF50"
-            icon={<LocationIcon size={18} color="#6C63FF" />}
-            glowColor="#6C63FF"
-          />
-          <MetricCard 
-            title="ACTIVE SELLERS" 
-            value={(data?.activeSellers ?? 0).toString()}
-            trend={data?.pendingSellers ? `${data.pendingSellers} pending` : ""} 
-            trendColor={colors.textMuted}
-            icon={<HomeIcon size={18} color="#4CAF50" />}
-            glowColor="#4CAF50"
-          />
-          <MetricCard 
-            title="BUYERS" 
-            value={(data?.registeredBuyers ?? 0).toLocaleString("en-IN")}
-            trend="" 
-            trendColor="#4CAF50"
-            icon={<UsersIcon size={18} color="#FFC107" />}
-            glowColor="#FFC107"
-          />
-          <MetricCard 
-            title="FLAGGED" 
-            value={(data?.flagged ?? 0).toString()}
-            trend="" 
-            trendColor="#F93C65"
-            icon={<FlagIcon size={18} color="#F93C65" />}
-            glowColor="#F93C65"
-          />
+          <MetricCard title="ORDERS" value={(data?.orders ?? 0).toLocaleString("en-IN")} trend="" trendColor={colors.success} icon={<LocationIcon size={18} color={colors.textPrimary} />} glowColor={colors.textPrimary} />
+          <MetricCard title="ACTIVE SELLERS" value={(data?.activeSellers ?? 0).toString()} trend={data?.pendingSellers ? `${data.pendingSellers} pending` : ""} trendColor={colors.textMuted} icon={<HomeIcon size={18} color={colors.textPrimary} />} glowColor={colors.textPrimary} />
+          <MetricCard title="BUYERS" value={(data?.registeredBuyers ?? 0).toLocaleString("en-IN")} trend="" trendColor={colors.success} icon={<UsersIcon size={18} color={colors.textPrimary} />} glowColor={colors.textPrimary} />
+          <MetricCard title="FLAGGED" value={(data?.flagged ?? 0).toString()} trend="" trendColor={colors.danger} icon={<FlagIcon size={18} color={colors.textPrimary} />} glowColor={colors.textPrimary} />
         </View>
       </View>
 
-      {/* TOP SELLERS */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitleNormal}>Top sellers</Text>
-          <TouchableOpacity>
-            <Text style={styles.linkText}>See all</Text>
-          </TouchableOpacity>
-        </View>
-        
-        <View>
-          {data?.topSellers?.map((seller: any, index: number) => (
-            <TopSellerCard 
-              key={seller.id}
-              rank={index + 1}
-              name={seller.name}
-              orders={seller.orders}
-              rating={seller.rating}
-              gmv={seller.gmv}
-              status={seller.status}
-              timeAgo={seller.timeAgo}
-            />
-          ))}
-        </View>
-      </View>
-
-      {/* MARKETING & CAMPAIGNS ENTRY */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>MARKETING</Text>
-        <TouchableOpacity 
-          activeOpacity={0.8}
-          onPress={() => router.push("/manage-ads")}
-        >
-          <LinearGradient
-            colors={["rgba(249, 60, 101, 0.15)", "rgba(108, 99, 255, 0.1)"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.marketingCard}
-          >
-            <View style={styles.marketingContent}>
-              <View style={styles.marketingIconBg}>
-                <FlagIcon size={24} color="#F93C65" />
-              </View>
-              <View style={styles.marketingTextContainer}>
-                <Text style={styles.marketingTitle}>Campaign Management</Text>
-                <Text style={styles.marketingSub}>Upload posters (JPG/PNG) & manage live platform ads</Text>
-              </View>
-              <Text style={styles.marketingArrow}>→</Text>
-            </View>
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
 
       {/* Bottom spacing for navbar */}
-      <View style={{ height: 60 }} />
-    </Screen>
-  );
+      <View style={{
+      height: 60
+    }} />
+    </Screen>;
 }
-
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 24,
+    marginBottom: 24
   },
   headerContent: {
-    flex: 1,
-  },
-  superAdminRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginBottom: 4,
-  },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "#6C63FF",
-  },
-  superAdminText: {
-    color: "#6C63FF",
-    fontSize: 11,
-    fontWeight: "900",
-    letterSpacing: 1,
+    flex: 1
   },
   overviewTitle: {
-    color: "#FFF",
+    color: colors.textPrimary,
     fontSize: 28,
-    fontWeight: "900",
-    marginBottom: 4,
+    fontWeight: "800",
+    marginBottom: 4
   },
   dateText: {
     color: colors.textMuted,
     fontSize: 13,
-    fontWeight: "600",
+    fontWeight: "600"
   },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#FF7043",
+  topRightActions: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
-    borderColor: "rgba(255, 112, 67, 0.3)",
+    gap: 12,
   },
-  avatarText: {
-    color: "#FFF",
-    fontSize: 20,
-    fontWeight: "900",
+  actionBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+  },
+  actionText: {
+    color: colors.textPrimary,
+    fontSize: 11,
+    fontWeight: "700",
   },
   warningBanner: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255, 193, 7, 0.05)",
+    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: "rgba(255, 193, 7, 0.2)",
+    borderColor: colors.warning,
     borderRadius: 12,
     padding: 16,
     marginBottom: 24,
-    gap: 12,
+    gap: 12
   },
   warningIconContainer: {
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: "rgba(255, 193, 7, 0.1)",
+    backgroundColor: "transparent",
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 1,
+    borderColor: colors.warning
   },
   warningIcon: {
-    fontSize: 14,
+    fontSize: 13
   },
   warningContent: {
-    flex: 1,
+    flex: 1
   },
   warningTitle: {
-    color: "#FFC107",
-    fontSize: 14,
-    fontWeight: "800",
-    marginBottom: 2,
+    color: colors.warning,
+    fontSize: 13,
+    fontWeight: "600",
+    marginBottom: 2
   },
   warningSub: {
-    color: "rgba(255, 255, 255, 0.4)",
-    fontSize: 12,
+    color: colors.textSecondary,
+    fontSize: 11
   },
   warningLink: {
-    color: "#6C63FF",
-    fontWeight: "800",
-    fontSize: 13,
+    color: colors.accent,
+    fontWeight: "600",
+    fontSize: 13
   },
   section: {
-    marginBottom: 28,
+    marginBottom: 28
   },
   sectionTitle: {
-    color: "rgba(255, 255, 255, 0.3)",
+    color: colors.textSecondary,
     fontSize: 11,
-    fontWeight: "900",
+    fontWeight: "800",
     letterSpacing: 1.5,
-    marginBottom: 16,
+    marginBottom: 16
   },
   sectionHeaderRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-end",
-    marginBottom: 16,
+    marginBottom: 16
   },
   sectionTitleNormal: {
-    color: "#FFF",
+    color: colors.textPrimary,
     fontSize: 18,
-    fontWeight: "900",
+    fontWeight: "800"
   },
   linkText: {
-    color: "#6C63FF",
-    fontSize: 14,
-    fontWeight: "800",
+    color: colors.accent,
+    fontSize: 13,
+    fontWeight: "600"
   },
   gmvCard: {
-    borderRadius: 20,
+    borderRadius: 16,
     padding: 20,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.05)",
-    marginBottom: 16,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+    marginBottom: 16
   },
   gmvHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 10,
+    marginBottom: 10
   },
   gmvTitle: {
     color: colors.textMuted,
-    fontSize: 12,
-    fontWeight: "800",
-    letterSpacing: 0.5,
-  },
-  trendPill: {
-    backgroundColor: "rgba(76, 175, 80, 0.1)",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  trendPillText: {
-    color: "#4CAF50",
     fontSize: 11,
-    fontWeight: "800",
+    fontWeight: "600",
+    letterSpacing: 0.5
   },
   gmvValue: {
-    color: colors.goldLight,
-    fontSize: 38,
-    fontWeight: "900",
+    color: colors.textPrimary,
+    fontSize: 28,
+    fontWeight: "800",
     letterSpacing: -1,
-    marginBottom: 6,
-  },
-  gmvSub: {
-    color: colors.textMuted,
-    fontSize: 12,
-    marginBottom: 20,
+    marginBottom: 20
   },
   graphRow: {
     flexDirection: "row",
     gap: 8,
     height: 4,
-    alignItems: "center",
+    alignItems: "center"
   },
   graphLine: {
     flex: 1,
     height: "100%",
-    borderRadius: 2,
+    borderRadius: 2
   },
   metricsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
-    gap: 12,
+    gap: 12
   },
   scrollRow: {
     marginHorizontal: -24,
     paddingHorizontal: 24,
-    paddingBottom: 4,
+    paddingBottom: 4
   },
   marketingCard: {
-    borderRadius: 20,
+    borderRadius: 16,
     padding: 20,
     borderWidth: 1,
-    borderColor: "rgba(249, 60, 101, 0.2)",
+    borderColor: colors.border,
+    backgroundColor: colors.card
   },
   marketingContent: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "center"
   },
   marketingIconBg: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: "rgba(249, 60, 101, 0.1)",
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 16,
+    marginRight: 16
   },
   marketingTextContainer: {
-    flex: 1,
+    flex: 1
   },
   marketingTitle: {
-    color: "#FFF",
+    color: colors.textPrimary,
     fontSize: 18,
-    fontWeight: "900",
-    marginBottom: 4,
+    fontWeight: "800",
+    marginBottom: 4
   },
   marketingSub: {
-    color: "rgba(255,255,255,0.6)",
+    color: colors.textSecondary,
     fontSize: 13,
-    lineHeight: 18,
+    lineHeight: 18
   },
   marketingArrow: {
-    color: "#F93C65",
-    fontSize: 24,
+    color: colors.accent,
+    fontSize: 22,
     fontWeight: "300",
-    marginLeft: 12,
-  },
+    marginLeft: 12
+  }
 });

@@ -6,74 +6,100 @@ import { StyleSheet, Text, View } from "react-native";
 import { ProductForm } from "@/components/seller/ProductForm";
 import { Card } from "@/components/ui/Card";
 import { Screen } from "@/components/shared/Screen";
-import { colors } from "@/constants/colors";
+import { useAppTheme } from "@/store/useThemeStore";
 import { useSellerProducts } from "@/hooks/useProducts";
 import { formatCurrency } from "@/utils/formatCurrency";
-import { Image, ActivityIndicator } from "react-native";
+import { Image, ActivityIndicator, TouchableOpacity } from "react-native";
 import { HomeIcon } from "@/components/ui/HomeIcon";
 import { ListIcon } from "@/components/ui/ListIcon";
 import { BoxIcon } from "@/components/ui/BoxIcon";
 import { UserIcon } from "@/components/ui/UserIcon";
+import React, { useState } from "react";
 
 export default function SellerProductsScreen() {
-  const { products, isLoading } = useSellerProducts();
-
+  const {
+    colors
+  } = useAppTheme();
+  const styles = getStyles(colors);
+  const {
+    products,
+    isLoading
+  } = useSellerProducts();
+  const [editingProduct, setEditingProduct] = useState<any>(null);
   const getStatusBadge = (product: any) => {
     if (product.is_approved) {
-      return <View style={[styles.badge, { backgroundColor: colors.success }]}><Text style={styles.badgeText}>APPROVED</Text></View>;
+      return <View style={[styles.badge, {
+        backgroundColor: colors.success
+      }]}><Text style={styles.badgeText}>APPROVED</Text></View>;
     }
     if (product.is_flagged) {
-      return <View style={[styles.badge, { backgroundColor: colors.danger }]}><Text style={styles.badgeText}>REJECTED</Text></View>;
+      return <View style={[styles.badge, {
+        backgroundColor: colors.danger
+      }]}><Text style={styles.badgeText}>REJECTED</Text></View>;
     }
-    return <View style={[styles.badge, { backgroundColor: colors.warning }]}><Text style={styles.badgeText}>PENDING</Text></View>;
+    return <View style={[styles.badge, {
+      backgroundColor: colors.warning
+    }]}><Text style={styles.badgeText}>PENDING</Text></View>;
   };
-
-  return (
-    <>
-      <Screen bottomNavItems={[
-          { href: "/(seller)/dashboard" as any, icon: HomeIcon, label: "Home" },
-          { href: "/(seller)/products" as any, icon: ListIcon, label: "Products" },
-          { href: "/(seller)/seller-orders" as any, icon: BoxIcon, label: "Orders" },
-          { href: "/(seller)/seller-profile" as any, icon: UserIcon, label: "Profile" }
-        ]}>
-        <Text style={styles.title}>Products</Text>
-        <ProductForm />
+  return <>
+      <Screen bottomNavItems={[{
+      href: "/(seller)/dashboard" as any,
+      icon: HomeIcon,
+      label: "Home"
+    }, {
+      href: "/(seller)/products" as any,
+      icon: ListIcon,
+      label: "Products"
+    }, {
+      href: "/(seller)/seller-orders" as any,
+      icon: BoxIcon,
+      label: "Orders"
+    }, {
+      href: "/(seller)/seller-profile" as any,
+      icon: UserIcon,
+      label: "Profile"
+    }]}>
+        <Text style={styles.title}>{editingProduct ? "Edit Product" : "Products"}</Text>
+        <ProductForm initialData={editingProduct} onCloseEdit={() => setEditingProduct(null)} />
         <Text style={styles.section}>Live Inventory</Text>
-        {isLoading ? (
-          <View style={{ flex: 1, justifyContent: "center", alignItems: "center", paddingVertical: 20 }}>
-            <ActivityIndicator size="large" color={colors.primary} />
-          </View>
-        ) : products.length === 0 ? (
-          <Text style={{ color: colors.textSecondary, textAlign: "center", paddingVertical: 20 }}>No products listed yet.</Text>
-        ) : (
-          products.map((product) => (
-            <Card key={product.id} style={styles.product}>
-              {product.images && product.images.length > 0 ? (
-                <Image source={{ uri: product.images[0] }} style={styles.image} />
-              ) : (
-                <View style={[styles.image, styles.imagePlaceholder]}>
-                  <Text style={{ color: colors.textMuted }}>No img</Text>
+        {isLoading ? <View style={{
+        flex: 1,
+        justifyContent: "center",
+        alignItems: "center",
+        paddingVertical: 20
+      }}>
+            <ActivityIndicator size="large" color={colors.accent} />
+          </View> : products.length === 0 ? <Text style={{
+        color: colors.textSecondary,
+        textAlign: "center",
+        paddingVertical: 20
+      }}>No products listed yet.</Text> : products.map(product => (
+            <TouchableOpacity key={product.id} onPress={() => setEditingProduct(product)}>
+              <Card style={styles.product}>
+                {product.images && product.images.length > 0 ? <Image source={{
+            uri: product.images[0]
+          }} style={styles.image} /> : <View style={[styles.image, styles.imagePlaceholder]}>
+                    <Text style={{
+              color: colors.textMuted
+            }}>No img</Text>
+                  </View>}
+                <View style={styles.info}>
+                  <Text style={styles.name} numberOfLines={1}>{product.title}</Text>
+                  <Text style={styles.meta}>{product.category} · SKU {product.id.toUpperCase()}</Text>
+                  {getStatusBadge(product)}
                 </View>
-              )}
-              <View style={styles.info}>
-                <Text style={styles.name} numberOfLines={1}>{product.title}</Text>
-                <Text style={styles.meta}>{product.category} · SKU {product.id.toUpperCase()}</Text>
-                {getStatusBadge(product)}
-              </View>
-              <Text style={styles.price}>{formatCurrency(product.price)}</Text>
-            </Card>
-          ))
-        )}
+                <Text style={styles.price}>{formatCurrency(product.price)}</Text>
+              </Card>
+            </TouchableOpacity>
+          ))}
       </Screen>
       
-    </>
-  );
+    </>;
 }
-
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
   title: {
     color: colors.textPrimary,
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: "900",
     marginBottom: 18
   },
@@ -114,7 +140,7 @@ const styles = StyleSheet.create({
   },
   meta: {
     color: colors.textMuted,
-    fontSize: 12
+    fontSize: 11
   },
   price: {
     color: colors.goldLight,
@@ -130,7 +156,7 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     color: "#fff",
-    fontSize: 9,
+    fontSize: 11,
     fontWeight: "900"
   }
 });

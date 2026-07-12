@@ -15,54 +15,62 @@ import { UserIcon } from "@/components/ui/UserIcon";
 import { SearchInput } from "@/components/buyer/SearchInput";
 import { ListIcon } from "@/components/ui/ListIcon";
 import { Screen } from "@/components/shared/Screen";
-import { colors } from "@/constants/colors";
+import { BuyerHeader } from "@/components/buyer/BuyerHeader";
+import { useAppTheme } from "@/store/useThemeStore";
 import { useProducts } from "@/hooks/useProducts";
 import { useRouter } from "expo-router";
-
 export default function BuyerHomeScreen() {
-  const { products, isLoading } = useProducts();
+  const {
+    colors
+  } = useAppTheme();
+  const styles = getStyles(colors);
+  const {
+    products,
+    isLoading
+  } = useProducts();
   const router = useRouter();
-
-  return (
-    <>
-      <Screen bottomNavItems={[
-          { href: "/(buyer)", icon: HomeIcon, label: "Home" },
-          { href: "/(buyer)/cart", icon: ShoppingCartIcon, label: "Cart" },
-          { href: "/(buyer)/orders", icon: BoxIcon, label: "Orders" },
-          { href: "/(buyer)/profile", icon: UserIcon, label: "Profile" }
-        ]}>
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.logo}>Omni<Text style={styles.logoAccent}>Q</Text></Text>
-          </View>
-          <AnimatedCartButton onPress={() => router.push("/(buyer)/cart")} />
-        </View>
-        <SearchInput placeholder="Search OmniQ" />
-        <AdvertisementCarousel />
+  return <>
+      <Screen 
+        header={<BuyerHeader />}
+        bottomNavItems={[{
+          href: "/(buyer)",
+          icon: HomeIcon,
+          label: "Home"
+        }, {
+          href: "/(buyer)/cart",
+          icon: ShoppingCartIcon,
+          label: "Cart"
+        }, {
+          href: "/(buyer)/orders",
+          icon: BoxIcon,
+          label: "Orders"
+        }, {
+          href: "/(buyer)/profile",
+          icon: UserIcon,
+          label: "Profile"
+        }]}>
+        <AdvertisementCarousel type="ads" />
         <HeroBanner />
-        <CategoryScroll />
+        <AdvertisementCarousel type="offers" />
+        {/* <CategoryScroll /> */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Trending Now</Text>
           <Text style={styles.link}>See all</Text>
         </View>
         <View style={styles.grid}>
-          {isLoading ? (
-            <Text style={{ color: colors.textMuted, marginVertical: 20 }}>Loading products...</Text>
-          ) : products.length === 0 ? (
-            <Text style={{ color: colors.textMuted, marginVertical: 20 }}>No products found.</Text>
-          ) : (
-            products.map((product, i) => (
-              <ProductCard key={product.id} product={product} index={i} />
-            ))
-          )}
+          {isLoading ? <Text style={{
+          color: colors.textMuted,
+          marginVertical: 20
+        }}>Loading products...</Text> : products.length === 0 ? <Text style={{
+          color: colors.textMuted,
+          marginVertical: 20
+        }}>No products found.</Text> : products.map((product, i) => <ProductCard key={product.id} product={product} index={i} />)}
         </View>
       </Screen>
       
-    </>
-  );
+    </>;
 }
-
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -72,7 +80,7 @@ const styles = StyleSheet.create({
   },
   logo: {
     color: colors.textPrimary,
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: "900"
   },
   logoAccent: {
@@ -86,23 +94,24 @@ const styles = StyleSheet.create({
   filterText: {
     color: colors.accentLight,
     fontWeight: "700",
-    fontSize: 14
+    fontSize: 13
   },
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "baseline",
     marginTop: 20,
-    marginBottom: 16
+    marginBottom: 12
   },
   sectionTitle: {
     color: colors.textPrimary,
-    fontSize: 23,
-    fontWeight: "900"
+    fontSize: 22,
+    fontWeight: "700"
   },
   link: {
-    color: colors.accentLight,
-    fontWeight: "900"
+    color: "#007185",
+    fontWeight: "600",
+    fontSize: 13
   },
   grid: {
     flexDirection: "row",

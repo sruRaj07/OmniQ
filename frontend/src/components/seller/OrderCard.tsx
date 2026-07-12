@@ -2,24 +2,30 @@
  * OmniQ mobile app - seller order card.
  * Author: OmniQ Team
  */
-import { StyleSheet, Text, View, Image } from "react-native";
+import React from "react";
+import { StyleSheet, Text, View, Image, TouchableOpacity } from "react-native";
 import { Card } from "@/components/ui/Card";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { colors } from "@/constants/colors";
+import { useAppTheme } from "@/store/useThemeStore";
 import { formatCurrency } from "@/utils/formatCurrency";
 
 type OrderCardProps = {
-  order: any; // using any for simplicity, handles Supabase structure
+  order: any;
+  isSeller?: boolean;
+  onPress?: () => void;
 };
 
-export function OrderCard({ order }: OrderCardProps) {
+export function OrderCard({ order, isSeller, onPress }: OrderCardProps) {
+  const { colors } = useAppTheme();
+  const styles = getStyles(colors);
+
   // Extract info from order items
   const items = order.order_items || [];
   const firstItem = items[0];
   const product = firstItem?.product;
   const imageUrl = product?.images && product.images.length > 0 ? product.images[0] : null;
   const totalQuantity = items.reduce((sum: number, item: any) => sum + (item.quantity || 1), 0);
-  
+
   // Format items text
   let itemsText = `${totalQuantity} item${totalQuantity !== 1 ? 's' : ''}`;
   if (product?.title) {
@@ -29,10 +35,9 @@ export function OrderCard({ order }: OrderCardProps) {
     }
   }
 
-  // Handle total (sometimes named differently based on API structure, but usually `total`)
   const amount = Number(order.total || order.total_amount || 0);
 
-  return (
+  const cardContent = (
     <Card style={styles.card}>
       {imageUrl ? (
         <Image source={{ uri: imageUrl }} style={styles.image} />
@@ -46,30 +51,45 @@ export function OrderCard({ order }: OrderCardProps) {
           <StatusBadge status={order.status} />
         </View>
       </View>
-      <Text style={styles.amount}>{formatCurrency(amount)}</Text>
+      <View style={styles.rightContent}>
+        <Text style={styles.amount}>{formatCurrency(amount)}</Text>
+      </View>
     </Card>
   );
+
+  if (onPress) {
+    return (
+      <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
+        {cardContent}
+      </TouchableOpacity>
+    );
+  }
+
+  return cardContent;
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
   card: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 16,
+    padding: 12,
     marginBottom: 12,
-    gap: 16
+    gap: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   image: {
     width: 60,
     height: 60,
     borderRadius: 8,
-    backgroundColor: colors.card2,
+    backgroundColor: colors.card2
   },
   placeholderIcon: {
     width: 60,
     height: 60,
     backgroundColor: colors.card2,
-    borderRadius: 8,
+    borderRadius: 8
   },
   info: {
     flex: 1,
@@ -79,15 +99,20 @@ const styles = StyleSheet.create({
   id: {
     color: colors.textPrimary,
     fontSize: 15,
-    fontWeight: "900"
+    fontWeight: "700"
   },
   meta: {
     color: colors.textMuted,
     fontSize: 13
   },
+  rightContent: {
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    gap: 8
+  },
   amount: {
-    color: colors.goldLight,
+    color: colors.textPrimary,
     fontSize: 18,
-    fontWeight: "900"
+    fontWeight: "700"
   }
 });

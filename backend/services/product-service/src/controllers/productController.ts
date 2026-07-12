@@ -104,6 +104,66 @@ export async function createProductController(request: Request, response: Respon
   }
 }
 
+export async function updateProductController(request: Request, response: Response): Promise<void> {
+  try {
+    const id = request.params.id;
+    if (!id) {
+      response.status(400).json(fail("PRODUCT_VALIDATION_FAILED", "Product ID is required"));
+      return;
+    }
+
+    const sanitizedBody: any = {};
+    for (const key in request.body) {
+      if (Object.prototype.hasOwnProperty.call(request.body, key)) {
+        sanitizedBody[key.trim()] = typeof request.body[key] === 'string' ? request.body[key].trim() : request.body[key];
+      }
+    }
+    request.body = sanitizedBody;
+
+    const files = request.files as Express.Multer.File[] | undefined;
+    const imageUrls: string[] = [];
+
+    if (files && files.length > 0) {
+      for (const file of files) {
+        const fileName = `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9.]/g, '')}`;
+        const { error } = await supabaseAdmin.storage.from("product-images").upload(fileName, file.buffer, {
+          contentType: file.mimetype,
+          upsert: false
+        });
+        if (error) throw new Error(`Image upload failed: ${error.message}`);
+        
+        const { data: publicUrlData } = supabaseAdmin.storage.from("product-images").getPublicUrl(fileName);
+        imageUrls.push(publicUrlData.publicUrl);
+      }
+    }
+
+    if (imageUrls.length > 0) {
+      // If there are new images, append them or replace. For simplicity, if they upload new images, we replace.
+      request.body.images = imageUrls;
+    } else if (request.body.images) {
+       // Keep existing images if they pass them back as an array
+       if (typeof request.body.images === 'string') {
+         request.body.images = [request.body.images];
+       }
+    }
+
+    const payload = extractTokenPayload(request);
+    const authUserId = payload?.sub;
+    if (!authUserId) {
+      response.status(401).json(fail("UNAUTHORIZED", "Missing token"));
+      return;
+    }
+
+    // Dynamic import to avoid circular dependency issues if any, or just import at top. Let's assume it's imported at top.
+    const { updateProduct } = await import("../services/productService");
+    const product = await updateProduct(id, request.body, authUserId);
+    response.status(200).json(ok(product));
+  } catch (error: any) {
+    console.error("PRODUCT UPDATE ERROR:", error);
+    response.status(400).json(fail("PRODUCT_UPDATE_FAILED", error.message || error.toString()));
+  }
+}
+
 export async function getAdvertisementsController(request: Request, response: Response): Promise<void> {
   try {
     const { data, error } = await supabaseAdmin

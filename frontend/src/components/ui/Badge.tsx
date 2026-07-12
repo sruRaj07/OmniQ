@@ -3,22 +3,25 @@
  * Author: OmniQ Team
  */
 import { StyleSheet, Text, View } from "react-native";
-import { colors } from "@/constants/colors";
-
+import { useAppTheme } from "@/store/useThemeStore";
+import { typography } from "@/constants/typography";
 type BadgeProps = {
   label: string;
   tone?: "accent" | "gold" | "success" | "danger" | "neutral";
 };
-
-export function Badge({ label, tone = "accent" }: BadgeProps) {
-  return (
-    <View style={[styles.badge, styles[tone]]}>
+export function Badge({
+  label,
+  tone = "accent"
+}: BadgeProps) {
+  const {
+    colors
+  } = useAppTheme();
+  const styles = getStyles(colors);
+  return <View style={[styles.badge, styles[tone]]}>
       <Text style={styles.label}>{label}</Text>
-    </View>
-  );
+    </View>;
 }
-
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
   badge: {
     borderRadius: 999,
     paddingHorizontal: 12,
@@ -44,7 +47,7 @@ const styles = StyleSheet.create({
   },
   label: {
     color: colors.textPrimary,
-    fontSize: 12,
-    fontWeight: "800"
+    ...typography.small,
+    fontWeight: "700"
   }
 });

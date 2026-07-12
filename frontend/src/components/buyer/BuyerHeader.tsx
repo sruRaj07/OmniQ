@@ -1,0 +1,63 @@
+import React from "react";
+import { StyleSheet, View, Text, TouchableOpacity } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { SearchInput } from "./SearchInput";
+import { AnimatedCartButton } from "./AnimatedCartButton";
+import { useAppTheme } from "@/store/useThemeStore";
+import { useRouter } from "expo-router";
+
+export function BuyerHeader() {
+  const { colors, mode } = useAppTheme();
+  const styles = getStyles(colors);
+  const router = useRouter();
+
+  const gradientColors = ['transparent', 'transparent']; 
+
+  return (
+    <LinearGradient
+      colors={gradientColors as [string, string]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 0 }}
+      style={styles.headerContainer}
+    >
+      <View style={styles.searchRow}>
+        <SearchInput 
+          placeholder="Search OmniQ" 
+          style={{ flex: 1, marginBottom: 0, marginRight: 12 }} 
+        />
+        <AnimatedCartButton onPress={() => router.push("/(buyer)/cart")} />
+      </View>
+    </LinearGradient>
+  );
+}
+
+const getStyles = (colors: any) => StyleSheet.create({
+  headerContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 24,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.05)',
+  },
+  topRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  logo: {
+    color: '#000',
+    fontSize: 28,
+    fontWeight: "900",
+    letterSpacing: -0.5
+  },
+  logoAccent: {
+    color: '#007185',
+  },
+  searchRow: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  }
+});

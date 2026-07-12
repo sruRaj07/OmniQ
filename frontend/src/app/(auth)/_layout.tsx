@@ -11,7 +11,7 @@ export default function AuthLayout() {
       screenOptions={{
         headerShown: false,
         animation: "fade",
-        animationDuration: 300,
+        freezeOnBlur: true,
         gestureEnabled: false,
         contentStyle: { backgroundColor: "#0A0A0F" },
       }}

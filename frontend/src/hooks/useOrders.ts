@@ -2,10 +2,12 @@
  * OmniQ mobile app - order data hook.
  * Author: OmniQ Team
  */
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/apiClient";
 
 export function useOrders() {
+  const queryClient = useQueryClient();
+
   const buyerQuery = useQuery({
     queryKey: ["buyer-orders"],
     queryFn: async () => {
@@ -27,9 +29,22 @@ export function useOrders() {
     }
   });
 
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ orderId, status }: { orderId: string; status: string }) => {
+      const { data } = await apiClient.patch(`/orders/${orderId}/status`, { status });
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["seller-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["buyer-orders"] });
+    },
+  });
+
   return {
     buyerOrders: buyerQuery.data || [],
     sellerOrders: sellerQuery.data || [],
-    isLoading: buyerQuery.isLoading || sellerQuery.isLoading
+    isLoading: buyerQuery.isLoading || sellerQuery.isLoading,
+    updateOrderStatus: updateStatusMutation.mutate,
+    isUpdatingStatus: updateStatusMutation.isPending,
   };
 }

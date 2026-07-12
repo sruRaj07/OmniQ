@@ -6,6 +6,8 @@ export type ApiMeta = {
   page?: number;
   limit?: number;
   total?: number;
+  offset?: number;
+  suggestions?: string[];
 };
 
 export type ApiSuccess<TData> = {

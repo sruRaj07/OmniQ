@@ -4,11 +4,13 @@
  */
 import { StyleSheet, Text, View, Image } from "react-native";
 import { Button } from "@/components/ui/Button";
-import { colors } from "@/constants/colors";
-
+import { useAppTheme } from "@/store/useThemeStore";
 export function HeroBanner() {
-  return (
-    <View style={styles.banner}>
+  const {
+    colors
+  } = useAppTheme();
+  const styles = getStyles(colors);
+  return <View style={styles.banner}>
       <View style={styles.badge60}>
         <Text style={styles.badge60Text}>60%</Text>
         <Text style={styles.badge60TextSmall}>OFF</Text>
@@ -26,16 +28,13 @@ export function HeroBanner() {
             <Text style={styles.buttonText}>Shop now →</Text>
           </View>
         </View>
-        <Image 
-          source={{ uri: "https://cdn3d.iconscout.com/3d/premium/thumb/gift-box-4993510-4161745.png" }} 
-          style={styles.giftImage} 
-        />
+        <Image source={{
+        uri: "https://cdn3d.iconscout.com/3d/premium/thumb/gift-box-4993510-4161745.png"
+      }} style={styles.giftImage} />
       </View>
-    </View>
-  );
+    </View>;
 }
-
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
   banner: {
     backgroundColor: "#20134E",
     borderRadius: 24,
@@ -57,14 +56,14 @@ const styles = StyleSheet.create({
   },
   badge60Text: {
     color: colors.goldLight,
-    fontWeight: "900",
+    fontWeight: "700",
     fontSize: 18,
     lineHeight: 20
   },
   badge60TextSmall: {
     color: colors.goldLight,
-    fontWeight: "800",
-    fontSize: 10
+    fontWeight: "700",
+    fontSize: 11
   },
   pill: {
     alignSelf: "flex-start",
@@ -86,8 +85,8 @@ const styles = StyleSheet.create({
   },
   pillText: {
     color: "#fff",
-    fontSize: 10,
-    fontWeight: "800",
+    fontSize: 11,
+    fontWeight: "700",
     letterSpacing: 0.5
   },
   row: {
@@ -103,7 +102,7 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontSize: 28,
     lineHeight: 34,
-    fontWeight: "900"
+    fontWeight: "700"
   },
   gold: {
     color: colors.goldLight
@@ -125,8 +124,8 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: "#fff",
-    fontWeight: "800",
-    fontSize: 14
+    fontWeight: "700",
+    fontSize: 13
   },
   giftImage: {
     width: 100,

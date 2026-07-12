@@ -26,6 +26,8 @@ export function useSearch() {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
+  const [offset, setOffset] = useState(0);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -115,10 +117,12 @@ export function useSearch() {
         if (filters.maxPrice !== undefined) params.maxPrice = filters.maxPrice;
         if (filters.sort) params.sort = filters.sort;
         params.limit = 40;
+        params.offset = 0;
 
         const { data } = await apiClient.get("/products/search", { params });
         setResults(data?.data || []);
         setTotal(data?.meta?.total ?? 0);
+        setOffset(40);
         setSuggestions([]);
 
         // Save to recent
@@ -134,6 +138,35 @@ export function useSearch() {
     [query, filters, recentSearches]
   );
 
+  const loadMore = useCallback(
+    async () => {
+      const q = query.trim();
+      if (!q || isLoading || isFetchingMore || results.length >= total) return;
+
+      setIsFetchingMore(true);
+      try {
+        const params: Record<string, string | number> = { q };
+        if (filters.category) params.category = filters.category;
+        if (filters.minPrice !== undefined) params.minPrice = filters.minPrice;
+        if (filters.maxPrice !== undefined) params.maxPrice = filters.maxPrice;
+        if (filters.sort) params.sort = filters.sort;
+        params.limit = 40;
+        params.offset = offset;
+
+        const { data } = await apiClient.get("/products/search", { params });
+        const newResults = data?.data || [];
+        setResults((prev) => [...prev, ...newResults]);
+        setTotal(data?.meta?.total ?? 0);
+        setOffset((prev) => prev + newResults.length);
+      } catch (error) {
+        console.error("Load more failed:", error);
+      } finally {
+        setIsFetchingMore(false);
+      }
+    },
+    [query, filters, offset, isLoading, isFetchingMore, results, total]
+  );
+
   return {
     query,
     setQuery,
@@ -143,8 +176,10 @@ export function useSearch() {
     suggestions,
     total,
     isLoading,
+    isFetchingMore,
     recentSearches,
     executeSearch,
+    loadMore,
     clearRecentSearches,
     removeRecentSearch,
   };

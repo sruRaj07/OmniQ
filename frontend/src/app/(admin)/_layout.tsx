@@ -8,9 +8,9 @@ import { View } from "react-native";
 import { BottomNavBar } from "@/components/ui/BottomNavBar";
 import { BarIcon } from "@/components/ui/BarIcon";
 import { UsersIcon } from "@/components/ui/UsersIcon";
-import { FlagIcon } from "@/components/ui/FlagIcon";
 import { GlobeIcon } from "@/components/ui/GlobeIcon";
 import { BoxIcon } from "@/components/ui/BoxIcon";
+import { AdsIcon } from "@/components/ui/AdsIcon";
 
 export default function AdminLayout() {
   return (
@@ -18,8 +18,7 @@ export default function AdminLayout() {
       <Stack
         screenOptions={{
           headerShown: false,
-          animation: "slide_from_right",
-          animationDuration: 280,
+          freezeOnBlur: true,
           gestureEnabled: true,
           gestureDirection: "horizontal",
           contentStyle: { backgroundColor: "#0A0A0F" },
@@ -27,11 +26,11 @@ export default function AdminLayout() {
       />
       <BottomNavBar
         items={[
-          { href: "/(admin)", icon: BarIcon, label: "" },
-          { href: "/(admin)/sellers", icon: UsersIcon, label: "" },
-          { href: "/(admin)/moderation", icon: FlagIcon, label: "" },
-          { href: "/(admin)/zones", icon: GlobeIcon, label: "" },
-          { href: "/(admin)/orders", icon: BoxIcon, label: "" }
+          { href: "/(admin)", icon: BarIcon, label: "Overview" },
+          { href: "/(admin)/sellers", icon: UsersIcon, label: "Sellers" },
+          { href: "/(admin)/zones", icon: GlobeIcon, label: "Zones" },
+          { href: "/(admin)/orders", icon: BoxIcon, label: "Orders" },
+          { href: "/(admin)/manage-ads", icon: AdsIcon, label: "Marketing" }
         ]}
       />
     </View>

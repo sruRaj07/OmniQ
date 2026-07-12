@@ -2,7 +2,7 @@
  * OmniQ product service - product business logic.
  * Author: OmniQ Team
  */
-import { productCreateSchema } from "../validators/productValidator";
+import { productCreateSchema, productUpdateSchema } from "../validators/productValidator";
 import { supabase } from "../../../../shared/utils/supabaseClient";
 
 export type ProductDto = {
@@ -10,6 +10,7 @@ export type ProductDto = {
   title: string;
   description?: string;
   price: number;
+  compare_price?: number;
   category: string;
   stock: number;
   images?: string[];
@@ -88,6 +89,7 @@ export async function createProduct(input: unknown, authUserId?: string): Promis
     title: parsed.title, 
     description: parsed.description,
     price: parsed.price, 
+    compare_price: parsed.compare_price,
     category: parsed.category, 
     stock: parsed.stock,
     images: parsed.images,
@@ -96,6 +98,42 @@ export async function createProduct(input: unknown, authUserId?: string): Promis
   
   const { data, error } = await supabase.from("products").insert([product]).select().single();
   if (error) throw new Error(`Failed to create product: ${error.message}`);
+  return data;
+}
+
+export async function updateProduct(id: string, input: unknown, authUserId: string): Promise<ProductDto> {
+  const parsed = productUpdateSchema.parse(input);
+  
+  // Verify ownership
+  const { data: seller, error: sellerError } = await supabase
+    .from("sellers")
+    .select("id")
+    .eq("owner_id", authUserId)
+    .maybeSingle();
+    
+  if (sellerError || !seller) throw new Error("Authenticated user does not have a registered seller profile.");
+  
+  // Verify product belongs to seller
+  const { data: existing, error: existingError } = await supabase.from("products").select("seller_id").eq("id", id).single();
+  if (existingError || !existing) throw new Error("Product not found");
+  if (existing.seller_id !== seller.id) throw new Error("Unauthorized to edit this product");
+
+  const updates: any = {
+    is_approved: false, // Force re-approval
+    is_flagged: false,
+    updated_at: new Date().toISOString()
+  };
+  
+  if (parsed.title !== undefined) updates.title = parsed.title;
+  if (parsed.description !== undefined) updates.description = parsed.description;
+  if (parsed.price !== undefined) updates.price = parsed.price;
+  if (parsed.compare_price !== undefined) updates.compare_price = parsed.compare_price;
+  if (parsed.category !== undefined) updates.category = parsed.category;
+  if (parsed.stock !== undefined) updates.stock = parsed.stock;
+  if (parsed.images !== undefined) updates.images = parsed.images;
+
+  const { data, error } = await supabase.from("products").update(updates).eq("id", id).select().single();
+  if (error) throw new Error(`Failed to update product: ${error.message}`);
   return data;
 }
 
@@ -116,10 +154,10 @@ export async function searchProducts(params: SearchParams): Promise<{ products: 
   // Build the query — only return approved products
   let query = supabase.from("products").select("*", { count: "exact" }).eq("is_approved", true);
 
-  // Full-text search on title and description using ilike
+  // Full-text search on title, description, and category using ilike
   if (q && q.trim().length > 0) {
     const searchTerm = `%${q.trim()}%`;
-    query = query.or(`title.ilike.${searchTerm},description.ilike.${searchTerm}`);
+    query = query.or(`title.ilike.${searchTerm},description.ilike.${searchTerm},category.ilike.${searchTerm}`);
   }
 
   // Category filter

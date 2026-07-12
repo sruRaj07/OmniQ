@@ -4,7 +4,7 @@
  */
 import type { Request, Response } from "express";
 import { fail, ok } from "../../../../shared/utils/responseFormatter";
-import { placeOrder, updateOrderStatus, listOrders, listSellerOrders, getCart, addToCart, removeFromCart, clearCart } from "../services/orderService";
+import { placeOrder, updateOrderStatus, listOrders, listSellerOrders, getCart, addToCart, removeFromCart, clearCart, updateCartItemQuantity } from "../services/orderService";
 
 function extractTokenPayload(request: Request): any {
   const token = request.headers.authorization?.split(" ")[1];
@@ -97,6 +97,22 @@ export async function removeFromCartController(request: Request, response: Respo
     response.json(ok(result));
   } catch (error: any) {
     response.status(500).json(fail("REMOVE_FROM_CART_FAILED", error.message));
+  }
+}
+
+export async function updateCartItemController(request: Request, response: Response): Promise<void> {
+  try {
+    const payload = extractTokenPayload(request);
+    const buyerId = payload?.sub || DEFAULT_BUYER_ID;
+    const quantity = request.body.quantity;
+    if (quantity == null) {
+      response.status(400).json(fail("UPDATE_CART_FAILED", "Quantity is required"));
+      return;
+    }
+    const item = await updateCartItemQuantity(buyerId, request.params.productId, quantity);
+    response.json(ok(item));
+  } catch (error: any) {
+    response.status(500).json(fail("UPDATE_CART_FAILED", error.message));
   }
 }
 

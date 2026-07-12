@@ -6,41 +6,62 @@ import { ShoppingCartIcon } from "@/components/ui/ShoppingCartIcon";
 import { BoxIcon } from "@/components/ui/BoxIcon";
 import { UserIcon } from "@/components/ui/UserIcon";
 import { Screen } from "@/components/shared/Screen";
-import { colors } from "@/constants/colors";
+import { BuyerHeader } from "@/components/buyer/BuyerHeader";
+import { useAppTheme } from "@/store/useThemeStore";
 import { useOrders } from "@/hooks/useOrders";
 import { formatCurrency } from "@/utils/formatCurrency";
 import { Link } from "expo-router";
-
 export default function BuyerOrdersScreen() {
-  const { buyerOrders, isLoading } = useOrders();
-  
-  return (
-    <>
-      <Screen bottomNavItems={[
-          { href: "/(buyer)", icon: HomeIcon, label: "Home" },
-          { href: "/(buyer)/cart", icon: ShoppingCartIcon, label: "Cart" },
-          { href: "/(buyer)/orders", icon: BoxIcon, label: "Orders" },
-          { href: "/(buyer)/profile", icon: UserIcon, label: "Profile" }
-        ]}>
+  const {
+    colors
+  } = useAppTheme();
+  const styles = getStyles(colors);
+  const {
+    buyerOrders,
+    isLoading
+  } = useOrders();
+  return <>
+      <Screen header={<BuyerHeader />} bottomNavItems={[{
+      href: "/(buyer)",
+      icon: HomeIcon,
+      label: "Home"
+    }, {
+      href: "/(buyer)/cart",
+      icon: ShoppingCartIcon,
+      label: "Cart"
+    }, {
+      href: "/(buyer)/orders",
+      icon: BoxIcon,
+      label: "Orders"
+    }, {
+      href: "/(buyer)/profile",
+      icon: UserIcon,
+      label: "Profile"
+    }]}>
         <Text style={styles.title}>Orders</Text>
-        {isLoading ? (
-          <ActivityIndicator size="large" color={colors.accent} style={{ marginTop: 40 }} />
-        ) : buyerOrders?.length === 0 ? (
-          <Text style={{ color: colors.textSecondary, textAlign: 'center', marginTop: 40 }}>No orders found.</Text>
-        ) : (
-          buyerOrders.map((order: any) => {
-            const amount = order.total || order.amount || 0;
-            const createdAt = new Date(order.created_at || order.createdAt || Date.now());
-            
-            // Format date like "10th Jun 2026, 08:03 pm"
-            const dateText = createdAt.toLocaleDateString("en-US", { day: 'numeric', month: 'short', year: 'numeric' });
-            const timeText = createdAt.toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit' }).toLowerCase();
-            const placedText = `Placed at ${dateText}, ${timeText}`;
-            
-            const displayId = order.id.length > 8 ? `#OMQ-${order.id.split("-")[0].toUpperCase()}` : order.id;
+        {isLoading ? <ActivityIndicator size="large" color={colors.accent} style={{
+        marginTop: 40
+      }} /> : buyerOrders?.length === 0 ? <Text style={{
+        color: colors.textSecondary,
+        textAlign: 'center',
+        marginTop: 40
+      }}>No orders found.</Text> : buyerOrders.map((order: any) => {
+        const amount = order.total || order.amount || 0;
+        const createdAt = new Date(order.created_at || order.createdAt || Date.now());
 
-            return (
-              <Link key={order.id} href={`/order/${order.id}`} asChild>
+        // Format date like "10th Jun 2026, 08:03 pm"
+        const dateText = createdAt.toLocaleDateString("en-US", {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric'
+        });
+        const timeText = createdAt.toLocaleTimeString("en-US", {
+          hour: '2-digit',
+          minute: '2-digit'
+        }).toLowerCase();
+        const placedText = `Placed at ${dateText}, ${timeText}`;
+        const displayId = order.id.length > 8 ? `#OMQ-${order.id.split("-")[0].toUpperCase()}` : order.id;
+        return <Link key={order.id} href={`/order/${order.id}`} asChild>
                 <Pressable style={styles.card}>
                   <View style={styles.cardHeader}>
                     <View>
@@ -55,41 +76,35 @@ export default function BuyerOrdersScreen() {
 
                   <View style={styles.imagesRow}>
                     {order.order_items?.map((item: any, index: number) => {
-                      if (index >= 5) return null; // Show max 5 images
-                      const product = item.product;
-                      const imageUrl = product?.images?.[0] || `https://picsum.photos/seed/${product?.id || item.product_id}/100`;
-                      return (
-                        <View key={item.id || index} style={styles.imageContainer}>
-                          <Image source={{ uri: imageUrl }} style={styles.image} resizeMode="cover" />
-                        </View>
-                      );
-                    })}
-                    {order.order_items?.length > 5 && (
-                      <View style={styles.moreItemsContainer}>
+                if (index >= 5) return null; // Show max 5 images
+                const product = item.product;
+                const imageUrl = product?.images?.[0] || `https://picsum.photos/seed/${product?.id || item.product_id}/100`;
+                return <View key={item.id || index} style={styles.imageContainer}>
+                          <Image source={{
+                    uri: imageUrl
+                  }} style={styles.image} resizeMode="cover" />
+                        </View>;
+              })}
+                    {order.order_items?.length > 5 && <View style={styles.moreItemsContainer}>
                         <Text style={styles.moreItemsText}>+{order.order_items.length - 5}</Text>
-                      </View>
-                    )}
+                      </View>}
                   </View>
                   
                   <View style={styles.actionRow}>
                     <Text style={styles.viewDetailsText}>View Details</Text>
                   </View>
                 </Pressable>
-              </Link>
-            );
-          })
-        )}
+              </Link>;
+      })}
       </Screen>
       
-    </>
-  );
+    </>;
 }
-
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
   title: {
     color: colors.textPrimary,
-    fontSize: 32,
-    fontWeight: "900",
+    fontSize: 28,
+    fontWeight: "800",
     marginBottom: 18
   },
   card: {
@@ -98,10 +113,13 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 16,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: {
+      width: 0,
+      height: 4
+    },
     shadowOpacity: 0.15,
     shadowRadius: 10,
-    elevation: 3,
+    elevation: 3
   },
   cardHeader: {
     flexDirection: "row",
@@ -118,17 +136,17 @@ const styles = StyleSheet.create({
   statusText: {
     color: colors.textPrimary,
     fontSize: 16,
-    fontWeight: "800",
+    fontWeight: "700",
     textTransform: "capitalize"
   },
   meta: {
     color: colors.textSecondary,
-    fontSize: 12
+    fontSize: 11
   },
   amount: {
     color: colors.textPrimary,
     fontSize: 18,
-    fontWeight: "900"
+    fontWeight: "800"
   },
   imagesRow: {
     flexDirection: "row",
@@ -161,7 +179,7 @@ const styles = StyleSheet.create({
   moreItemsText: {
     color: colors.textSecondary,
     fontWeight: "700",
-    fontSize: 14
+    fontSize: 13
   },
   actionRow: {
     borderTopWidth: 1,
@@ -172,6 +190,6 @@ const styles = StyleSheet.create({
   viewDetailsText: {
     color: colors.accentLight,
     fontWeight: "700",
-    fontSize: 14
+    fontSize: 13
   }
 });

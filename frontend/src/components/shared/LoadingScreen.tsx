@@ -3,18 +3,18 @@
  * Author: OmniQ Team
  */
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
-import { colors } from "@/constants/colors";
-
+import { useAppTheme } from "@/store/useThemeStore";
 export function LoadingScreen() {
-  return (
-    <View style={styles.root}>
+  const {
+    colors
+  } = useAppTheme();
+  const styles = getStyles(colors);
+  return <View style={styles.root}>
       <ActivityIndicator color={colors.accentLight} />
       <Text style={styles.text}>Loading OmniQ</Text>
-    </View>
-  );
+    </View>;
 }
-
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
   root: {
     flex: 1,
     alignItems: "center",

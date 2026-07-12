@@ -4,53 +4,50 @@
  */
 import { StyleSheet, Text } from "react-native";
 import { Card } from "@/components/ui/Card";
-import { colors } from "@/constants/colors";
-
+import { useAppTheme } from "@/store/useThemeStore";
 type KpiCardProps = {
   label: string;
   value: string;
   trend: string;
-  tone?: "gold" | "accent" | "success";
 };
-
-export function KpiCard({ label, value, trend, tone = "accent" }: KpiCardProps) {
-  return (
-    <Card style={styles.card}>
+export function KpiCard({
+  label,
+  value,
+  trend,
+}: KpiCardProps) {
+  const {
+    colors
+  } = useAppTheme();
+  const styles = getStyles(colors);
+  return <Card style={styles.card}>
       <Text style={styles.label}>{label}</Text>
-      <Text style={[styles.value, styles[tone]]}>{value}</Text>
+      <Text style={styles.value}>{value}</Text>
       <Text style={styles.trend}>{trend}</Text>
-    </Card>
-  );
+    </Card>;
 }
-
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
   card: {
     width: "47%",
-    padding: 22,
-    minHeight: 128
+    padding: 20,
+    minHeight: 120
   },
   label: {
-    color: colors.textMuted,
-    fontWeight: "900",
-    letterSpacing: 0.8
+    color: colors.textSecondary,
+    fontWeight: "700",
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 0.5
   },
   value: {
-    fontSize: 30,
-    fontWeight: "900",
+    fontSize: 28,
+    color: colors.textPrimary,
+    fontWeight: "800",
     marginTop: 8
   },
-  gold: {
-    color: colors.goldLight
-  },
-  accent: {
-    color: colors.accentLight
-  },
-  success: {
-    color: colors.success
-  },
   trend: {
-    color: colors.success,
-    fontWeight: "700",
-    marginTop: 4
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: "500",
+    marginTop: 6
   }
 });

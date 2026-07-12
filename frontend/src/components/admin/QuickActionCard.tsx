@@ -1,42 +1,45 @@
 import { StyleSheet, Text, View, TouchableOpacity } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { colors } from "@/constants/colors";
-
+import { useAppTheme } from "@/store/useThemeStore";
 type QuickActionCardProps = {
   title: string;
   icon: React.ReactNode;
   badgeCount?: number;
   onPress: () => void;
 };
-
-export function QuickActionCard({ title, icon, badgeCount, onPress }: QuickActionCardProps) {
-  return (
-    <TouchableOpacity onPress={onPress} style={styles.button}>
-      <LinearGradient
-        colors={["rgba(30, 30, 45, 0.6)", "rgba(15, 15, 26, 0.8)"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.card}
-      >
+export function QuickActionCard({
+  title,
+  icon,
+  badgeCount,
+  onPress
+}: QuickActionCardProps) {
+  const {
+    colors
+  } = useAppTheme();
+  const styles = getStyles(colors);
+  return <TouchableOpacity onPress={onPress} style={styles.button}>
+      <LinearGradient colors={["rgba(30, 30, 45, 0.6)", "rgba(15, 15, 26, 0.8)"]} start={{
+      x: 0,
+      y: 0
+    }} end={{
+      x: 1,
+      y: 1
+    }} style={styles.card}>
         <View style={styles.iconContainer}>
           {icon}
-          {!!badgeCount && badgeCount > 0 && (
-            <View style={styles.badge}>
+          {!!badgeCount && badgeCount > 0 && <View style={styles.badge}>
               <Text style={styles.badgeText}>{badgeCount}</Text>
-            </View>
-          )}
+            </View>}
         </View>
         <Text style={styles.title} numberOfLines={2}>
           {title}
         </Text>
       </LinearGradient>
-    </TouchableOpacity>
-  );
+    </TouchableOpacity>;
 }
-
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
   button: {
-    marginRight: 12,
+    marginRight: 12
   },
   card: {
     width: 90,
@@ -46,7 +49,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.05)",
+    borderColor: "rgba(255, 255, 255, 0.05)"
   },
   iconContainer: {
     position: "relative",
@@ -56,7 +59,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 255, 255, 0.03)",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 8,
+    marginBottom: 8
   },
   badge: {
     position: "absolute",
@@ -69,18 +72,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
-    borderColor: "#161622",
+    borderColor: "#161622"
   },
   badgeText: {
     color: "#FFF",
-    fontSize: 9,
-    fontWeight: "900",
+    fontSize: 11,
+    fontWeight: "600"
   },
   title: {
     color: colors.textMuted,
     fontSize: 11,
     fontWeight: "700",
     textAlign: "center",
-    lineHeight: 14,
-  },
+    lineHeight: 14
+  }
 });

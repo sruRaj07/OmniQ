@@ -7,7 +7,7 @@ import dotenv from "dotenv";
 import express from "express";
 import helmet from "helmet";
 import { ok } from "../../../shared/utils/responseFormatter";
-import { placeOrderController, updateOrderStatusController, listOrdersController, listSellerOrdersController, getCartController, addToCartController, removeFromCartController, clearCartController } from "./controllers/orderController";
+import { placeOrderController, updateOrderStatusController, listOrdersController, listSellerOrdersController, getCartController, addToCartController, removeFromCartController, clearCartController, updateCartItemController } from "./controllers/orderController";
 
 dotenv.config();
 const app = express();
@@ -25,6 +25,7 @@ app.get("/orders/export", (_request, response) => response.type("text/csv").send
 // Cart routes
 app.get("/cart", getCartController);
 app.post("/cart/items", addToCartController);
+app.patch("/cart/items/:productId", updateCartItemController);
 app.delete("/cart/items/:productId", removeFromCartController);
 app.delete("/cart", clearCartController);
 app.listen(port, "0.0.0.0", () => console.log(`OmniQ order service running on ${port}`));

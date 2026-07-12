@@ -3,52 +3,54 @@
  * Author: OmniQ Team
  */
 import { StyleSheet, Text, View, ActivityIndicator } from "react-native";
-import { colors } from "@/constants/colors";
+import { useAppTheme } from "@/store/useThemeStore";
 import { useLocation } from "@/hooks/useLocation";
 import { LocationIcon } from "@/components/ui/LocationIcon";
-
-export function LocationGate({ pincode, city }: { pincode?: string, city?: string }) {
-  const { isServiceable, isLoading } = useLocation(pincode);
-
+export function LocationGate({
+  pincode,
+  city
+}: {
+  pincode?: string;
+  city?: string;
+}) {
+  const {
+    colors
+  } = useAppTheme();
+  const styles = getStyles(colors);
+  const {
+    isServiceable,
+    isLoading
+  } = useLocation(pincode);
   if (!pincode) {
-    return (
-      <View style={styles.row}>
+    return <View style={styles.row}>
         <View style={styles.content}>
           <LocationIcon size={16} color={colors.textPrimary} />
           <Text style={styles.text}>Update pincode to check serviceability</Text>
         </View>
-      </View>
-    );
+      </View>;
   }
-
   if (isLoading) {
-    return (
-      <View style={styles.row}>
+    return <View style={styles.row}>
         <View style={styles.content}>
           <LocationIcon size={16} color={colors.textPrimary} />
           <Text style={styles.text}>{city || pincode}</Text>
         </View>
         <ActivityIndicator size="small" color={colors.accent} />
-      </View>
-    );
+      </View>;
   }
-
-  return (
-    <View style={styles.row}>
+  return <View style={styles.row}>
       <View style={styles.content}>
         <LocationIcon size={16} color={colors.textPrimary} />
         <Text style={styles.text}>{city || pincode}</Text>
       </View>
-      {isServiceable ? (
-        <Text style={[styles.accent, { color: colors.success }]}>✓ Serviceable</Text>
-      ) : (
-        <Text style={[styles.accent, { color: colors.danger }]}>✕ Not serviceable</Text>
-      )}
-    </View>
-  );
+      {isServiceable ? <Text style={[styles.accent, {
+      color: colors.success
+    }]}>✓ Serviceable</Text> : <Text style={[styles.accent, {
+      color: colors.danger
+    }]}>✕ Not serviceable</Text>}
+    </View>;
 }
-
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
   row: {
     flexDirection: "row",
     justifyContent: "space-between",

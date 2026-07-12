@@ -156,7 +156,7 @@ export const cartItemSchema = z.object({
 export async function getCart(buyerId: string) {
   const { data, error } = await supabase
     .from("cart_items")
-    .select("*")
+    .select("*, product:products(*)")
     .eq("buyer_id", buyerId);
 
   if (error) throw new Error(`Failed to fetch cart: ${error.message}`);
@@ -209,6 +209,19 @@ export async function removeFromCart(buyerId: string, productId: string) {
 
   if (error) throw new Error(`Failed to remove item from cart: ${error.message}`);
   return { deleted: true };
+}
+
+export async function updateCartItemQuantity(buyerId: string, productId: string, quantity: number) {
+  const { data, error } = await supabase
+    .from("cart_items")
+    .update({ quantity: Math.max(1, quantity) })
+    .eq("buyer_id", buyerId)
+    .eq("product_id", productId)
+    .select("*, product:products(*)")
+    .single();
+
+  if (error) throw new Error(`Failed to update cart item quantity: ${error.message}`);
+  return data;
 }
 
 export async function clearCart(buyerId: string) {

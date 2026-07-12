@@ -8,7 +8,7 @@ import express from "express";
 import helmet from "helmet";
 import { ok } from "../../../shared/utils/responseFormatter";
 import { analyticsController, dashboardController, moderateProductController, zoneController, listZonesController, listAllOrdersController } from "./controllers/adminController";
-import { createAdvertisementController, deleteAdvertisementController } from "./controllers/advertisementController";
+import { createAdvertisementController, deleteAdvertisementController, updateAdvertisementController } from "./controllers/advertisementController";
 import multer from "multer";
 
 dotenv.config();
@@ -28,5 +28,6 @@ app.post("/admin/zones", zoneController);
 app.get("/admin/orders", listAllOrdersController);
 app.get("/admin/audit-log", (_request, response) => response.json(ok([])));
 app.post("/admin/advertisements", upload.single("image"), createAdvertisementController);
+app.patch("/admin/advertisements/:id", upload.single("image"), updateAdvertisementController);
 app.delete("/admin/advertisements/:id", deleteAdvertisementController);
 app.listen(port, "0.0.0.0", () => console.log(`OmniQ admin service running on ${port}`));

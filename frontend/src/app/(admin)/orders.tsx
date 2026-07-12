@@ -2,361 +2,430 @@
  * OmniQ mobile app - admin orders screen.
  * Author: OmniQ Team
  */
-import { StyleSheet, Text, View, ActivityIndicator, ScrollView, TouchableOpacity } from "react-native";
+import { StyleSheet, Text, View, ActivityIndicator, TouchableOpacity } from "react-native";
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
 import { Screen } from "@/components/shared/Screen";
-import { BoxIcon } from "@/components/ui/BoxIcon";
 import { ShieldIcon } from "@/components/ui/ShieldIcon";
-import { colors } from "@/constants/colors";
+import { useAppTheme } from "@/store/useThemeStore";
 import { apiClient } from "@/lib/apiClient";
-import { LinearGradient } from "expo-linear-gradient";
 import { formatCurrency } from "@/utils/formatCurrency";
 
 export default function AdminOrdersScreen() {
-  const [expandedSeller, setExpandedSeller] = useState<string | null>(null);
+  const { colors } = useAppTheme();
+  const styles = getStyles(colors);
+  const [activeTab, setActiveTab] = useState<'new' | 'delivered'>('new');
 
   const { data: orders, isLoading } = useQuery({
     queryKey: ["adminOrders"],
     queryFn: async () => {
       const res = await apiClient.get("/admin/orders");
       return res.data.data;
-    },
-  });
-
-  // Group orders by seller
-  const groupedOrders = (orders || []).reduce((acc: any, order: any) => {
-    const sellerId = order.seller_id || "unknown";
-    if (!acc[sellerId]) {
-      acc[sellerId] = {
-        id: sellerId,
-        businessName: order.seller?.business_name || "Unknown Seller",
-        orders: [],
-        totalRevenue: 0,
-      };
     }
-    acc[sellerId].orders.push(order);
-    acc[sellerId].totalRevenue += Number(order.total || 0);
-    return acc;
-  }, {});
+  }, queryClient);
 
-  const sellerGroups = Object.values(groupedOrders);
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ orderId, status }: { orderId: string; status: string }) => {
+      const { data } = await apiClient.patch(`/orders/${orderId}/status`, { status });
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["adminOrders"] });
+    },
+  }, queryClient);
+
+  const handleMarkDelivered = (orderId: string) => {
+    updateStatusMutation.mutate({ orderId, status: "delivered" });
+  };
+
+  const filteredOrders = (orders || []).filter((o: any) =>
+    activeTab === 'new'
+      ? o.status !== 'delivered' && o.status !== 'cancelled'
+      : o.status === 'delivered'
+  );
 
   const formatDate = (dateString: string) => {
     if (!dateString) return "N/A";
-    return new Date(dateString).toLocaleString('en-GB', { 
-      day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' 
+    return new Date(dateString).toLocaleString('en-GB', {
+      day: 'numeric', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
     });
   };
 
   return (
     <Screen scroll>
       <View style={styles.header}>
-        <View style={styles.badgeRow}>
-          <BoxIcon size={14} color="#6C63FF" />
-          <Text style={styles.superAdminText}>TRANSACTIONS</Text>
-        </View>
         <Text style={styles.title}>All Orders</Text>
-        <Text style={styles.subtitle}>Platform-wide transaction feed</Text>
+        <Text style={styles.subtitle}>
+          {filteredOrders.length} {activeTab === 'new' ? 'active' : 'delivered'} order{filteredOrders.length !== 1 ? 's' : ''}
+        </Text>
+      </View>
+
+      <View style={styles.tabContainer}>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'new' && styles.activeTab]}
+          onPress={() => setActiveTab('new')}
+        >
+          <Text style={[styles.tabText, activeTab === 'new' && styles.activeTabText]}>New Orders</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'delivered' && styles.activeTab]}
+          onPress={() => setActiveTab('delivered')}
+        >
+          <Text style={[styles.tabText, activeTab === 'delivered' && styles.activeTabText]}>Delivered</Text>
+        </TouchableOpacity>
       </View>
 
       {isLoading ? (
-        <ActivityIndicator size="large" color="#6C63FF" style={{ marginTop: 40 }} />
-      ) : sellerGroups.length === 0 ? (
+        <ActivityIndicator size="large" color={colors.accent} style={{ marginTop: 40 }} />
+      ) : filteredOrders.length === 0 ? (
         <View style={styles.emptyState}>
-          <ShieldIcon size={48} color="rgba(255,255,255,0.1)" />
-          <Text style={styles.emptyText}>No orders found.</Text>
+          <ShieldIcon size={48} color={colors.border} />
+          <Text style={styles.emptyText}>No {activeTab} orders found.</Text>
         </View>
       ) : (
         <View style={styles.list}>
-          {sellerGroups.map((group: any) => {
-            const isExpanded = expandedSeller === group.id;
-            return (
-              <View key={group.id} style={styles.groupContainer}>
-                <TouchableOpacity 
-                  activeOpacity={0.8} 
-                  onPress={() => setExpandedSeller(isExpanded ? null : group.id)}
-                >
-                  <LinearGradient
-                    colors={["rgba(30, 30, 45, 0.7)", "rgba(15, 15, 26, 0.9)"]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.sellerHeaderCard}
-                  >
-                    <View style={styles.sellerHeaderLeft}>
-                      <Text style={styles.sellerName}>{group.businessName}</Text>
-                      <Text style={styles.orderCountBadge}>{group.orders.length} {group.orders.length === 1 ? 'Order' : 'Orders'}</Text>
-                    </View>
-                    <View style={styles.sellerHeaderRight}>
-                      <Text style={styles.sellerRevenue}>{formatCurrency(group.totalRevenue)}</Text>
-                      <Text style={styles.expandIcon}>{isExpanded ? "▲" : "▼"}</Text>
-                    </View>
-                  </LinearGradient>
-                </TouchableOpacity>
+          {filteredOrders.map((order: any) => (
+            <View key={order.id} style={styles.orderCard}>
+              {/* Order header */}
+              <View style={styles.orderHeaderRow}>
+                <Text style={styles.orderId} selectable>#{order.id.substring(0, 8).toUpperCase()}</Text>
+                <View style={[
+                  styles.statusBadge,
+                  order.status === 'delivered' && styles.statusDelivered,
+                  order.status === 'pending' && styles.statusPending,
+                ]}>
+                  <Text style={[
+                    styles.badgeText,
+                    order.status === 'delivered' && styles.badgeTextDelivered,
+                  ]}>{order.status}</Text>
+                </View>
+              </View>
 
-                {isExpanded && (
-                  <View style={styles.ordersList}>
-                    {group.orders.map((order: any) => (
-                      <View key={order.id} style={styles.orderCard}>
-                        <View style={styles.orderHeaderRow}>
-                          <Text style={styles.orderId} selectable>#{order.id.substring(0, 8).toUpperCase()}</Text>
-                          <View style={[styles.statusBadge, order.status === 'delivered' ? styles.badgeSuccess : styles.badgeWarning]}>
-                            <Text style={styles.badgeText}>{order.status}</Text>
-                          </View>
-                        </View>
-                        
-                        <View style={styles.orderMetadata}>
-                          <View style={styles.metaRow}>
-                            <Text style={styles.metaLabel}>Date:</Text>
-                            <Text style={styles.metaValue}>{formatDate(order.created_at)}</Text>
-                          </View>
-                          <View style={styles.metaRow}>
-                            <Text style={styles.metaLabel}>Buyer ID:</Text>
-                            <Text style={styles.metaValue} selectable>{order.buyer_id}</Text>
-                          </View>
-                          <View style={styles.metaRow}>
-                            <Text style={styles.metaLabel}>Amount:</Text>
-                            <Text style={[styles.metaValue, { color: "#FFF", fontWeight: "800" }]}>{formatCurrency(order.total)}</Text>
-                          </View>
-                          {order.platform_fee && (
-                            <View style={styles.metaRow}>
-                              <Text style={styles.metaLabel}>Platform Fee:</Text>
-                              <Text style={styles.metaValue}>{formatCurrency(order.platform_fee)}</Text>
-                            </View>
-                          )}
-                        </View>
+              {/* Date & Amount */}
+              <View style={styles.orderMeta}>
+                <View style={styles.metaRow}>
+                  <Text style={styles.metaLabel}>Date</Text>
+                  <Text style={styles.metaValue}>{formatDate(order.created_at)}</Text>
+                </View>
+                <View style={styles.metaRow}>
+                  <Text style={styles.metaLabel}>Total</Text>
+                  <Text style={[styles.metaValue, styles.metaAmount]}>{formatCurrency(order.total)}</Text>
+                </View>
+                <View style={styles.metaRow}>
+                  <Text style={styles.metaLabel}>Platform Fee</Text>
+                  <Text style={styles.metaValue}>{formatCurrency(order.platform_fee)}</Text>
+                </View>
+                <View style={styles.metaRow}>
+                  <Text style={styles.metaLabel}>Payment</Text>
+                  <Text style={[styles.metaValue, { textTransform: "uppercase" }]}>{order.payment_method}</Text>
+                </View>
+              </View>
 
-                        {order.order_items && order.order_items.length > 0 && (
-                          <View style={styles.itemsSection}>
-                            <Text style={styles.itemsTitle}>Items ({order.order_items.length})</Text>
-                            {order.order_items.map((item: any, idx: number) => (
-                              <View key={idx} style={styles.itemRow}>
-                                <Text style={styles.itemName} numberOfLines={1}>
-                                  {item.quantity}x {item.product?.title || "Unknown Product"}
-                                </Text>
-                                <Text style={styles.itemPrice}>{formatCurrency(item.subtotal)}</Text>
-                              </View>
-                            ))}
-                          </View>
-                        )}
-                        
-                        {order.delivery_address && (
-                          <View style={styles.addressSection}>
-                            <Text style={styles.addressTitle}>Delivery Address</Text>
-                            <Text style={styles.addressText}>
-                              {order.delivery_address.street || order.delivery_address.line1}, {order.delivery_address.city} - {order.delivery_address.zip || order.delivery_address.pincode}
-                            </Text>
-                          </View>
-                        )}
+              {/* Pickup & Delivery info */}
+              {(() => {
+                // Extract unique sellers from all items in this order
+                const sellerMap: Record<string, { name: string; city: string }> = {};
+                if (order.order_items) {
+                  order.order_items.forEach((item: any) => {
+                    const s = item.product?.seller;
+                    if (s && s.id && !sellerMap[s.id]) {
+                      sellerMap[s.id] = { name: s.business_name, city: s.city };
+                    }
+                  });
+                }
+                // Fallback to order-level seller if no item-level data
+                if (Object.keys(sellerMap).length === 0 && order.seller) {
+                  sellerMap[order.seller_id] = {
+                    name: order.seller.business_name,
+                    city: order.seller.city
+                  };
+                }
+                const pickups = Object.values(sellerMap);
+
+                return (
+                  <View style={styles.infoContainer}>
+                    {pickups.map((seller: any, idx: number) => (
+                      <View key={idx} style={styles.infoBlock}>
+                        <View style={styles.infoLabelRow}>
+                          <View style={[styles.infoDot, { backgroundColor: colors.accent }]} />
+                          <Text style={styles.infoLabel}>
+                            {pickups.length > 1 ? `PICKUP ${idx + 1} OF ${pickups.length}` : "PICKUP FROM"}
+                          </Text>
+                        </View>
+                        <Text style={styles.infoName}>{seller.name}</Text>
+                        <Text style={styles.infoDetail}>{seller.city || "City not set"}</Text>
                       </View>
                     ))}
+
+                    <View style={styles.infoDivider} />
+
+                    <View style={styles.infoBlock}>
+                      <View style={styles.infoLabelRow}>
+                        <View style={[styles.infoDot, { backgroundColor: "#34A853" }]} />
+                        <Text style={styles.infoLabel}>DELIVER TO</Text>
+                      </View>
+                      {order.buyer && (
+                        <>
+                          <Text style={styles.infoName}>{order.buyer.full_name || "Unknown Buyer"}</Text>
+                          {order.buyer.phone_number && <Text style={styles.infoDetail}>{order.buyer.phone_number}</Text>}
+                        </>
+                      )}
+                      {order.delivery_address && (
+                        <Text style={styles.infoDetail}>
+                          {order.delivery_address.street || order.delivery_address.line1}, {order.delivery_address.city} — {order.delivery_address.zip || order.delivery_address.pincode}
+                        </Text>
+                      )}
+                    </View>
                   </View>
-                )}
-              </View>
-            );
-          })}
+                );
+              })()}
+
+              {/* Items */}
+              {order.order_items && order.order_items.length > 0 && (
+                <View style={styles.itemsSection}>
+                  <Text style={styles.itemsTitle}>Items ({order.order_items.length})</Text>
+                  {order.order_items.map((item: any, idx: number) => (
+                    <View key={idx} style={styles.itemRow}>
+                      <Text style={styles.itemName} numberOfLines={1}>
+                        {item.quantity}× {item.product?.title || "Unknown Product"}
+                      </Text>
+                      <Text style={styles.itemPrice}>{formatCurrency(item.subtotal)}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {/* Mark Delivered button */}
+              {order.status !== 'delivered' && order.status !== 'cancelled' && (
+                <TouchableOpacity
+                  style={styles.deliverBtn}
+                  onPress={() => handleMarkDelivered(order.id)}
+                  disabled={updateStatusMutation.isPending}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.deliverBtnText}>
+                    {updateStatusMutation.isPending ? "Updating..." : "Mark Delivered"}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          ))}
         </View>
       )}
+
       <View style={{ height: 60 }} />
     </Screen>
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
   header: {
-    marginBottom: 24,
-  },
-  badgeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginBottom: 8,
-  },
-  superAdminText: {
-    color: "#6C63FF",
-    fontSize: 11,
-    fontWeight: "900",
-    letterSpacing: 1,
+    marginBottom: 24
   },
   title: {
-    color: "#FFF",
-    fontSize: 32,
-    fontWeight: "900",
+    color: colors.textPrimary,
+    fontSize: 28,
+    fontWeight: "800",
     marginBottom: 4,
-    letterSpacing: -0.5,
+    letterSpacing: -0.5
   },
   subtitle: {
-    color: colors.textMuted,
-    fontSize: 14,
-    fontWeight: "600",
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: "600"
+  },
+  tabContainer: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 24
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: "center",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface
+  },
+  activeTab: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent
+  },
+  tabText: {
+    color: colors.textSecondary,
+    fontWeight: "700",
+    fontSize: 13
+  },
+  activeTabText: {
+    color: "#FFFFFF"
   },
   emptyState: {
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 60,
+    paddingVertical: 60
   },
   emptyText: {
-    color: colors.textMuted,
+    color: colors.textSecondary,
     marginTop: 16,
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "500"
   },
   list: {
     gap: 16
   },
-  groupContainer: {
-    marginBottom: 8,
-  },
-  sellerHeaderCard: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.05)",
-  },
-  sellerHeaderLeft: {
-    flex: 1,
-  },
-  sellerHeaderRight: {
-    alignItems: "flex-end",
-  },
-  sellerName: {
-    color: "#FFF",
-    fontSize: 18,
-    fontWeight: "900",
-    marginBottom: 4,
-  },
-  orderCountBadge: {
-    color: "rgba(255,255,255,0.5)",
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  sellerRevenue: {
-    color: "#4CAF50",
-    fontSize: 18,
-    fontWeight: "900",
-    marginBottom: 4,
-  },
-  expandIcon: {
-    color: "rgba(255,255,255,0.3)",
-    fontSize: 12,
-  },
-  ordersList: {
-    marginTop: 12,
-    gap: 12,
-    paddingLeft: 12,
-    borderLeftWidth: 2,
-    borderLeftColor: "rgba(255,255,255,0.05)",
-    marginLeft: 20,
-  },
   orderCard: {
-    backgroundColor: "rgba(0,0,0,0.2)",
-    borderRadius: 16,
+    backgroundColor: colors.card,
+    borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.03)",
+    borderColor: colors.border
   },
   orderHeaderRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 14
   },
   orderId: {
-    color: "#FFF",
+    color: colors.textPrimary,
     fontSize: 16,
-    fontWeight: "900",
-    letterSpacing: 0.5,
+    fontWeight: "700",
+    letterSpacing: 0.5
   },
   statusBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 8,
+    borderRadius: 6,
     borderWidth: 1,
+    backgroundColor: colors.surface,
+    borderColor: colors.border
   },
-  badgeSuccess: { 
-    backgroundColor: "rgba(76, 175, 80, 0.1)",
-    borderColor: "rgba(76, 175, 80, 0.3)"
+  statusDelivered: {
+    backgroundColor: "rgba(52, 168, 83, 0.1)",
+    borderColor: "rgba(52, 168, 83, 0.3)"
   },
-  badgeWarning: { 
-    backgroundColor: "rgba(108, 99, 255, 0.1)",
-    borderColor: "rgba(108, 99, 255, 0.3)"
+  statusPending: {
+    backgroundColor: "rgba(251, 188, 4, 0.1)",
+    borderColor: "rgba(251, 188, 4, 0.3)"
   },
   badgeText: {
-    color: "rgba(255,255,255,0.8)",
-    fontSize: 10,
-    fontWeight: "900",
-    textTransform: "uppercase",
+    color: colors.textSecondary,
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase"
   },
-  orderMetadata: {
+  badgeTextDelivered: {
+    color: "#34A853"
+  },
+  orderMeta: {
     gap: 6,
     marginBottom: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border
   },
   metaRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "center"
   },
   metaLabel: {
-    color: "rgba(255,255,255,0.4)",
+    color: colors.textSecondary,
     fontSize: 13,
-    fontWeight: "600",
+    fontWeight: "600"
   },
   metaValue: {
-    color: "rgba(255,255,255,0.7)",
+    color: colors.textSecondary,
     fontSize: 13,
-    fontWeight: "500",
-    textAlign: "right",
-    flex: 1,
-    marginLeft: 16,
+    fontWeight: "500"
+  },
+  metaAmount: {
+    color: colors.textPrimary,
+    fontWeight: "700",
+    fontSize: 15
+  },
+  infoContainer: {
+    marginBottom: 14
+  },
+  infoBlock: {
+    paddingVertical: 10
+  },
+  infoLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 6
+  },
+  infoDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4
+  },
+  infoLabel: {
+    color: colors.textSecondary,
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.5
+  },
+  infoName: {
+    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: "700",
+    marginBottom: 2
+  },
+  infoDetail: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 19
+  },
+  infoDivider: {
+    height: 1,
+    backgroundColor: colors.border
   },
   itemsSection: {
-    backgroundColor: "rgba(255,255,255,0.02)",
-    borderRadius: 12,
+    backgroundColor: colors.surface,
+    borderRadius: 8,
     padding: 12,
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.border
   },
   itemsTitle: {
-    color: "rgba(255,255,255,0.6)",
-    fontSize: 12,
-    fontWeight: "800",
+    color: colors.textSecondary,
+    fontSize: 11,
+    fontWeight: "700",
     textTransform: "uppercase",
-    marginBottom: 8,
+    marginBottom: 8
   },
   itemRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 6,
+    marginBottom: 6
   },
   itemName: {
-    color: "rgba(255,255,255,0.8)",
+    color: colors.textPrimary,
     fontSize: 13,
     flex: 1,
-    marginRight: 12,
+    marginRight: 12
   },
   itemPrice: {
-    color: "#FFF",
+    color: colors.textPrimary,
     fontSize: 13,
+    fontWeight: "600"
+  },
+  deliverBtn: {
+    backgroundColor: colors.accent,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: "center"
+  },
+  deliverBtnText: {
+    color: "#FFFFFF",
     fontWeight: "700",
-  },
-  addressSection: {
-    backgroundColor: "rgba(255,255,255,0.02)",
-    borderRadius: 12,
-    padding: 12,
-  },
-  addressTitle: {
-    color: "rgba(255,255,255,0.6)",
-    fontSize: 12,
-    fontWeight: "800",
-    textTransform: "uppercase",
-    marginBottom: 4,
-  },
-  addressText: {
-    color: "rgba(255,255,255,0.8)",
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 13
   }
 });

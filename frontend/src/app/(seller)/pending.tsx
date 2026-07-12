@@ -2,13 +2,14 @@ import { StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Button } from "@/components/ui/Button";
 import { Screen } from "@/components/shared/Screen";
-import { colors } from "@/constants/colors";
-
+import { useAppTheme } from "@/store/useThemeStore";
 export default function PendingApprovalScreen() {
+  const {
+    colors
+  } = useAppTheme();
+  const styles = getStyles(colors);
   const router = useRouter();
-
-  return (
-    <Screen>
+  return <Screen>
       <View style={styles.container}>
         <View style={styles.iconContainer}>
           <Text style={styles.icon}>⏳</Text>
@@ -25,16 +26,14 @@ export default function PendingApprovalScreen() {
           Back to Profile
         </Button>
       </View>
-    </Screen>
-  );
+    </Screen>;
 }
-
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 20,
+    paddingHorizontal: 20
   },
   iconContainer: {
     width: 100,
@@ -43,27 +42,27 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bgSecondary,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 24,
+    marginBottom: 24
   },
   icon: {
-    fontSize: 48,
+    fontSize: 28
   },
   title: {
     color: colors.textPrimary,
     fontSize: 28,
     fontWeight: "900",
     marginBottom: 16,
-    textAlign: "center",
+    textAlign: "center"
   },
   subtitle: {
     color: colors.textSecondary,
     fontSize: 16,
     lineHeight: 24,
     textAlign: "center",
-    marginBottom: 16,
+    marginBottom: 16
   },
   btn: {
     marginTop: 20,
-    width: "100%",
+    width: "100%"
   }
 });

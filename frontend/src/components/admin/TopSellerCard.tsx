@@ -1,9 +1,8 @@
 import { StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { colors } from "@/constants/colors";
+import { useAppTheme } from "@/store/useThemeStore";
 import { formatCurrency } from "@/utils/formatCurrency";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-
 type TopSellerCardProps = {
   rank: number;
   name: string;
@@ -13,22 +12,24 @@ type TopSellerCardProps = {
   status: string;
   timeAgo?: string;
 };
-
-export function TopSellerCard({ rank, name, orders, rating, gmv, status, timeAgo }: TopSellerCardProps) {
+export function TopSellerCard({
+  rank,
+  name,
+  orders,
+  rating,
+  gmv,
+  status,
+  timeAgo
+}: TopSellerCardProps) {
+  const {
+    colors
+  } = useAppTheme();
+  const styles = getStyles(colors);
   const isFirst = rank === 1;
   const isSecond = rank === 2;
   const isThird = rank === 3;
-  
-  const rankColor = isFirst ? "#6C63FF" : isSecond ? "#FFC107" : isThird ? "#FF9800" : colors.textMuted;
-
-  return (
-    <LinearGradient
-      colors={["rgba(30, 30, 45, 0.5)", "rgba(15, 15, 26, 0.8)"]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.card}
-    >
-      <View style={[styles.rankBadge, { backgroundColor: rankColor }]}>
+  return <View style={styles.card}>
+      <View style={styles.rankBadge}>
         <Text style={styles.rankText}>#{rank}{name.charAt(0)}</Text>
       </View>
       
@@ -44,19 +45,18 @@ export function TopSellerCard({ rank, name, orders, rating, gmv, status, timeAgo
         <Text style={styles.gmv}>{gmv ? formatCurrency(gmv) : "₹—"}</Text>
         <StatusBadge status={status} />
       </View>
-    </LinearGradient>
-  );
+    </View>;
 }
-
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
   card: {
     flexDirection: "row",
     alignItems: "center",
     padding: 16,
-    borderRadius: 20,
+    borderRadius: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.05)",
+    borderColor: colors.border,
+    backgroundColor: colors.card
   },
   rankBadge: {
     width: 44,
@@ -65,34 +65,37 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginRight: 14,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border
   },
   rankText: {
-    color: "#161622",
+    color: colors.textPrimary,
     fontSize: 16,
-    fontWeight: "900",
+    fontWeight: "700"
   },
   info: {
     flex: 1,
-    justifyContent: "center",
+    justifyContent: "center"
   },
   name: {
     color: colors.textPrimary,
     fontSize: 16,
-    fontWeight: "900",
-    marginBottom: 4,
+    fontWeight: "700",
+    marginBottom: 4
   },
   meta: {
     color: colors.textMuted,
     fontSize: 13,
-    fontWeight: "600",
+    fontWeight: "600"
   },
   stats: {
     alignItems: "flex-end",
-    gap: 6,
+    gap: 6
   },
   gmv: {
-    color: colors.goldLight,
+    color: colors.textPrimary,
     fontSize: 16,
-    fontWeight: "900",
-  },
+    fontWeight: "700"
+  }
 });

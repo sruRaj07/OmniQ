@@ -2,7 +2,10 @@
  * OmniQ mobile app - order status badge.
  * Author: OmniQ Team
  */
-import { Badge } from "@/components/ui/Badge";
+import React from "react";
+import { Text } from "react-native";
+import { useAppTheme } from "@/store/useThemeStore";
+import { typography } from "@/constants/typography";
 import type { OrderStatus } from "@/types/order.types";
 
 type StatusBadgeProps = {
@@ -10,7 +13,19 @@ type StatusBadgeProps = {
 };
 
 export function StatusBadge({ status }: StatusBadgeProps) {
+  const { colors } = useAppTheme();
   const normalized = status.toLowerCase();
-  const tone = normalized.includes("ship") || normalized.includes("active") ? "success" : normalized.includes("pend") ? "gold" : "accent";
-  return <Badge label={status} tone={tone} />;
+  const displayLabel = normalized === "pending" ? "On the way" : status;
+  
+  return (
+    <Text style={{ 
+      color: colors.textSecondary, 
+      ...typography.captionBold,
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+      marginTop: 2
+    }}>
+      {displayLabel}
+    </Text>
+  );
 }

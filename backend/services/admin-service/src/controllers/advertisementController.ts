@@ -78,3 +78,56 @@ export async function deleteAdvertisementController(request: Request, response: 
     response.status(500).json(fail("SERVER_ERROR", error.message || error.toString()));
   }
 }
+
+export async function updateAdvertisementController(request: Request, response: Response): Promise<void> {
+  try {
+    const id = request.params.id;
+    const { title, target_url, is_active } = request.body;
+
+    const updates: any = {};
+    if (title !== undefined) updates.title = title;
+    if (target_url !== undefined) updates.target_url = target_url;
+    
+    // is_active might be sent as string "true"/"false" or boolean
+    if (is_active !== undefined) {
+      updates.is_active = is_active === true || is_active === "true";
+    }
+
+    const file = request.file;
+    if (file) {
+      const fileName = `ads/${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9.]/g, '')}`;
+      const { error: uploadError } = await supabaseAdmin.storage
+        .from("product-images")
+        .upload(fileName, file.buffer, {
+          contentType: file.mimetype,
+          upsert: false
+        });
+
+      if (uploadError) {
+        throw new Error(`Image upload failed: ${uploadError.message}`);
+      }
+
+      const { data: publicUrlData } = supabaseAdmin.storage
+        .from("product-images")
+        .getPublicUrl(fileName);
+        
+      updates.image_url = publicUrlData.publicUrl;
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from("advertisements")
+      .update(updates)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Database update failed: ${error.message}`);
+    }
+
+    response.json(ok(data));
+  } catch (error: any) {
+    console.error("ADVERTISEMENT UPDATE ERROR:", error);
+    response.status(500).json(fail("SERVER_ERROR", error.message || error.toString()));
+  }
+}

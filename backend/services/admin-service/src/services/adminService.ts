@@ -142,7 +142,7 @@ export async function listZones() {
 export async function listAllOrders() {
   const { data, error } = await supabaseAdmin
     .from("orders")
-    .select("*, order_items(*, product:products(*)), seller:sellers(business_name, owner_id)")
+    .select("*, order_items(*, product:products(*, seller:sellers(id, business_name, city))), seller:sellers(business_name, owner_id, city, category), buyer:profiles!orders_buyer_id_fkey(full_name, phone_number, address)")
     .order("created_at", { ascending: false });
 
   if (error) throw new Error(`Failed to fetch orders: ${error.message}`);

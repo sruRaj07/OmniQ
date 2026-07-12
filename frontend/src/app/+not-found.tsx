@@ -5,20 +5,20 @@
 import { Link } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
 import { Button } from "@/components/ui/Button";
-import { colors } from "@/constants/colors";
-
+import { useAppTheme } from "@/store/useThemeStore";
 export default function NotFoundScreen() {
-  return (
-    <View style={styles.root}>
+  const {
+    colors
+  } = useAppTheme();
+  const styles = getStyles(colors);
+  return <View style={styles.root}>
       <Text style={styles.title}>Screen not found</Text>
       <Link href="/(buyer)" asChild>
         <Button>Go Home</Button>
       </Link>
-    </View>
-  );
+    </View>;
 }
-
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.bgPrimary,
@@ -28,7 +28,7 @@ const styles = StyleSheet.create({
   },
   title: {
     color: colors.textPrimary,
-    fontSize: 24,
-    fontWeight: "900"
+    fontSize: 22,
+    fontWeight: "700"
   }
 });

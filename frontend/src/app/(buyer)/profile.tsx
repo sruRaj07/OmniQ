@@ -4,13 +4,12 @@
  */
 import { useState, useEffect } from "react";
 import { Link, useRouter } from "expo-router";
-import { StyleSheet, Text, View, Alert, TouchableOpacity, ScrollView, Image } from "react-native";
+import { StyleSheet, Text, View, Alert, TouchableOpacity, ScrollView, Image, Modal } from "react-native";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import Svg, { Path, Circle, Rect, Polyline } from "react-native-svg";
-
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
@@ -21,81 +20,114 @@ import { UserIcon } from "@/components/ui/UserIcon";
 import { SearchIcon } from "@/components/ui/SearchIcon";
 import { LocationGate } from "@/components/shared/LocationGate";
 import { Screen } from "@/components/shared/Screen";
-import { colors } from "@/constants/colors";
+import { useAppTheme } from "@/store/useThemeStore";
 import { useAuthStore } from "@/store/authStore";
 import { useSellerStatus } from "@/hooks/useSellerStatus";
 import { useOrders } from "@/hooks/useOrders";
 import { supabase } from "@/lib/supabase";
 import { apiClient } from "@/lib/apiClient";
-
 const profileSchema = z.object({
   fullName: z.string().min(2, "Name must be at least 2 characters"),
   phoneNumber: z.string().min(8, "Phone number is too short").optional().or(z.literal("")),
   address: z.string().min(5, "Address is too short").optional().or(z.literal("")),
-  pincode: z.string().min(4, "Pincode is too short").optional().or(z.literal("")),
+  pincode: z.string().min(4, "Pincode is too short").optional().or(z.literal(""))
 });
-
 type ProfileFormData = z.infer<typeof profileSchema>;
-
-function BellIcon({ color = colors.textPrimary, size = 24 }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+function BellIcon({
+  color = "#F0F0FF",
+  size = 24
+}) {
+  const {
+    colors
+  } = useAppTheme();
+  const styles = getStyles(colors);
+  return <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <Path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
       <Path d="M13.73 21a2 2 0 0 1-3.46 0" />
-    </Svg>
-  );
+    </Svg>;
 }
-
-function SettingsIcon({ color = colors.textPrimary, size = 24 }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+function SettingsIcon({
+  color = "#F0F0FF",
+  size = 24
+}) {
+  const {
+    colors
+  } = useAppTheme();
+  const styles = getStyles(colors);
+  return <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <Circle cx="12" cy="12" r="3" />
       <Path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-    </Svg>
-  );
+    </Svg>;
 }
-
-function ChevronDownIcon({ color = colors.textPrimary, size = 20 }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+function ChevronDownIcon({
+  color = "#F0F0FF",
+  size = 20
+}) {
+  const {
+    colors
+  } = useAppTheme();
+  const styles = getStyles(colors);
+  return <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <Polyline points="6 9 12 15 18 9" />
-    </Svg>
-  );
+    </Svg>;
 }
-
 export default function ProfileScreen() {
-  const { user } = useAuthStore();
+  const {
+    colors,
+    mode,
+    setMode
+  } = useAppTheme();
+  const styles = getStyles(colors);
+  const {
+    user
+  } = useAuthStore();
   const queryClient = useQueryClient();
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
-  
-  const { sellerProfile, isLoading: isSellerLoading } = useSellerStatus();
-  const { buyerOrders, isLoading: isLoadingOrders } = useOrders();
+  const [showPasswordResetModal, setShowPasswordResetModal] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const {
+    sellerProfile,
+    isLoading: isSellerLoading
+  } = useSellerStatus();
+  const {
+    buyerOrders,
+    isLoading: isLoadingOrders
+  } = useOrders();
 
   // Fetch the user's profile from the backend
-  const { data: profileResponse, isLoading } = useQuery({
+  const {
+    data: profileResponse,
+    isLoading
+  } = useQuery({
     queryKey: ["userProfile", user?.id],
     queryFn: async () => {
       const res = await apiClient.get("/users/me");
       return res.data;
     },
-    enabled: !!user,
+    enabled: !!user
   });
-
   const profile = profileResponse?.data;
-  
+
   // Fallback to Supabase meta if backend profile isn't fully set up yet
   const displayFullName = profile?.full_name || user?.user_metadata?.full_name || "Buyer";
   const displayFirstName = displayFullName.split(' ')[0];
-
-  const { control, handleSubmit, reset, formState: { errors } } = useForm<ProfileFormData>({
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: {
+      errors
+    }
+  } = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
       fullName: "",
       phoneNumber: "",
       address: "",
-      pincode: "",
-    },
+      pincode: ""
+    }
   });
 
   // Update form when profile data loads
@@ -105,32 +137,49 @@ export default function ProfileScreen() {
         fullName: profile.full_name || user?.user_metadata?.full_name || "",
         phoneNumber: profile.phone_number || "",
         address: profile.address || "",
-        pincode: profile.pincode || "",
+        pincode: profile.pincode || ""
       });
     }
   }, [profile, reset, user]);
-
   const updateProfileMutation = useMutation({
     mutationFn: async (data: ProfileFormData) => {
       await apiClient.patch("/users/me", {
         fullName: data.fullName,
         phoneNumber: data.phoneNumber || undefined,
         address: data.address || undefined,
-        pincode: data.pincode || undefined,
+        pincode: data.pincode || undefined
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["userProfile"] });
+      queryClient.invalidateQueries({
+        queryKey: ["userProfile"]
+      });
       setIsEditing(false);
       Alert.alert("Success", "Profile updated successfully!");
     },
     onError: (error: any) => {
       Alert.alert("Error", error?.response?.data?.message || "Failed to update profile");
-    },
+    }
   });
-
   const onSubmit = (data: ProfileFormData) => {
     updateProfileMutation.mutate(data);
+  };
+  
+  const handlePasswordReset = async () => {
+    if (newPassword.length < 6) {
+      Alert.alert("Error", "Password must be at least 6 characters.");
+      return;
+    }
+    setIsResettingPassword(true);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setIsResettingPassword(false);
+    if (error) {
+      Alert.alert("Error", error.message);
+    } else {
+      Alert.alert("Success", "Your password has been successfully updated.");
+      setShowPasswordResetModal(false);
+      setNewPassword("");
+    }
   };
 
   const handleSignOut = async () => {
@@ -138,7 +187,6 @@ export default function ProfileScreen() {
     useAuthStore.getState().setSession(null);
     router.replace("/");
   };
-
   const handleOpenSellerPortal = () => {
     if (isSellerLoading) return;
     if (!sellerProfile) {
@@ -151,17 +199,23 @@ export default function ProfileScreen() {
       Alert.alert("Account Status", `Your seller account is ${sellerProfile.status}.`);
     }
   };
-
-  return (
-    <Screen 
-      scroll={true}
-      bottomNavItems={[
-        { href: "/(buyer)", icon: HomeIcon, label: "Home" },
-        { href: "/(buyer)/cart", icon: ShoppingCartIcon, label: "Cart" },
-        { href: "/(buyer)/orders", icon: BoxIcon, label: "Orders" },
-        { href: "/(buyer)/profile", icon: UserIcon, label: "Profile" }
-      ]}
-    >
+  return <Screen scroll={true} bottomNavItems={[{
+    href: "/(buyer)",
+    icon: HomeIcon,
+    label: "Home"
+  }, {
+    href: "/(buyer)/cart",
+    icon: ShoppingCartIcon,
+    label: "Cart"
+  }, {
+    href: "/(buyer)/orders",
+    icon: BoxIcon,
+    label: "Orders"
+  }, {
+    href: "/(buyer)/profile",
+    icon: UserIcon,
+    label: "Profile"
+  }]}>
       {/* Top Header / Greeting */}
       <View style={styles.header}>
         <View style={styles.greetingContainer}>
@@ -169,14 +223,8 @@ export default function ProfileScreen() {
           <ChevronDownIcon size={18} color={colors.textSecondary} />
         </View>
         <View style={styles.headerIcons}>
-          <TouchableOpacity style={styles.iconButton}>
-            <SearchIcon size={24} color={colors.textPrimary} />
-          </TouchableOpacity>
           <TouchableOpacity style={styles.iconButton} onPress={() => setIsEditing(true)}>
             <SettingsIcon size={24} color={colors.textPrimary} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.iconButton}>
-            <BellIcon size={24} color={colors.textPrimary} />
           </TouchableOpacity>
         </View>
       </View>
@@ -185,9 +233,6 @@ export default function ProfileScreen() {
       <View style={styles.pillGrid}>
         <TouchableOpacity style={styles.pill} onPress={() => router.push("/(buyer)/orders")}>
           <Text style={styles.pillText}>Your Orders</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.pill} onPress={() => {}}>
-          <Text style={styles.pillText}>Buy Again</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.pill} onPress={() => setIsEditing(true)}>
           <Text style={styles.pillText}>Your Account</Text>
@@ -206,108 +251,86 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
-          {isLoadingOrders ? (
-            <Text style={styles.meta}>Loading orders...</Text>
-          ) : buyerOrders?.length > 0 ? (
-            buyerOrders.slice(0, 5).map((order: any) => {
-              const product = order.order_items?.[0]?.product;
-              const imageUrl = product?.images?.[0] || product?.imageUrl;
-              return (
-                <TouchableOpacity key={order.id} style={styles.orderCard}>
-                  {imageUrl ? (
-                    <Image source={{ uri: imageUrl }} style={styles.orderImage} />
-                  ) : (
-                    <View style={styles.orderImagePlaceholder}>
+          {isLoadingOrders ? <Text style={styles.meta}>Loading orders...</Text> : buyerOrders?.length > 0 ? buyerOrders.slice(0, 5).map((order: any) => {
+          const product = order.order_items?.[0]?.product;
+          const imageUrl = product?.images?.[0] || product?.imageUrl;
+          return <TouchableOpacity key={order.id} style={styles.orderCard}>
+                  {imageUrl ? <Image source={{
+              uri: imageUrl
+            }} style={styles.orderImage} resizeMode="cover" /> : <View style={styles.orderImagePlaceholder}>
                       <BoxIcon color={colors.textMuted} size={40} />
-                    </View>
-                  )}
-                </TouchableOpacity>
-              );
-            })
-          ) : (
-            <Card style={styles.emptyCard}>
+                    </View>}
+                </TouchableOpacity>;
+        }) : <Card style={styles.emptyCard}>
               <Text style={styles.meta}>No recent orders. Time to shop!</Text>
-            </Card>
-          )}
+            </Card>}
         </ScrollView>
       </View>
 
-      {/* Buy Again Placeholder */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Buy Again</Text>
-        <Card style={styles.emptyCard}>
-          <Text style={styles.meta}>Sorry, we are having trouble loading Buy Again items. Tap below to visit Buy Again.</Text>
-          <Button variant="secondary" style={{marginTop: 16}}>Visit Buy Again</Button>
-        </Card>
-      </View>
+
 
       {/* Account Settings & Details */}
-      <View style={[styles.section, { paddingBottom: 40 }]}>
+      <View style={[styles.section, {
+      paddingBottom: 40
+    }]}>
         <Text style={styles.sectionTitle}>Account Information</Text>
         
-        {isEditing ? (
-          <View style={styles.formContainer}>
-            <Controller
-              control={control}
-              name="fullName"
-              render={({ field: { onChange, value } }) => (
-                <View style={styles.inputGroup}>
+        {isEditing ? <View style={styles.formContainer}>
+            <Controller control={control} name="fullName" render={({
+          field: {
+            onChange,
+            value
+          }
+        }) => <View style={styles.inputGroup}>
                   <Text style={styles.label}>Full Name</Text>
                   <Input placeholder="Full Name" value={value} onChangeText={onChange} autoCapitalize="words" />
                   {errors.fullName && <Text style={styles.error}>{errors.fullName.message}</Text>}
-                </View>
-              )}
-            />
+                </View>} />
 
-            <Controller
-              control={control}
-              name="phoneNumber"
-              render={({ field: { onChange, value } }) => (
-                <View style={styles.inputGroup}>
+            <Controller control={control} name="phoneNumber" render={({
+          field: {
+            onChange,
+            value
+          }
+        }) => <View style={styles.inputGroup}>
                   <Text style={styles.label}>Phone Number</Text>
                   <Input placeholder="Phone Number" value={value} onChangeText={onChange} keyboardType="phone-pad" />
                   {errors.phoneNumber && <Text style={styles.error}>{errors.phoneNumber.message}</Text>}
-                </View>
-              )}
-            />
+                </View>} />
 
-            <Controller
-              control={control}
-              name="address"
-              render={({ field: { onChange, value } }) => (
-                <View style={styles.inputGroup}>
+            <Controller control={control} name="address" render={({
+          field: {
+            onChange,
+            value
+          }
+        }) => <View style={styles.inputGroup}>
                   <Text style={styles.label}>Address</Text>
                   <Input placeholder="Address" value={value} onChangeText={onChange} />
                   {errors.address && <Text style={styles.error}>{errors.address.message}</Text>}
-                </View>
-              )}
-            />
+                </View>} />
 
-            <Controller
-              control={control}
-              name="pincode"
-              render={({ field: { onChange, value } }) => (
-                <View style={styles.inputGroup}>
+            <Controller control={control} name="pincode" render={({
+          field: {
+            onChange,
+            value
+          }
+        }) => <View style={styles.inputGroup}>
                   <Text style={styles.label}>Pincode</Text>
                   <Input placeholder="Pincode" value={value} onChangeText={onChange} keyboardType="number-pad" />
                   {errors.pincode && <Text style={styles.error}>{errors.pincode.message}</Text>}
-                </View>
-              )}
-            />
+                </View>} />
 
             <Button onPress={handleSubmit(onSubmit)} style={styles.actionButton}>
               {updateProfileMutation.isPending ? "Saving..." : "Save Details"}
             </Button>
-            <Button variant="secondary" onPress={() => { reset(); setIsEditing(false); }} style={styles.actionButton}>
+            <Button variant="secondary" onPress={() => {
+          reset();
+          setIsEditing(false);
+        }} style={styles.actionButton}>
               Cancel
             </Button>
-          </View>
-        ) : (
-          <View style={styles.detailsContainer}>
-            {isLoading ? (
-              <Text style={styles.meta}>Loading details...</Text>
-            ) : (
-              <>
+          </View> : <View style={styles.detailsContainer}>
+            {isLoading ? <Text style={styles.meta}>Loading details...</Text> : <>
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Email:</Text>
                   <Text style={styles.detailValue}>{user?.email}</Text>
@@ -328,59 +351,127 @@ export default function ProfileScreen() {
                 <Button variant="secondary" onPress={() => setIsEditing(true)} style={styles.actionButton}>
                   Edit Details
                 </Button>
-              </>
-            )}
-          </View>
-        )}
+              </>}
+          </View>}
 
-        <View style={{ marginTop: 24 }}>
+        <View style={{ marginTop: 32 }}>
+          <Text style={styles.sectionTitle}>App Settings</Text>
+          <View style={styles.themeToggleContainer}>
+            <Text style={styles.detailLabel}>Theme:</Text>
+            <View style={styles.themeButtons}>
+              <TouchableOpacity
+                style={[styles.themeButton, mode === 'system' && styles.themeButtonActive]}
+                onPress={() => setMode('system')}
+              >
+                <Text style={[styles.themeButtonText, mode === 'system' && styles.themeButtonTextActive]}>System</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.themeButton, mode === 'light' && styles.themeButtonActive]}
+                onPress={() => setMode('light')}
+              >
+                <Text style={[styles.themeButtonText, mode === 'light' && styles.themeButtonTextActive]}>Light</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.themeButton, mode === 'dark' && styles.themeButtonActive]}
+                onPress={() => setMode('dark')}
+              >
+                <Text style={[styles.themeButtonText, mode === 'dark' && styles.themeButtonTextActive]}>Dark</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          <View style={styles.themeToggleContainer}>
+            <Text style={styles.detailLabel}>Security:</Text>
+            <Button variant="secondary" onPress={() => setShowPasswordResetModal(true)} style={{ minWidth: 140 }}>
+              Change Password
+            </Button>
+          </View>
+        </View>
+
+        <View style={{
+        marginTop: 24
+      }}>
           <LocationGate pincode={profile?.pincode} city={profile?.address} />
         </View>
 
-        <Button variant="danger" onPress={handleSignOut} style={{ marginTop: 24 }}>
+        <Button variant="danger" onPress={handleSignOut} style={{
+        marginTop: 24
+      }}>
           Sign Out
         </Button>
       </View>
 
-    </Screen>
-  );
-}
+      {/* Password Reset Modal */}
+      <Modal
+        visible={showPasswordResetModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowPasswordResetModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Change Password</Text>
+            <Text style={styles.meta}>Enter your new password below.</Text>
+            
+            <View style={{ marginTop: 24, marginBottom: 24 }}>
+              <Text style={styles.label}>New Password</Text>
+              <Input 
+                placeholder="At least 6 characters" 
+                value={newPassword} 
+                onChangeText={setNewPassword} 
+                secureTextEntry 
+              />
+            </View>
+            
+            <Button onPress={handlePasswordReset} style={{ marginBottom: 12 }}>
+              {isResettingPassword ? "Updating..." : "Update Password"}
+            </Button>
+            <Button variant="secondary" onPress={() => {
+              setShowPasswordResetModal(false);
+              setNewPassword("");
+            }}>
+              Cancel
+            </Button>
+          </View>
+        </View>
+      </Modal>
 
-const styles = StyleSheet.create({
+    </Screen>;
+}
+const getStyles = (colors: any) => StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 20,
-    marginTop: 8,
+    marginTop: 8
   },
   greetingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 8
   },
   greetingText: {
     color: colors.textPrimary,
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '800',
-    letterSpacing: -0.5,
+    letterSpacing: -0.5
   },
   headerIcons: {
     flexDirection: 'row',
-    gap: 16,
+    gap: 16
   },
   iconButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
     justifyContent: 'center',
-    alignItems: 'center',
+    alignItems: 'center'
   },
   pillGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
-    marginBottom: 32,
+    marginBottom: 32
   },
   pill: {
     flexBasis: '47%',
@@ -392,36 +483,36 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'center'
   },
   pillText: {
     color: colors.textPrimary,
     fontWeight: '600',
-    fontSize: 15,
+    fontSize: 15
   },
   section: {
-    marginBottom: 32,
+    marginBottom: 32
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 16
   },
   sectionTitle: {
     color: colors.textPrimary,
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '800',
-    letterSpacing: -0.3,
+    letterSpacing: -0.3
   },
   seeAll: {
     color: colors.accentLight,
     fontWeight: '700',
-    fontSize: 14,
+    fontSize: 13
   },
   horizontalScroll: {
     paddingRight: 24,
-    gap: 16,
+    gap: 16
   },
   orderCard: {
     width: 140,
@@ -432,24 +523,23 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     overflow: 'hidden',
     justifyContent: 'center',
-    alignItems: 'center',
+    alignItems: 'center'
   },
   orderImage: {
     width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
+    height: '100%'
   },
   orderImagePlaceholder: {
     width: '100%',
     height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.card2,
+    backgroundColor: colors.card2
   },
   emptyCard: {
     padding: 24,
     width: '100%',
-    alignItems: 'center',
+    alignItems: 'center'
   },
   detailsContainer: {
     backgroundColor: colors.card,
@@ -458,24 +548,24 @@ const styles = StyleSheet.create({
     marginTop: 12,
     gap: 16,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.border
   },
   detailRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
-    paddingBottom: 12,
+    paddingBottom: 12
   },
   detailLabel: {
     color: colors.textSecondary,
     fontWeight: "600",
-    fontSize: 15,
+    fontSize: 15
   },
   detailValue: {
     color: colors.textPrimary,
     fontWeight: "600",
-    fontSize: 15,
+    fontSize: 15
   },
   formContainer: {
     backgroundColor: colors.card,
@@ -483,30 +573,85 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginTop: 12,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.border
   },
   inputGroup: {
-    marginBottom: 16,
+    marginBottom: 16
   },
   label: {
     color: colors.textSecondary,
     marginBottom: 8,
     fontWeight: "700",
-    fontSize: 14,
+    fontSize: 13,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.5
   },
   error: {
     color: colors.danger,
-    fontSize: 12,
-    marginTop: 4,
+    fontSize: 11,
+    marginTop: 4
   },
   actionButton: {
     marginTop: 16
+  },
+  emptyCardText: {
+    color: colors.textSecondary,
+    fontSize: 15,
+    textAlign: "center"
   },
   meta: {
     color: colors.textMuted,
     fontSize: 15,
     textAlign: "center"
-  }
+  },
+  themeToggleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border
+  },
+  themeButtons: {
+    flexDirection: 'row',
+    gap: 8
+  },
+  themeButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border
+  },
+  themeButtonActive: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent
+  },
+  themeButtonText: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: '600'
+  },
+  themeButtonTextActive: {
+    color: '#FFFFFF'
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  modalContent: {
+    backgroundColor: colors.bgPrimary,
+    borderRadius: 20,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    marginBottom: 8,
+  },
 });
