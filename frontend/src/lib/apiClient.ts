@@ -8,7 +8,7 @@ import { supabase } from "./supabase";
 
 export const apiClient = axios.create({
   baseURL: config.apiBaseUrl,
-  timeout: 12_000
+  timeout: 30_000
 });
 
 apiClient.interceptors.request.use(async (req) => {
