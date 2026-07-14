@@ -5,6 +5,7 @@ import { HomeIcon } from "@/components/ui/HomeIcon";
 import { ShoppingCartIcon } from "@/components/ui/ShoppingCartIcon";
 import { BoxIcon } from "@/components/ui/BoxIcon";
 import { UserIcon } from "@/components/ui/UserIcon";
+import { MenuIcon } from "@/components/ui/MenuIcon";
 import { Screen } from "@/components/shared/Screen";
 import { BuyerHeader } from "@/components/buyer/BuyerHeader";
 import { useAppTheme } from "@/store/useThemeStore";
@@ -29,6 +30,10 @@ export default function BuyerOrdersScreen() {
       href: "/(buyer)/cart",
       icon: ShoppingCartIcon,
       label: "Cart"
+    }, {
+      href: "/(buyer)/browse",
+      icon: MenuIcon,
+      label: "Browse"
     }, {
       href: "/(buyer)/orders",
       icon: BoxIcon,

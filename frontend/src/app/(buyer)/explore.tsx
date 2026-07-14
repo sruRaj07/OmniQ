@@ -32,6 +32,10 @@ export default function ExploreScreen() {
       icon: "🛒",
       label: "Cart"
     }, {
+      href: "/(buyer)/browse",
+      icon: "📋",
+      label: "Browse"
+    }, {
       href: "/(buyer)/orders",
       icon: "📦",
       label: "Orders"

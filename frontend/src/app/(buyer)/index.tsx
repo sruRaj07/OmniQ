@@ -12,6 +12,7 @@ import { HomeIcon } from "@/components/ui/HomeIcon";
 import { ShoppingCartIcon } from "@/components/ui/ShoppingCartIcon";
 import { BoxIcon } from "@/components/ui/BoxIcon";
 import { UserIcon } from "@/components/ui/UserIcon";
+import { MenuIcon } from "@/components/ui/MenuIcon";
 import { SearchInput } from "@/components/buyer/SearchInput";
 import { ListIcon } from "@/components/ui/ListIcon";
 import { Screen } from "@/components/shared/Screen";
@@ -40,6 +41,10 @@ export default function BuyerHomeScreen() {
           href: "/(buyer)/cart",
           icon: ShoppingCartIcon,
           label: "Cart"
+        }, {
+          href: "/(buyer)/browse",
+          icon: MenuIcon,
+          label: "Browse"
         }, {
           href: "/(buyer)/orders",
           icon: BoxIcon,
