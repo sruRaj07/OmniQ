@@ -361,29 +361,7 @@ export default function ProfileScreen() {
 
         <View style={{ marginTop: 32 }}>
           <Text style={styles.sectionTitle}>App Settings</Text>
-          <View style={styles.themeToggleContainer}>
-            <Text style={styles.detailLabel}>Theme:</Text>
-            <View style={styles.themeButtons}>
-              <TouchableOpacity
-                style={[styles.themeButton, mode === 'system' && styles.themeButtonActive]}
-                onPress={() => setMode('system')}
-              >
-                <Text style={[styles.themeButtonText, mode === 'system' && styles.themeButtonTextActive]}>System</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.themeButton, mode === 'light' && styles.themeButtonActive]}
-                onPress={() => setMode('light')}
-              >
-                <Text style={[styles.themeButtonText, mode === 'light' && styles.themeButtonTextActive]}>Light</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.themeButton, mode === 'dark' && styles.themeButtonActive]}
-                onPress={() => setMode('dark')}
-              >
-                <Text style={[styles.themeButtonText, mode === 'dark' && styles.themeButtonTextActive]}>Dark</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+
           <View style={styles.themeToggleContainer}>
             <Text style={styles.detailLabel}>Security:</Text>
             <Button variant="secondary" onPress={() => setShowPasswordResetModal(true)} style={{ minWidth: 140 }}>

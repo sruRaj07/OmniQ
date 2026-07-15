@@ -10,12 +10,14 @@ type ButtonProps = PropsWithChildren<Omit<PressableProps, "children" | "style"> 
   onPress?: () => void;
   variant?: "primary" | "secondary" | "danger" | "success";
   style?: ViewStyle;
+  textStyle?: any;
 }>;
 export function Button({
   children,
   onPress,
   variant = "primary",
   style,
+  textStyle,
   ...pressableProps
 }: ButtonProps) {
   const {
@@ -41,7 +43,7 @@ export function Button({
       ]}
       {...pressableProps}
     >
-      <Text style={[styles.label, labelStyle]}>{children}</Text>
+      <Text style={[styles.label, labelStyle, textStyle]}>{children}</Text>
     </Pressable>
   );
 }

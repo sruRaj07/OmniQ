@@ -4,8 +4,14 @@
  * Author: OmniQ Team
  */
 import { Stack } from "expo-router";
+import { useAppTheme } from "@/store/useThemeStore";
+import { useNavStore } from "@/store/useNavStore";
+import { Platform } from "react-native";
 
 export default function SellerLayout() {
+  const { colors } = useAppTheme();
+  const slideDirection = useNavStore(state => state.slideDirection);
+
   return (
     <Stack
       screenOptions={{
@@ -13,7 +19,10 @@ export default function SellerLayout() {
         freezeOnBlur: true,
         gestureEnabled: true,
         gestureDirection: "horizontal",
-        contentStyle: { backgroundColor: "#0A0A0F" },
+        animation: slideDirection,
+        animationTypeForReplace: "push",
+        fullScreenGestureEnabled: true,
+        contentStyle: { backgroundColor: Platform.OS === 'web' ? colors.bgSecondary : colors.bgPrimary },
       }}
     />
   );

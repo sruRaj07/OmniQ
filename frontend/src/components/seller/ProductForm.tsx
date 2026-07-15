@@ -94,8 +94,8 @@ export function ProductForm({ initialData, onCloseEdit }: ProductFormProps) {
       for (let index = 0; index < images.length; index++) {
         const uri = images[index];
         if (uri.startsWith("http")) {
-          // It's an already uploaded image, just pass the URL back
-          formData.append("images", uri);
+          // It's an already uploaded image, just pass the URL back as a separate field
+          formData.append("existing_images", uri);
           continue;
         }
 

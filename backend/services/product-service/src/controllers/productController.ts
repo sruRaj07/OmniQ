@@ -85,13 +85,13 @@ export async function createProductController(request: Request, response: Respon
       }
     }
 
-    // Merge uploaded urls into the request body
-    if (imageUrls.length > 0) {
-      request.body.images = imageUrls;
-    } else if (typeof request.body.images === 'string') {
-      // Sometimes form-data sends a single array element as a string
-      request.body.images = [request.body.images];
+    let existingImages: string[] = [];
+    if (request.body.existing_images) {
+      existingImages = Array.isArray(request.body.existing_images) 
+        ? request.body.existing_images 
+        : [request.body.existing_images];
     }
+    request.body.images = [...existingImages, ...imageUrls];
 
     const payload = extractTokenPayload(request);
     const authUserId = payload?.sub;
@@ -137,15 +137,13 @@ export async function updateProductController(request: Request, response: Respon
       }
     }
 
-    if (imageUrls.length > 0) {
-      // If there are new images, append them or replace. For simplicity, if they upload new images, we replace.
-      request.body.images = imageUrls;
-    } else if (request.body.images) {
-       // Keep existing images if they pass them back as an array
-       if (typeof request.body.images === 'string') {
-         request.body.images = [request.body.images];
-       }
+    let existingImages: string[] = [];
+    if (request.body.existing_images) {
+      existingImages = Array.isArray(request.body.existing_images) 
+        ? request.body.existing_images 
+        : [request.body.existing_images];
     }
+    request.body.images = [...existingImages, ...imageUrls];
 
     const payload = extractTokenPayload(request);
     const authUserId = payload?.sub;

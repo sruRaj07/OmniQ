@@ -2,8 +2,11 @@
  * OmniQ mobile app - product detail route.
  * Author: OmniQ Team
  */
-import { Link, useLocalSearchParams } from "expo-router";
-import { StyleSheet, Text, View, Image, ActivityIndicator, ScrollView, Dimensions } from "react-native";
+import { Link, useLocalSearchParams, useRouter } from "expo-router";
+import { StyleSheet, Text, View, Image, ActivityIndicator, ScrollView, Dimensions, TouchableOpacity } from "react-native";
+import { ArrowLeftIcon } from "@/components/ui/ArrowLeftIcon";
+import { SearchInput } from "@/components/buyer/SearchInput";
+import { AnimatedCartButton } from "@/components/buyer/AnimatedCartButton";
 import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -20,6 +23,7 @@ export default function ProductDetailScreen() {
     colors
   } = useAppTheme();
   const styles = getStyles(colors);
+  const router = useRouter();
   const {
     id
   } = useLocalSearchParams<{
@@ -46,28 +50,28 @@ export default function ProductDetailScreen() {
         if (isMounted && response.data?.data) {
           const p = response.data.data;
           setProduct(p);
-          
+
           try {
             let related: Product[] = [];
             if (p.category) {
               const relatedRes = await apiClient.get(`/products/search?category=${encodeURIComponent(p.category)}&limit=10`);
               if (isMounted && relatedRes.data?.data) {
-                 related = relatedRes.data.data.filter((item: Product) => item.id !== p.id);
+                related = relatedRes.data.data.filter((item: Product) => item.id !== p.id);
               }
             }
-            
+
             // Fallback: If no related products found in the same category, fetch generic products
             if (related.length === 0) {
               const fallbackRes = await apiClient.get(`/products?limit=10`);
               if (isMounted && fallbackRes.data?.data) {
-                 related = fallbackRes.data.data.filter((item: Product) => item.id !== p.id);
+                related = fallbackRes.data.data.filter((item: Product) => item.id !== p.id);
               }
             }
 
             if (isMounted) {
-               setRelatedProducts(related);
+              setRelatedProducts(related);
             }
-          } catch(e) {
+          } catch (e) {
             console.error("Failed to fetch related products:", e);
           }
         }
@@ -84,115 +88,132 @@ export default function ProductDetailScreen() {
   }, [id]);
   if (isLoading) {
     return <Screen>
-        <ActivityIndicator size="large" color={colors.accent} style={{
+      <ActivityIndicator size="large" color={colors.accent} style={{
         marginTop: 100
       }} />
-      </Screen>;
+    </Screen>;
   }
   if (!product) {
     return <Screen>
-        <Text style={{
+      <Text style={{
         color: colors.textPrimary,
         textAlign: "center",
         marginTop: 100
       }}>Product not found</Text>
-      </Screen>;
+    </Screen>;
   }
   const discount = product.compare_price ? Math.round((product.compare_price - product.price) / product.compare_price * 100) : 0;
   const imageUrl = product.images && product.images.length > 0 ? product.images[0] : null;
   return <Screen>
-      <View style={styles.top}>
-        <Link href="/(buyer)" style={styles.iconButton}>←</Link>
-        <Text style={styles.iconButton}>♥</Text>
+    <View style={styles.top}>
+      <Link href="/(buyer)" asChild>
+        <TouchableOpacity style={styles.backButton}>
+          <ArrowLeftIcon size={28} color={colors.textPrimary} />
+        </TouchableOpacity>
+      </Link>
+      <View style={styles.searchContainer}>
+        <SearchInput
+          placeholder="Search OmniQ"
+          style={{ flex: 1, marginBottom: 0, marginRight: 12 }}
+        />
+        <AnimatedCartButton onPress={() => router.push("/(buyer)/cart")} />
       </View>
-      <View style={styles.imagePanel}>
-        {product.images && product.images.length > 0 ? (
-          <ScrollView
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            onMomentumScrollEnd={handleScroll}
-          >
-            {product.images.map((uri, i) => (
-              <View key={i} style={{ width: width, height: "100%", alignItems: "center", justifyContent: "center" }}>
-                <Image source={{ uri }} style={styles.productImage} resizeMode="contain" />
-              </View>
-            ))}
-          </ScrollView>
-        ) : (
-          <Text style={styles.image}>📦</Text>
+    </View>
+    <View style={styles.imagePanel}>
+      {product.images && product.images.length > 0 ? (
+        <ScrollView
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onMomentumScrollEnd={handleScroll}
+        >
+          {product.images.map((uri, i) => (
+            <View key={i} style={{ width: width, height: "100%", alignItems: "center", justifyContent: "center" }}>
+              <Image source={{ uri }} style={styles.productImage} resizeMode="contain" />
+            </View>
+          ))}
+        </ScrollView>
+      ) : (
+        <Text style={styles.image}>📦</Text>
+      )}
+    </View>
+    <View style={styles.dots}>
+      {product.images && product.images.length > 1 ? product.images.map((_, i) => (
+        <View key={i} style={i === activeIndex ? styles.dotActive : styles.dot} />
+      )) : null}
+    </View>
+
+    <Text style={styles.title}>{product.title}</Text>
+    <View style={styles.rating}>
+      <Text style={styles.meta}>{product.stock_quantity > 0 ? `${product.stock_quantity} in stock` : "Out of stock"}</Text>
+    </View>
+    {product.description ? (
+      <View style={styles.descriptionWrapper}>
+        <Text style={styles.description} numberOfLines={isDescExpanded ? undefined : 1}>
+          {product.description}
+        </Text>
+        {product.description.length > 40 && (
+          <Text style={styles.readMore} onPress={() => setIsDescExpanded(!isDescExpanded)}>
+            {isDescExpanded ? "Read less" : "Read more"}
+          </Text>
         )}
       </View>
-      <View style={styles.dots}>
-        {product.images && product.images.length > 1 ? product.images.map((_, i) => (
-          <View key={i} style={i === activeIndex ? styles.dotActive : styles.dot} />
-        )) : null}
+    ) : null}
+    <View style={styles.priceRow}>
+      {discount > 0 ? <Text style={styles.discount}>-{discount}%</Text> : null}
+      <Text style={styles.price}>{formatCurrency(product.price)}</Text>
+    </View>
+    {product.compare_price ? (
+      <Text style={styles.compareWrapper}>
+        M.R.P.: <Text style={styles.compare}>{formatCurrency(product.compare_price)}</Text>
+      </Text>
+    ) : null}
+
+    <Link href="/(buyer)/cart" asChild>
+      <Button style={styles.button} textStyle={{ color: "#000000" }} onPress={() => addItem(product)}>Add to Cart</Button>
+    </Link>
+
+    <Link href="/(buyer)/cart" asChild>
+      <Button style={styles.buyNowButton} textStyle={{ color: "#000000" }} onPress={() => addItem(product)}>Buy Now</Button>
+    </Link>
+
+    {relatedProducts.length > 0 && (
+      <View style={styles.relatedSection}>
+        <Text style={styles.relatedTitle}>Customers who viewed this also viewed</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.relatedScroll}>
+          {relatedProducts.map(rp => (
+            <ProductCard key={rp.id} product={rp} style={styles.relatedCard} />
+          ))}
+        </ScrollView>
       </View>
-
-      <Text style={styles.title}>{product.title}</Text>
-      <View style={styles.rating}>
-        <Text style={styles.meta}>{product.stock_quantity > 0 ? `${product.stock_quantity} in stock` : "Out of stock"}</Text>
-      </View>
-      {product.description ? (
-        <View style={styles.descriptionWrapper}>
-          <Text style={styles.description} numberOfLines={isDescExpanded ? undefined : 1}>
-            {product.description}
-          </Text>
-          {product.description.length > 40 && (
-            <Text style={styles.readMore} onPress={() => setIsDescExpanded(!isDescExpanded)}>
-              {isDescExpanded ? "Read less" : "Read more"}
-            </Text>
-          )}
-        </View>
-      ) : null}
-      <View style={styles.priceRow}>
-        <Text style={styles.price}>{formatCurrency(product.price)}</Text>
-        {product.compare_price ? <Text style={styles.compare}>{formatCurrency(product.compare_price)}</Text> : null}
-        {discount > 0 ? <Text style={styles.discount}>↓ {discount}% off</Text> : null}
-      </View>
-
-      <Link href="/(buyer)/cart" asChild>
-        <Button style={styles.button} onPress={() => addItem(product)}>Add to Cart</Button>
-      </Link>
-
-      <Link href="/(buyer)/cart" asChild>
-        <Button style={styles.buyNowButton} onPress={() => addItem(product)}>Buy Now</Button>
-      </Link>
-
-      {relatedProducts.length > 0 && (
-        <View style={styles.relatedSection}>
-          <Text style={styles.relatedTitle}>Customers who viewed this also viewed</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.relatedScroll}>
-            {relatedProducts.map(rp => (
-              <ProductCard key={rp.id} product={rp} style={styles.relatedCard} />
-            ))}
-          </ScrollView>
-        </View>
-      )}
-    </Screen>;
+    )}
+  </Screen>;
 }
 const getStyles = (colors: any) => StyleSheet.create({
   top: {
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 18
+    marginBottom: 18,
+    gap: 12
   },
-  iconButton: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: colors.bgTertiary,
-    color: colors.textPrimary,
-    lineHeight: 52,
-    textAlign: "center",
-    fontSize: 28,
-    fontWeight: "900",
-    overflow: "hidden"
+  searchContainer: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  backButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "transparent",
+    alignItems: "center",
+    justifyContent: "center"
   },
   imagePanel: {
     height: 360,
-    borderRadius: 24,
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    backgroundColor: "transparent",
     alignItems: "center",
     justifyContent: "center",
     marginHorizontal: -24
@@ -268,25 +289,30 @@ const getStyles = (colors: any) => StyleSheet.create({
   },
   priceRow: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginTop: 24
+    alignItems: "flex-start",
+    gap: 8,
+    marginTop: 24,
+    marginBottom: 2
   },
   price: {
-    color: colors.goldLight,
-    fontSize: 28,
-    fontWeight: "900"
-  },
-  compare: {
-    color: colors.textMuted,
-    textDecorationLine: "line-through",
-    fontSize: 22,
-    fontWeight: "800"
+    color: colors.textPrimary,
+    fontSize: 32,
+    fontWeight: "900",
+    lineHeight: 38
   },
   discount: {
-    color: colors.success,
-    fontSize: 18,
-    fontWeight: "900"
+    color: "#CC0C39",
+    fontSize: 32,
+    fontWeight: "300",
+    lineHeight: 38
+  },
+  compareWrapper: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    fontWeight: "500"
+  },
+  compare: {
+    textDecorationLine: "line-through",
   },
   seller: {
     flexDirection: "row",

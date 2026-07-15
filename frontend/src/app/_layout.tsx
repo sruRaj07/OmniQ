@@ -28,6 +28,9 @@ export default function RootLayout() {
                 freezeOnBlur: true,
                 gestureEnabled: true,
                 gestureDirection: "horizontal",
+                animation: "slide_from_right",
+                customAnimationOnGesture: true,
+                fullScreenGestureEnabled: true,
                 contentStyle: { backgroundColor: Platform.OS === 'web' ? colors.bgSecondary : colors.bgPrimary },
               }}
             />

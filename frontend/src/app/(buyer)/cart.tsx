@@ -138,11 +138,6 @@ export default function CartScreen() {
       icon: UserIcon,
       label: "Profile"
     }]}>
-        <View style={styles.header}>
-          <Link href="/(buyer)" style={styles.back}>←</Link>
-          <Text style={styles.title}>My Cart</Text>
-          <Text style={styles.count}>{items.length} items</Text>
-        </View>
         
         {items.length === 0 ? <View style={styles.emptyState}>
             <AnimatedEmptyCart />

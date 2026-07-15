@@ -3,9 +3,10 @@
  * Author: OmniQ Team
  */
 import React from "react";
-import { Link, usePathname, useSegments, type Href } from "expo-router";
+import { usePathname, useSegments, useRouter, type Href } from "expo-router";
 import { StyleSheet, Text, View, Pressable } from "react-native";
 import { useAppTheme } from "@/store/useThemeStore";
+import { useNavStore } from "@/store/useNavStore";
 import { typography } from "@/constants/typography";
 export type NavItem = {
   href: Href;
@@ -27,34 +28,58 @@ export function BottomNavBar({
   const styles = getStyles(colors);
   const pathname = usePathname();
   const segments = useSegments();
-  return <View style={styles.container}>
-      {items.map(item => {
-      const itemHref = item.href as string;
-      const normalizedHref = itemHref.replace(/\/\([^)]+\)/g, '');
-      const targetPath = normalizedHref === '' ? '/' : normalizedHref;
+  const router = useRouter();
+  const setSlideDirection = useNavStore(state => state.setSlideDirection);
 
-      // Construct the full current route from segments (e.g. "/(seller)/dashboard")
-      const currentRoute = '/' + segments.join('/');
-
-      // Exact match or prefix match for sub-screens
-      let active = false;
-      const isRootGroup = itemHref.match(/^\/\([^)]+\)$/) || itemHref === '/';
-      
-      if (currentRoute === itemHref || pathname === targetPath || currentRoute === itemHref + '/index') {
-        active = true;
-      } else if (!isRootGroup) {
-        if (currentRoute.startsWith(itemHref + '/') || (targetPath !== '/' && pathname.startsWith(targetPath + '/'))) {
-          active = true;
-        }
+  // Find the currently active index
+  let activeIndex = 0;
+  items.forEach((item, index) => {
+    const itemHref = item.href as string;
+    const normalizedHref = itemHref.replace(/\/\([^)]+\)/g, '');
+    const targetPath = normalizedHref === '' ? '/' : normalizedHref;
+    const currentRoute = '/' + segments.join('/');
+    const isRootGroup = itemHref.match(/^\/\([^)]+\)$/) || itemHref === '/';
+    
+    if (currentRoute === itemHref || pathname === targetPath || currentRoute === itemHref + '/index') {
+      activeIndex = index;
+    } else if (!isRootGroup) {
+      if (currentRoute.startsWith(itemHref + '/') || (targetPath !== '/' && pathname.startsWith(targetPath + '/'))) {
+        activeIndex = index;
       }
-      return <Link key={item.href as string} href={item.href} asChild>
-            <Pressable style={styles.navItem}>
-              <View style={styles.iconContainer}>
-                {typeof item.icon === "string" ? <Text style={styles.icon}>{item.icon}</Text> : <item.icon size={26} color={active ? colors.accent : colors.textMuted} />}
-              </View>
-              {item.label ? <Text style={[styles.label, active && styles.active]}>{item.label}</Text> : null}
-            </Pressable>
-          </Link>;
+    }
+  });
+
+  const handlePress = (item: NavItem, index: number, isActive: boolean) => {
+    if (isActive) return;
+
+    if (index > activeIndex) {
+      setSlideDirection("slide_from_right");
+    } else {
+      setSlideDirection("slide_from_left");
+    }
+
+    // Small delay ensures the store updates before the router transition begins
+    setTimeout(() => {
+      router.replace(item.href);
+    }, 10);
+  };
+
+  return <View style={styles.container}>
+      {items.map((item, index) => {
+      const isActive = index === activeIndex;
+
+      return (
+        <Pressable 
+          key={item.href as string} 
+          style={styles.navItem} 
+          onPress={() => handlePress(item, index, isActive)}
+        >
+          <View style={styles.iconContainer}>
+            {typeof item.icon === "string" ? <Text style={styles.icon}>{item.icon}</Text> : <item.icon size={26} color={isActive ? colors.accent : colors.textMuted} />}
+          </View>
+          {item.label ? <Text style={[styles.label, isActive && styles.active]}>{item.label}</Text> : null}
+        </Pressable>
+      );
     })}
     </View>;
 }
