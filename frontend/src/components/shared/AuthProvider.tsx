@@ -9,11 +9,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { session, initialized, setSession, setInitialized } = useAuthStore();
 
   useEffect(() => {
-    // Check active session on mount
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setInitialized(true);
-    });
+    // Check active session on mount — wrapped in try/catch to prevent crash
+    // when network is unavailable on first launch
+    const initSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        setSession(session);
+      } catch (err) {
+        console.warn("[OmniQ] Failed to restore session:", err);
+        setSession(null);
+      } finally {
+        setInitialized(true);
+      }
+    };
+
+    initSession();
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {

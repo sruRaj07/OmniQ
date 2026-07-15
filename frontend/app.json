@@ -5,7 +5,7 @@
     "scheme": "omniq",
     "version": "1.0.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
     "icon": "./assets/images/icon.png",
     "plugins": [
       "expo-router"
@@ -17,8 +17,6 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.omniq.app",
       "infoPlist": {
-        "UIStatusBarHidden": true,
-        "UIViewControllerBasedStatusBarAppearance": false,
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -26,12 +24,12 @@
       "package": "com.omniq.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#0A0A0F"
+        "backgroundColor": "#FCFCFA"
       },
-      "versionCode": 6
-    },
-    "androidStatusBar": {
-      "hidden": true
+      "versionCode": 7,
+      "jsEngine": "hermes",
+      "enableProguardInReleaseBuilds": true,
+      "enableShrinkResourcesInReleaseBuilds": true
     },
     "web": {
       "bundler": "metro"

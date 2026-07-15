@@ -18,7 +18,7 @@ export default function RootLayout() {
   const { colors, mode } = useAppTheme();
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <StatusBar style={mode === 'dark' ? 'light' : 'dark'} hidden />
+      <StatusBar style="dark" />
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
