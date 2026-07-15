@@ -29,9 +29,21 @@ export function Button({
                      variant === 'danger' ? styles.labelDanger :
                      styles.labelSuccess;
 
-  return <Pressable onPress={onPress} style={({ pressed }) => [styles.base, styles[variant], pressed && styles.pressed, style]} {...pressableProps}>
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.base,
+        styles[variant],
+        variant === 'primary' && { backgroundColor: colors.accent || "#4F46E5" },
+        pressed && styles.pressed,
+        style
+      ]}
+      {...pressableProps}
+    >
       <Text style={[styles.label, labelStyle]}>{children}</Text>
-    </Pressable>;
+    </Pressable>
+  );
 }
 const getStyles = (colors: any) => StyleSheet.create({
   base: {
@@ -46,8 +58,8 @@ const getStyles = (colors: any) => StyleSheet.create({
     opacity: 0.85
   },
   primary: {
-    backgroundColor: colors.accent,
-    shadowColor: colors.accent,
+    backgroundColor: colors?.accent || "#4F46E5",
+    shadowColor: colors?.accent || "#4F46E5",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 3,

@@ -88,12 +88,17 @@ export function Screen({
 const getStyles = (colors: any) => StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.bgPrimary,
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0
+    backgroundColor: Platform.OS === 'web' ? colors.bgSecondary : colors.bgPrimary,
+    alignItems: 'center',
   },
   root: {
     flex: 1,
-    backgroundColor: colors.bgPrimary
+    width: '100%',
+    maxWidth: 500, // Caps width on tablets and web for a perfect responsive layout
+    backgroundColor: colors.bgPrimary,
+    ...(Platform.OS === 'web' && {
+      boxShadow: '0px 0px 30px rgba(0,0,0,0.08)' as any
+    })
   },
   content: {
     paddingBottom: 28

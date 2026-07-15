@@ -34,8 +34,8 @@ export function BuyerHeader() {
 const getStyles = (colors: any) => StyleSheet.create({
   headerContainer: {
     paddingHorizontal: 16,
-    paddingTop: 24,
-    paddingBottom: 14,
+    paddingTop: 8,
+    paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0,0,0,0.05)',
   },

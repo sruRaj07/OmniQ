@@ -27,7 +27,8 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#0A0A0F"
-      }
+      },
+      "versionCode": 6
     },
     "androidStatusBar": {
       "hidden": true
@@ -38,8 +39,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "c20af53d-f1d3-4084-9243-7215568ab41b"
+        "projectId": "4a29b09a-2b5d-4bac-96d5-b2e63d6050bc"
       }
-    }
+    },
+    "owner": "rajsrus-team"
   }
 }

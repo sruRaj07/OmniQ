@@ -21,7 +21,8 @@ export const useAppTheme = create<ThemeState>()(persist(set => ({
 }), {
   name: 'omniq-theme-storage',
   storage: createJSONStorage(() => AsyncStorage),
-  onRehydrateStorage: () => state => {
+  partialize: (state) => ({ mode: state.mode }), // Only persist the mode, not the colors object!
+  onRehydrateStorage: () => (state) => {
     if (state) {
       state.setMode('light');
     }

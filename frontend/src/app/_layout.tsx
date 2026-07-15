@@ -10,6 +10,7 @@ import { queryClient } from "@/lib/queryClient";
 import { AuthProvider } from "@/components/shared/AuthProvider";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
+import { Platform } from "react-native";
 
 import { useAppTheme } from "@/store/useThemeStore";
 
@@ -27,7 +28,7 @@ export default function RootLayout() {
                 freezeOnBlur: true,
                 gestureEnabled: true,
                 gestureDirection: "horizontal",
-                contentStyle: { backgroundColor: colors.bgPrimary },
+                contentStyle: { backgroundColor: Platform.OS === 'web' ? colors.bgSecondary : colors.bgPrimary },
               }}
             />
           </AuthProvider>
