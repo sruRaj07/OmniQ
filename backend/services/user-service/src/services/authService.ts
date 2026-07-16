@@ -28,7 +28,12 @@ export async function signUpWithEmail(input: unknown) {
       id: data.user.id,
       email: validated.email,
       full_name: validated.fullName || "",
-      role: validated.role
+      role: validated.role,
+      accepted_terms: validated.acceptedTerms,
+      terms_accepted_at: new Date().toISOString(),
+      terms_version: "1.0",
+      privacy_policy_accepted_at: new Date().toISOString(),
+      privacy_policy_version: "1.0"
     });
     
     if (profileError) {

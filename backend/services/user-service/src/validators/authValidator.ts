@@ -4,7 +4,8 @@ export const signUpSchema = z.object({
   fullName: z.string().optional(),
   email: z.string().email(),
   password: z.string().min(6),
-  role: z.enum(["buyer", "seller", "admin"]).default("buyer")
+  role: z.enum(["buyer", "seller", "admin"]).default("buyer"),
+  acceptedTerms: z.literal(true)
 });
 
 export const signInSchema = z.object({

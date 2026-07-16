@@ -5,7 +5,8 @@
   "packageManager": "pnpm@10.33.2",
   "description": "OmniQ multi-vendor ecommerce marketplace monorepo.",
   "scripts": {
-    "dev": "pnpm --parallel --filter frontend --filter @omniq/api-gateway --filter @omniq/product-service --filter @omniq/order-service --filter @omniq/seller-service --filter @omniq/user-service --filter @omniq/location-service --filter @omniq/admin-service dev",
+    "dev": "concurrently -k -n \"FE,API,PROD,ORD,SELL,USER,LOC,ADM\" -c \"cyan,magenta,green,blue,yellow,red,gray,white\" \"pnpm --filter frontend dev\" \"pnpm --filter @omniq/api-gateway dev\" \"pnpm --filter @omniq/product-service dev\" \"pnpm --filter @omniq/order-service dev\" \"pnpm --filter @omniq/seller-service dev\" \"pnpm --filter @omniq/user-service dev\" \"pnpm --filter @omniq/location-service dev\" \"pnpm --filter @omniq/admin-service dev\"",
+    "dev:backend": "concurrently -k -n \"API,PROD,ORD,SELL,USER,LOC,ADM\" -c \"magenta,green,blue,yellow,red,gray,white\" \"pnpm --filter @omniq/api-gateway dev\" \"pnpm --filter @omniq/product-service dev\" \"pnpm --filter @omniq/order-service dev\" \"pnpm --filter @omniq/seller-service dev\" \"pnpm --filter @omniq/user-service dev\" \"pnpm --filter @omniq/location-service dev\" \"pnpm --filter @omniq/admin-service dev\"",
     "dev:frontend": "pnpm --filter frontend dev",
     "dev:api": "pnpm --filter @omniq/api-gateway dev",
     "build": "pnpm --recursive build",

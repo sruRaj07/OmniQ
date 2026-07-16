@@ -10,7 +10,9 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { EyeIcon } from "@/components/ui/EyeIcon";
 import { EyeOffIcon } from "@/components/ui/EyeOffIcon";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { Screen } from "@/components/shared/Screen";
+import { TermsModal } from "@/components/shared/TermsModal";
 import { useAppTheme } from "@/store/useThemeStore";
 import { supabase } from "@/lib/supabase";
 import { apiClient } from "@/lib/apiClient";
@@ -19,7 +21,10 @@ const signUpSchema = z.object({
   fullName: z.string().min(2, "Full name must be at least 2 characters"),
   email: z.string().email("Invalid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
-  role: z.enum(["buyer", "seller"]).default("buyer")
+  role: z.enum(["buyer", "seller"]).default("buyer"),
+  acceptedTerms: z.literal(true, {
+    errorMap: () => ({ message: "You must accept the terms and privacy policy" })
+  })
 });
 type SignUpFormData = z.infer<typeof signUpSchema>;
 export default function SignUpScreen() {
@@ -36,9 +41,12 @@ export default function SignUpScreen() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [isTermsVisible, setIsTermsVisible] = useState(false);
+  const [hasReadTerms, setHasReadTerms] = useState(false);
   const {
     control,
     handleSubmit,
+    setValue,
     formState: {
       errors
     }
@@ -48,7 +56,8 @@ export default function SignUpScreen() {
       fullName: "",
       email: "",
       password: "",
-      role: role as any || "buyer"
+      role: role as any || "buyer",
+      acceptedTerms: false as any
     }
   });
   const onSubmit = async (data: SignUpFormData) => {
@@ -167,6 +176,32 @@ export default function SignUpScreen() {
                 {errors.password && <Text style={styles.error}>{errors.password.message}</Text>}
               </View>} />
 
+          <Controller control={control} name="acceptedTerms" render={({
+            field: { onChange, value }
+          }) => (
+            <View style={{ marginBottom: 10 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <Checkbox 
+                  value={value} 
+                  onValueChange={(val) => {
+                    if (!hasReadTerms && val) {
+                      setIsTermsVisible(true);
+                    } else {
+                      onChange(val);
+                    }
+                  }} 
+                />
+                <Text style={{ color: colors.textSecondary, flex: 1, flexWrap: 'wrap', lineHeight: 20 }}>
+                  I agree to the{' '}
+                  <Text onPress={() => setIsTermsVisible(true)} style={{ color: colors.accent, fontWeight: 'bold' }}>Terms of Service</Text>
+                  {' '}and{' '}
+                  <Text onPress={() => setIsTermsVisible(true)} style={{ color: colors.accent, fontWeight: 'bold' }}>Privacy Policy</Text>
+                </Text>
+              </View>
+              {errors.acceptedTerms && <Text style={styles.error}>{errors.acceptedTerms.message}</Text>}
+            </View>
+          )} />
+
           <Button onPress={handleSubmit(onSubmit)} style={styles.submitButton}>
             {loading ? "Creating account..." : "Sign Up"}
           </Button>
@@ -178,6 +213,16 @@ export default function SignUpScreen() {
         </View>
       </View>
       </KeyboardAvoidingView>
+
+      <TermsModal 
+        visible={isTermsVisible} 
+        onClose={() => setIsTermsVisible(false)}
+        onAccept={() => {
+          setHasReadTerms(true);
+          setIsTermsVisible(false);
+          setValue("acceptedTerms", true, { shouldValidate: true });
+        }}
+      />
     </Screen>;
 }
 const getStyles = (colors: any) => StyleSheet.create({
