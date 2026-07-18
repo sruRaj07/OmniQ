@@ -3,13 +3,13 @@
  * Author: OmniQ Team
  */
 import type { PropsWithChildren } from "react";
-import { Pressable, StyleSheet, Text, type PressableProps, type ViewStyle } from "react-native";
+import { Pressable, StyleSheet, Text, type PressableProps, type ViewStyle, type StyleProp } from "react-native";
 import { useAppTheme } from "@/store/useThemeStore";
 import { typography } from "@/constants/typography";
 type ButtonProps = PropsWithChildren<Omit<PressableProps, "children" | "style"> & {
   onPress?: () => void;
   variant?: "primary" | "secondary" | "danger" | "success";
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
   textStyle?: any;
 }>;
 export function Button({
@@ -61,11 +61,7 @@ const getStyles = (colors: any) => StyleSheet.create({
   },
   primary: {
     backgroundColor: colors?.accent || "#4F46E5",
-    shadowColor: colors?.accent || "#4F46E5",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 2
+    boxShadow: `0px 2px 3px ${colors?.accent || "#4F46E5"}33` as any
   },
   secondary: {
     backgroundColor: colors.card,

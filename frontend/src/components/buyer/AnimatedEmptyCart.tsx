@@ -5,78 +5,69 @@
  * Author: OmniQ Team
  */
 import { useEffect, useRef } from "react";
-import { Animated, Easing, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming, withSpring, withDelay, Easing, interpolate } from "react-native-reanimated";
 import { ShoppingCartIcon } from "@/components/ui/ShoppingCartIcon";
 import { SparklesIcon } from "@/components/ui/SparklesIcon";
 import { useAppTheme } from "@/store/useThemeStore";
+
 const SPARKLE_COUNT = 8;
+
 export function AnimatedEmptyCart() {
-  const {
-    colors
-  } = useAppTheme();
+  const { colors } = useAppTheme();
   const styles = getStyles(colors);
+  
   // ── Core Animations ──
-  const floatAnim = useRef(new Animated.Value(0)).current;
-  const glowAnim = useRef(new Animated.Value(0)).current;
-  const burstAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-  const spinAnim = useRef(new Animated.Value(0)).current;
-  const wobbleAnim = useRef(new Animated.Value(0)).current;
-  const tiltAnim = useRef(new Animated.Value(0)).current;
+  const floatAnim = useSharedValue(0);
+  const glowAnim = useSharedValue(0);
+  const burstAnim = useSharedValue(0);
+  const scaleAnim = useSharedValue(1);
+  const spinAnim = useSharedValue(0);
+  const wobbleAnim = useSharedValue(0);
+  const tiltAnim = useSharedValue(0);
 
   // Sparkle particles
-  const sparkleAnims = useRef(Array.from({
-    length: SPARKLE_COUNT
-  }, () => ({
-    x: new Animated.Value(0),
-    y: new Animated.Value(0),
-    opacity: new Animated.Value(0),
-    scale: new Animated.Value(0)
+  const sparkleAnims = useRef(Array.from({ length: SPARKLE_COUNT }, () => ({
+    x: useSharedValue(0),
+    y: useSharedValue(0),
+    opacity: useSharedValue(0),
+    scale: useSharedValue(0)
   }))).current;
 
   // ── 1. Gentle floating / levitation (always running) ──
   useEffect(() => {
-    Animated.loop(Animated.sequence([Animated.timing(floatAnim, {
-      toValue: 1,
-      duration: 2000,
-      easing: Easing.inOut(Easing.sin),
-      useNativeDriver: true
-    }), Animated.timing(floatAnim, {
-      toValue: 0,
-      duration: 2000,
-      easing: Easing.inOut(Easing.sin),
-      useNativeDriver: true
-    })])).start();
+    floatAnim.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 2000, easing: Easing.inOut(Easing.sin) }),
+        withTiming(0, { duration: 2000, easing: Easing.inOut(Easing.sin) })
+      ),
+      -1,
+      false
+    );
   }, []);
 
   // ── 2. Gentle tilt while floating ──
   useEffect(() => {
-    Animated.loop(Animated.sequence([Animated.timing(tiltAnim, {
-      toValue: 1,
-      duration: 3000,
-      easing: Easing.inOut(Easing.sin),
-      useNativeDriver: true
-    }), Animated.timing(tiltAnim, {
-      toValue: -1,
-      duration: 3000,
-      easing: Easing.inOut(Easing.sin),
-      useNativeDriver: true
-    })])).start();
+    tiltAnim.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 3000, easing: Easing.inOut(Easing.sin) }),
+        withTiming(-1, { duration: 3000, easing: Easing.inOut(Easing.sin) })
+      ),
+      -1,
+      true
+    );
   }, []);
 
   // ── 3. Glow pulse ring (always running) ──
   useEffect(() => {
-    Animated.loop(Animated.sequence([Animated.timing(glowAnim, {
-      toValue: 1,
-      duration: 2500,
-      easing: Easing.inOut(Easing.ease),
-      useNativeDriver: true
-    }), Animated.timing(glowAnim, {
-      toValue: 0,
-      duration: 2500,
-      easing: Easing.inOut(Easing.ease),
-      useNativeDriver: true
-    })])).start();
+    glowAnim.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 2500, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0, { duration: 2500, easing: Easing.inOut(Easing.ease) })
+      ),
+      -1,
+      false
+    );
   }, []);
 
   // ── 4. Excitement burst cycle (periodic) ──
@@ -86,116 +77,62 @@ export function AnimatedEmptyCart() {
       if (!mounted) return;
 
       // Fire sparkle particles outward
-      const sparkleAnimations = sparkleAnims.map((s, i) => {
-        const angle = i / SPARKLE_COUNT * Math.PI * 2;
+      sparkleAnims.forEach((s, i) => {
+        const angle = (i / SPARKLE_COUNT) * Math.PI * 2;
         const distance = 35 + Math.random() * 20;
-        const targetX = Math.cos(angle) * distance;
-        const targetY = Math.sin(angle) * distance;
-        return Animated.parallel([Animated.timing(s.x, {
-          toValue: targetX,
-          duration: 500,
-          useNativeDriver: true
-        }), Animated.timing(s.y, {
-          toValue: targetY,
-          duration: 500,
-          useNativeDriver: true
-        }), Animated.sequence([Animated.timing(s.opacity, {
-          toValue: 1,
-          duration: 120,
-          useNativeDriver: true
-        }), Animated.timing(s.opacity, {
-          toValue: 0,
-          duration: 380,
-          useNativeDriver: true
-        })]), Animated.sequence([Animated.timing(s.scale, {
-          toValue: 1.5,
-          duration: 200,
-          useNativeDriver: true
-        }), Animated.timing(s.scale, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true
-        })])]);
+        s.x.value = withTiming(Math.cos(angle) * distance, { duration: 500 });
+        s.y.value = withTiming(Math.sin(angle) * distance, { duration: 500 });
+        s.opacity.value = withSequence(
+          withTiming(1, { duration: 120 }),
+          withTiming(0, { duration: 380 })
+        );
+        s.scale.value = withSequence(
+          withTiming(1.5, { duration: 200 }),
+          withTiming(0, { duration: 300 })
+        );
       });
-      Animated.parallel([
+
       // Jump up
-      Animated.sequence([Animated.timing(burstAnim, {
-        toValue: 1,
-        duration: 250,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true
-      }), Animated.timing(burstAnim, {
-        toValue: 0,
-        duration: 400,
-        easing: Easing.bounce,
-        useNativeDriver: true
-      })]),
+      burstAnim.value = withSequence(
+        withTiming(1, { duration: 250, easing: Easing.out(Easing.cubic) }),
+        withTiming(0, { duration: 400, easing: Easing.bounce })
+      );
+
       // Quick scale pop
-      Animated.sequence([Animated.timing(scaleAnim, {
-        toValue: 1.35,
-        duration: 180,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true
-      }), Animated.timing(scaleAnim, {
-        toValue: 0.8,
-        duration: 120,
-        useNativeDriver: true
-      }), Animated.spring(scaleAnim, {
-        toValue: 1,
-        friction: 3,
-        tension: 180,
-        useNativeDriver: true
-      })]),
+      scaleAnim.value = withSequence(
+        withTiming(1.35, { duration: 180, easing: Easing.out(Easing.cubic) }),
+        withTiming(0.8, { duration: 120 }),
+        withSpring(1, { damping: 15, stiffness: 180 })
+      );
+
       // 360° spin
-      Animated.timing(spinAnim, {
-        toValue: 1,
-        duration: 600,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true
-      }),
+      spinAnim.value = withTiming(1, { duration: 600, easing: Easing.out(Easing.cubic) });
+
       // Post-landing wobble
-      Animated.sequence([Animated.delay(500), Animated.timing(wobbleAnim, {
-        toValue: 1,
-        duration: 80,
-        useNativeDriver: true
-      }), Animated.timing(wobbleAnim, {
-        toValue: -1,
-        duration: 80,
-        useNativeDriver: true
-      }), Animated.timing(wobbleAnim, {
-        toValue: 0.6,
-        duration: 60,
-        useNativeDriver: true
-      }), Animated.timing(wobbleAnim, {
-        toValue: -0.6,
-        duration: 60,
-        useNativeDriver: true
-      }), Animated.timing(wobbleAnim, {
-        toValue: 0.3,
-        duration: 50,
-        useNativeDriver: true
-      }), Animated.timing(wobbleAnim, {
-        toValue: 0,
-        duration: 50,
-        useNativeDriver: true
-      })]),
-      // Sparkle particles
-      ...sparkleAnimations]).start(() => {
+      wobbleAnim.value = withSequence(
+        withDelay(500, withTiming(1, { duration: 80 })),
+        withTiming(-1, { duration: 80 }),
+        withTiming(0.6, { duration: 60 }),
+        withTiming(-0.6, { duration: 60 }),
+        withTiming(0.3, { duration: 50 }),
+        withTiming(0, { duration: 50 })
+      );
+
+      setTimeout(() => {
         if (!mounted) return;
-        spinAnim.setValue(0);
-        // Reset sparkle positions
+        spinAnim.value = 0;
         sparkleAnims.forEach(s => {
-          s.x.setValue(0);
-          s.y.setValue(0);
-          s.opacity.setValue(0);
-          s.scale.setValue(0);
+          s.x.value = 0;
+          s.y.value = 0;
+          s.opacity.value = 0;
+          s.scale.value = 0;
         });
-        // Schedule next burst
         setTimeout(() => {
           if (mounted) runBurst();
         }, 3500);
-      });
+      }, 1200);
     };
+
     const timeout = setTimeout(runBurst, 1500);
     return () => {
       mounted = false;
@@ -203,84 +140,74 @@ export function AnimatedEmptyCart() {
     };
   }, []);
 
-  // ── Interpolations ──
-  const floatY = floatAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -10]
+  // ── Animated Styles ──
+  const glowStyle1 = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: interpolate(glowAnim.value, [0, 1], [0.9, 1.6]) }],
+      opacity: interpolate(glowAnim.value, [0, 0.5, 1], [0.08, 0.25, 0.08])
+    };
   });
-  const tiltRotation = tiltAnim.interpolate({
-    inputRange: [-1, 1],
-    outputRange: ["-8deg", "8deg"]
+
+  const glowStyle2 = useAnimatedStyle(() => {
+    const scale = interpolate(glowAnim.value, [0, 1], [0.9, 1.6]) - 0.2;
+    const opacity = interpolate(glowAnim.value, [0, 0.5, 1], [0.08, 0.25, 0.08]) + 0.05;
+    return {
+      transform: [{ scale }],
+      opacity
+    };
   });
-  const glowScale = glowAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.9, 1.6]
+
+  const iconStyle = useAnimatedStyle(() => {
+    const yFloat = interpolate(floatAnim.value, [0, 1], [0, -10]);
+    const yBurst = interpolate(burstAnim.value, [0, 1], [0, -25]);
+    const spinDeg = interpolate(spinAnim.value, [0, 1], [0, 360]);
+    const wobbleDeg = interpolate(wobbleAnim.value, [-1, 1], [-20, 20]);
+    const tiltDeg = interpolate(tiltAnim.value, [-1, 1], [-8, 8]);
+    
+    return {
+      transform: [
+        { translateY: yFloat + yBurst },
+        { scale: scaleAnim.value },
+        { rotate: `${spinDeg}deg` },
+        { rotate: `${wobbleDeg}deg` },
+        { rotate: `${tiltDeg}deg` }
+      ]
+    };
   });
-  const glowOpacity = glowAnim.interpolate({
-    inputRange: [0, 0.5, 1],
-    outputRange: [0.08, 0.25, 0.08]
-  });
-  const burstY = burstAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -25]
-  });
-  const spinRotation = spinAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["0deg", "360deg"]
-  });
-  const wobbleRotation = wobbleAnim.interpolate({
-    inputRange: [-1, 1],
-    outputRange: ["-20deg", "20deg"]
-  });
-  return <View style={styles.container}>
+
+  return (
+    <View style={styles.container}>
       {/* Outer glow ring 1 */}
-      <Animated.View style={[styles.glowRing, {
-      transform: [{
-        scale: glowScale
-      }],
-      opacity: glowOpacity
-    }]} />
+      <Animated.View style={[styles.glowRing, glowStyle1]} />
 
       {/* Outer glow ring 2 (delayed offset) */}
-      <Animated.View style={[styles.glowRingInner, {
-      transform: [{
-        scale: Animated.add(glowScale, -0.2)
-      }],
-      opacity: Animated.add(glowOpacity, 0.05)
-    }]} />
+      <Animated.View style={[styles.glowRingInner, glowStyle2]} />
 
       {/* Sparkle particles */}
-      {sparkleAnims.map((s, i) => <Animated.View key={`sparkle-${i}`} style={[styles.sparkle, {
-      transform: [{
-        translateX: s.x
-      }, {
-        translateY: s.y
-      }, {
-        scale: s.scale
-      }],
-      opacity: s.opacity
-    }]}>
-          <SparklesIcon size={12} color={i % 2 === 0 ? colors.goldLight : colors.accentLight} />
-        </Animated.View>)}
+      {sparkleAnims.map((s, i) => {
+        const sparkleStyle = useAnimatedStyle(() => ({
+          transform: [
+            { translateX: s.x.value },
+            { translateY: s.y.value },
+            { scale: s.scale.value }
+          ],
+          opacity: s.opacity.value
+        }));
+        return (
+          <Animated.View key={`sparkle-${i}`} style={[styles.sparkle, sparkleStyle]}>
+            <SparklesIcon size={12} color={i % 2 === 0 ? colors.goldLight : colors.accentLight} />
+          </Animated.View>
+        );
+      })}
 
       {/* Main cart icon */}
-      <Animated.View style={[styles.iconCircle, {
-      transform: [{
-        translateY: Animated.add(floatY, burstY)
-      }, {
-        scale: scaleAnim
-      }, {
-        rotate: spinRotation
-      }, {
-        rotate: wobbleRotation
-      }, {
-        rotate: tiltRotation
-      }]
-    }]}>
+      <Animated.View style={[styles.iconCircle, iconStyle]}>
         <ShoppingCartIcon size={48} color={colors.accentLight} />
       </Animated.View>
-    </View>;
+    </View>
+  );
 }
+
 const getStyles = (colors: any) => StyleSheet.create({
   container: {
     width: 120,

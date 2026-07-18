@@ -4,7 +4,8 @@
  */
 import { useState, useRef } from "react";
 import { Link, useRouter } from "expo-router";
-import { StyleSheet, Text, View, Alert, ActivityIndicator, Modal, Animated, Pressable, TextInput } from "react-native";
+import { StyleSheet, Text, View, Alert, ActivityIndicator, Modal, Pressable, TextInput } from "react-native";
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, runOnJS } from "react-native-reanimated";
 import { CartItem } from "@/components/buyer/CartItem";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -20,10 +21,9 @@ import { useAppTheme } from "@/store/useThemeStore";
 import { useCart } from "@/hooks/useCart";
 import { formatCurrency } from "@/utils/formatCurrency";
 import { apiClient } from "@/lib/apiClient";
+
 export default function CartScreen() {
-  const {
-    colors
-  } = useAppTheme();
+  const { colors } = useAppTheme();
   const styles = getStyles(colors);
   const {
     items,
@@ -46,27 +46,35 @@ export default function CartScreen() {
     phone: "8710031657"
   });
   const [serviceError, setServiceError] = useState<string | null>(null);
-  const scaleAnim = useRef(new Animated.Value(0)).current;
-  const opacityAnim = useRef(new Animated.Value(0)).current;
+
+  const scaleAnim = useSharedValue(0);
+  const opacityAnim = useSharedValue(0);
   const router = useRouter();
+
+  const handleSuccessDone = () => {
+    setShowSuccess(false);
+    router.push("/(buyer)/orders");
+  };
+
   const triggerSuccessAnimation = () => {
     setShowSuccess(true);
-    Animated.parallel([Animated.timing(opacityAnim, {
-      toValue: 1,
-      duration: 300,
-      useNativeDriver: true
-    }), Animated.spring(scaleAnim, {
-      toValue: 1,
-      friction: 4,
-      tension: 50,
-      useNativeDriver: true
-    })]).start(() => {
+    opacityAnim.value = withTiming(1, { duration: 300 });
+    scaleAnim.value = withSpring(1, { damping: 10, stiffness: 50 }, () => {
       setTimeout(() => {
-        setShowSuccess(false);
-        router.push("/(buyer)/orders");
+        runOnJS(handleSuccessDone)();
       }, 2000);
     });
   };
+
+  const successAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: opacityAnim.value,
+    transform: [{ scale: scaleAnim.value }]
+  }));
+
+  const textAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: opacityAnim.value
+  }));
+
   const handlePlaceOrder = () => {
     if (items.length === 0) {
       Alert.alert("Cart Empty", "Please add some items to your cart first.");
@@ -165,17 +173,10 @@ export default function CartScreen() {
 
       <Modal visible={showSuccess} transparent animationType="fade">
         <View style={styles.modalContainer}>
-          <Animated.View style={[styles.successCircle, {
-          opacity: opacityAnim,
-          transform: [{
-            scale: scaleAnim
-          }]
-        }]}>
+          <Animated.View style={[styles.successCircle, successAnimatedStyle]}>
             <Text style={styles.successIcon}>✓</Text>
           </Animated.View>
-          <Animated.Text style={[styles.successText, {
-          opacity: opacityAnim
-        }]}>Order Placed Successfully!</Animated.Text>
+          <Animated.Text style={[styles.successText, textAnimatedStyle]}>Order Placed Successfully!</Animated.Text>
         </View>
       </Modal>
 

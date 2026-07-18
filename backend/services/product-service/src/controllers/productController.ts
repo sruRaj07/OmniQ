@@ -9,8 +9,12 @@ import { createProduct, getProduct, listProducts, listSellerProducts, searchProd
 export async function listProductsController(request: Request, response: Response): Promise<void> {
   try {
     const sellerId = request.query.sellerId as string | undefined;
-    const products = await listProducts(sellerId);
-    response.json(ok(products, { page: 1, limit: 20, total: products.length }));
+    const cursor = request.query.cursor as string | undefined;
+    const limitParam = parseInt(request.query.limit as string);
+    const limit = isNaN(limitParam) ? 20 : Math.min(limitParam, 50);
+
+    const { products, nextCursor } = await listProducts(sellerId, cursor, limit);
+    response.json(ok(products, { nextCursor, limit, total: products.length }));
   } catch (error: any) {
     response.status(500).json(fail("SERVER_ERROR", error.message));
   }

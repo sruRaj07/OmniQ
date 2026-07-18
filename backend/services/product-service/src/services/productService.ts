@@ -4,6 +4,18 @@
  */
 import { productCreateSchema, productUpdateSchema } from "../validators/productValidator";
 import { supabase } from "../../../../shared/utils/supabaseClient";
+import { redis } from "./redisClient";
+
+async function invalidateProductCaches(sellerId: string) {
+  try {
+    const keys = await redis.keys('products:*');
+    if (keys.length > 0) {
+      await redis.del(...keys);
+    }
+  } catch (err) {
+    console.error("Failed to invalidate product caches:", err);
+  }
+}
 
 export type ProductDto = {
   id: string;
@@ -18,8 +30,16 @@ export type ProductDto = {
   is_flagged?: boolean;
 };
 
-export async function listProducts(sellerId?: string): Promise<ProductDto[]> {
-  let query = supabase.from("products").select("*");
+export async function listProducts(sellerId?: string, cursor?: string, limit: number = 20): Promise<{ products: ProductDto[], nextCursor: string | null }> {
+  const cacheKey = `products:seller:${sellerId || 'all'}:cursor:${cursor || 'first'}:limit:${limit}`;
+  if (!sellerId) {
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+  }
+
+  let query = supabase.from("products").select("id, title, price, compare_price, images, seller_id, stock, category, created_at, is_approved, is_flagged");
   
   if (sellerId) {
     query = query.eq("seller_id", sellerId);
@@ -28,12 +48,35 @@ export async function listProducts(sellerId?: string): Promise<ProductDto[]> {
     query = query.eq("is_approved", true);
   }
 
+  if (cursor) {
+    query = query.lt("created_at", cursor);
+  }
+
+  query = query.order("created_at", { ascending: false }).limit(limit);
+
   const { data, error } = await query;
   if (error) throw new Error(`Failed to fetch products: ${error.message}`);
-  return data || [];
+  
+  const products = data || [];
+  let nextCursor = null;
+  if (products.length === limit && products.length > 0) {
+    nextCursor = products[products.length - 1].created_at;
+  }
+
+  const result = { products, nextCursor };
+  if (!sellerId) {
+    await redis.setex(cacheKey, 300, JSON.stringify(result)); // TTL 5 minutes
+  }
+  return result;
 }
 
 export async function listSellerProducts(ownerId: string): Promise<ProductDto[]> {
+  const cacheKey = `products:owner:${ownerId}`;
+  const cached = await redis.get(cacheKey);
+  if (cached) {
+    return JSON.parse(cached);
+  }
+
   const { data: seller, error: sellerError } = await supabase
     .from("sellers")
     .select("id")
@@ -50,7 +93,9 @@ export async function listSellerProducts(ownerId: string): Promise<ProductDto[]>
     .order("created_at", { ascending: false });
 
   if (error) throw new Error(`Failed to fetch seller products: ${error.message}`);
-  return data || [];
+  const result = data || [];
+  await redis.setex(cacheKey, 600, JSON.stringify(result)); // TTL 10 minutes
+  return result;
 }
 
 export async function getProduct(id: string): Promise<ProductDto | undefined> {
@@ -98,6 +143,8 @@ export async function createProduct(input: unknown, authUserId?: string): Promis
   
   const { data, error } = await supabase.from("products").insert([product]).select().single();
   if (error) throw new Error(`Failed to create product: ${error.message}`);
+  
+  await invalidateProductCaches(sellerId);
   return data;
 }
 
@@ -134,6 +181,8 @@ export async function updateProduct(id: string, input: unknown, authUserId: stri
 
   const { data, error } = await supabase.from("products").update(updates).eq("id", id).select().single();
   if (error) throw new Error(`Failed to update product: ${error.message}`);
+  
+  await invalidateProductCaches(seller.id);
   return data;
 }
 

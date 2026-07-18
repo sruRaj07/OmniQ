@@ -170,14 +170,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     marginBottom: 24,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 2
+    boxShadow: "0px 2px 8px rgba(0,0,0,0.1)",
   },
   statusRow: {
     flexDirection: "row",

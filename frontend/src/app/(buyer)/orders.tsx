@@ -117,14 +117,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 4
-    },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    elevation: 3
+    boxShadow: "0px 4px 10px rgba(0,0,0,0.15)",
   },
   cardHeader: {
     flexDirection: "row",

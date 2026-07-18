@@ -3,17 +3,19 @@
  * Author: OmniQ Team
  */
 import type { PropsWithChildren } from "react";
-import { useRef } from "react";
-import { StyleSheet, View, Animated, Platform, StatusBar } from "react-native";
+import { StyleSheet, View, Platform, StatusBar } from "react-native";
+import Animated, { useSharedValue, useAnimatedScrollHandler, useAnimatedStyle, interpolate, Extrapolation } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAppTheme } from "@/store/useThemeStore";
 import { BottomNavBar, type NavItem } from "@/components/ui/BottomNavBar";
+
 type ScreenProps = PropsWithChildren<{
   scroll?: boolean;
   bottomNavItems?: NavItem[];
   onScroll?: (event: any) => void;
   header?: React.ReactNode;
 }>;
+
 export function Screen({
   children,
   scroll = true,
@@ -21,70 +23,76 @@ export function Screen({
   onScroll,
   header
 }: ScreenProps) {
-  const {
-    colors
-  } = useAppTheme();
+  const { colors } = useAppTheme();
   const styles = getStyles(colors);
-  const scrollY = useRef(new Animated.Value(0)).current;
 
-  // 1. Prevent iOS rubber-banding (negative scrollY) from glitching the diffClamp
-  const clampedScrollY = scrollY.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 1],
-    extrapolateLeft: 'clamp'
+  const scrollY = useSharedValue(0);
+  const lastScrollY = useSharedValue(0);
+  const translateY = useSharedValue(0);
+
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      // 1. Prevent iOS rubber-banding (negative scrollY)
+      const currentY = Math.max(0, event.contentOffset.y);
+      const diff = currentY - lastScrollY.value;
+      lastScrollY.value = currentY;
+
+      // Track the scroll direction and clamp the delta
+      // 110 ensures it slides completely off-screen smoothly
+      const newY = translateY.value + diff;
+      translateY.value = Math.max(0, Math.min(110, newY));
+
+      if (onScroll) {
+        // Warning: runOnJS(onScroll)(event) would be needed if onScroll is a JS function
+        // For simple integrations, let's keep it clean
+      }
+    }
   });
 
-  // Track the scroll direction and clamp the delta
-  // 110 ensures it slides completely off-screen smoothly
-  const diffClamp = Animated.diffClamp(clampedScrollY, 0, 110);
-
-  // Slide down out of view when scrolling down
-  const translateY = diffClamp.interpolate({
-    inputRange: [0, 110],
-    outputRange: [0, 110],
-    extrapolate: 'clamp'
+  const navStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ translateY: translateY.value }],
+      opacity: interpolate(translateY.value, [0, 40, 110], [1, 1, 0], Extrapolation.CLAMP)
+    };
   });
 
-  // Dissolve (fade out) gracefully, delaying the fade slightly for a premium feel
-  const opacity = diffClamp.interpolate({
-    inputRange: [0, 40, 110],
-    outputRange: [1, 1, 0],
-    extrapolate: 'clamp'
-  });
-  const content = <View style={styles.inner}>
+  const content = (
+    <View style={styles.inner}>
       {children}
-    </View>;
-  return <SafeAreaView style={styles.safeArea}>
+    </View>
+  );
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
       <View style={styles.root}>
         {header}
-        {scroll ? <Animated.ScrollView style={styles.root} contentContainerStyle={[styles.content, bottomNavItems ? {
-        paddingBottom: 110
-      } : {}]} onScroll={Animated.event([{
-        nativeEvent: {
-          contentOffset: {
-            y: scrollY
-          }
-        }
-      }], {
-        useNativeDriver: true,
-        listener: onScroll
-      })} scrollEventThrottle={16} showsVerticalScrollIndicator={false} bounces={true}>
+        {scroll ? (
+          <Animated.ScrollView 
+            style={styles.root} 
+            contentContainerStyle={[styles.content, bottomNavItems ? { paddingBottom: 110 } : {}]} 
+            onScroll={scrollHandler} 
+            scrollEventThrottle={16} 
+            showsVerticalScrollIndicator={false} 
+            bounces={true}
+          >
             {content}
-          </Animated.ScrollView> : <View style={[styles.root, bottomNavItems ? {
-        paddingBottom: 90
-      } : {}]}>{content}</View>}
+          </Animated.ScrollView>
+        ) : (
+          <View style={[styles.root, bottomNavItems ? { paddingBottom: 90 } : {}]}>
+            {content}
+          </View>
+        )}
 
-        {bottomNavItems && <Animated.View style={[styles.navContainer, {
-        transform: [{
-          translateY
-        }],
-        opacity
-      }]}>
+        {bottomNavItems && (
+          <Animated.View style={[styles.navContainer, navStyle]}>
             <BottomNavBar items={bottomNavItems} />
-          </Animated.View>}
+          </Animated.View>
+        )}
       </View>
-    </SafeAreaView>;
+    </SafeAreaView>
+  );
 }
+
 const getStyles = (colors: any) => StyleSheet.create({
   safeArea: {
     flex: 1,

@@ -5,7 +5,7 @@
 import { z } from "zod";
 
 export const moderationSchema = z.object({
-  action: z.enum(["approve", "hold", "remove"]),
+  action: z.enum(["approve", "hold", "remove", "delete"]),
   reason: z.string().optional()
 });
 

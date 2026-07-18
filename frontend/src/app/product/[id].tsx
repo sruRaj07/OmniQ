@@ -18,6 +18,7 @@ import { formatCurrency } from "@/utils/formatCurrency";
 import { apiClient } from "@/lib/apiClient";
 import type { Product } from "@/types/product.types";
 import { ProductCard } from "@/components/buyer/ProductCard";
+import { ImageZoomViewer } from "@/components/shared/ImageZoomViewer";
 export default function ProductDetailScreen() {
   const {
     colors
@@ -34,6 +35,8 @@ export default function ProductDetailScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [activeIndex, setActiveIndex] = useState(0);
   const [isDescExpanded, setIsDescExpanded] = useState(false);
+  const [isZoomVisible, setIsZoomVisible] = useState(false);
+  const [activeZoomImage, setActiveZoomImage] = useState("");
   const { width } = Dimensions.get("window");
   const addItem = useCartStore(state => state.addItem);
 
@@ -128,9 +131,17 @@ export default function ProductDetailScreen() {
           onMomentumScrollEnd={handleScroll}
         >
           {product.images.map((uri, i) => (
-            <View key={i} style={{ width: width, height: "100%", alignItems: "center", justifyContent: "center" }}>
+            <TouchableOpacity 
+              key={i} 
+              activeOpacity={0.9}
+              onPress={() => {
+                setActiveZoomImage(uri);
+                setIsZoomVisible(true);
+              }}
+              style={{ width: width, height: "100%", alignItems: "center", justifyContent: "center" }}
+            >
               <Image source={{ uri }} style={styles.productImage} resizeMode="contain" />
-            </View>
+            </TouchableOpacity>
           ))}
         </ScrollView>
       ) : (
@@ -142,6 +153,12 @@ export default function ProductDetailScreen() {
         <View key={i} style={i === activeIndex ? styles.dotActive : styles.dot} />
       )) : null}
     </View>
+
+    <ImageZoomViewer 
+      visible={isZoomVisible} 
+      imageUrl={activeZoomImage} 
+      onClose={() => setIsZoomVisible(false)} 
+    />
 
     <Text style={styles.title}>{product.title}</Text>
     <View style={styles.rating}>
@@ -212,15 +229,15 @@ const getStyles = (colors: any) => StyleSheet.create({
     justifyContent: "center"
   },
   imagePanel: {
-    height: 360,
+    height: 400,
     backgroundColor: "transparent",
     alignItems: "center",
     justifyContent: "center",
     marginHorizontal: -24
   },
   productImage: {
-    width: "80%",
-    height: "80%"
+    width: "100%",
+    height: "100%"
   },
   image: {
     fontSize: 28

@@ -3,7 +3,7 @@
  * Author: OmniQ Team
  */
 import { useState, useRef, useEffect, useCallback } from "react";
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView, Animated, Keyboard, Pressable, ActivityIndicator } from "react-native";
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView, Keyboard, Pressable, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
 import Svg, { Path, Line, Circle, Rect } from "react-native-svg";
 import { ProductCard } from "@/components/buyer/ProductCard";
@@ -145,6 +145,8 @@ function usePopularProducts() {
   };
 }
 
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, withDelay, withRepeat, withSequence } from "react-native-reanimated";
+
 /* ── Animated Suggestion Item ─────────────────────────────────────────── */
 
 function AnimatedSuggestion({
@@ -158,34 +160,26 @@ function AnimatedSuggestion({
   index: number;
   onPress: () => void;
 }) {
-  const {
-    colors
-  } = useAppTheme();
+  const { colors } = useAppTheme();
   const styles = getStyles(colors);
-  const anim = useRef(new Animated.Value(0)).current;
+  
+  const anim = useSharedValue(0);
+  
   useEffect(() => {
-    Animated.timing(anim, {
-      toValue: 1,
-      duration: 200,
-      delay: index * 50,
-      useNativeDriver: true
-    }).start();
-  }, []);
-  const translateX = anim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [30, 0]
-  });
+    anim.value = withDelay(index * 50, withTiming(1, { duration: 200 }));
+  }, [index, anim]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: anim.value,
+    transform: [{ translateX: (1 - anim.value) * 30 }] // interpolate 0 -> 30, 1 -> 0
+  }));
 
   // Highlight matching portion
   const lowerText = text.toLowerCase();
   const lowerQuery = query.toLowerCase();
   const matchIndex = lowerText.indexOf(lowerQuery);
-  return <Animated.View style={{
-    opacity: anim,
-    transform: [{
-      translateX
-    }]
-  }}>
+  return (
+    <Animated.View style={animatedStyle}>
       <TouchableOpacity style={styles.suggestionRow} onPress={onPress} activeOpacity={0.6}>
         <SearchSvg color={colors.textMuted} size={16} />
         <Text style={styles.suggestionText}>
@@ -196,7 +190,8 @@ function AnimatedSuggestion({
             </> : text}
         </Text>
       </TouchableOpacity>
-    </Animated.View>;
+    </Animated.View>
+  );
 }
 
 /* ── Skeleton Loader ──────────────────────────────────────────────────── */
@@ -206,31 +201,32 @@ function SkeletonCard({
 }: {
   index: number;
 }) {
-  const {
-    colors
-  } = useAppTheme();
+  const { colors } = useAppTheme();
   const styles = getStyles(colors);
-  const pulse = useRef(new Animated.Value(0.3)).current;
+  const pulse = useSharedValue(0.3);
+  
   useEffect(() => {
-    Animated.loop(Animated.sequence([Animated.timing(pulse, {
-      toValue: 1,
-      duration: 800,
-      useNativeDriver: true
-    }), Animated.timing(pulse, {
-      toValue: 0.3,
-      duration: 800,
-      useNativeDriver: true
-    })])).start();
-  }, []);
-  return <Animated.View style={[styles.skeletonCard, {
-    opacity: pulse
-  }]}>
+    pulse.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 800 }),
+        withTiming(0.3, { duration: 800 })
+      ),
+      -1,
+      false
+    );
+  }, [pulse]);
+  
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: pulse.value
+  }));
+
+  return (
+    <Animated.View style={[styles.skeletonCard, animatedStyle]}>
       <View style={styles.skeletonImage} />
       <View style={styles.skeletonLine} />
-      <View style={[styles.skeletonLine, {
-      width: "60%"
-    }]} />
-    </Animated.View>;
+      <View style={[styles.skeletonLine, { width: "60%" }]} />
+    </Animated.View>
+  );
 }
 
 /* ── Main Search Screen ───────────────────────────────────────────────── */

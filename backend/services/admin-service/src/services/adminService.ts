@@ -93,6 +93,13 @@ export async function moderateProduct(id: string, input: unknown) {
       .single();
     if (error) throw new Error(`Removal failed: ${error.message}`);
     return data;
+  } else if (parsed.action === "delete") {
+    const { error } = await supabaseAdmin
+      .from("products")
+      .delete()
+      .eq("id", id);
+    if (error) throw new Error(`Deletion failed: ${error.message}`);
+    return { id, deleted: true };
   }
   
   return { id, status: "unchanged" };

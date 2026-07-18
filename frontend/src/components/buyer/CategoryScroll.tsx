@@ -2,7 +2,7 @@
  * OmniQ mobile app - horizontal category selector with premium animations.
  * Author: OmniQ Team
  */
-import { ScrollView, StyleSheet, Text, View, Pressable, Animated } from "react-native";
+import { ScrollView, StyleSheet, Text, View, Pressable } from "react-native";
 import { useState, useRef, useEffect, useCallback } from "react";
 import Svg, { Path, Rect, Line } from "react-native-svg";
 import { useAppTheme } from "@/store/useThemeStore";
@@ -108,6 +108,8 @@ const categories = [{
   bgTint: "rgba(139,133,255,0.12)"
 }];
 
+import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, withSequence, withRepeat, Easing, interpolate, withDelay } from "react-native-reanimated";
+
 /* ── Animated Category Item ───────────────────────────────────────────── */
 
 function AnimatedCategoryItem({
@@ -121,147 +123,108 @@ function AnimatedCategoryItem({
   isActive: boolean;
   onPress: () => void;
 }) {
-  const {
-    colors
-  } = useAppTheme();
+  const { colors } = useAppTheme();
   const styles = getStyles(colors);
   const IconComponent = category.icon;
 
   // Staggered entrance animation
-  const entrance = useRef(new Animated.Value(0)).current;
+  const entrance = useSharedValue(0);
   // Scale bounce on press
-  const scale = useRef(new Animated.Value(1)).current;
+  const scale = useSharedValue(1);
   // Active glow pulse
-  const glow = useRef(new Animated.Value(0)).current;
+  const glow = useSharedValue(0);
   // Icon rotation wiggle
-  const wiggle = useRef(new Animated.Value(0)).current;
+  const wiggle = useSharedValue(0);
 
   // Staggered slide-up + fade-in on mount
   useEffect(() => {
-    Animated.spring(entrance, {
-      toValue: 1,
-      delay: index * 100,
-      tension: 60,
-      friction: 8,
-      useNativeDriver: true
-    }).start();
-  }, []);
+    entrance.value = withDelay(
+      index * 100,
+      withSpring(1, { damping: 8, stiffness: 60 })
+    );
+  }, [index, entrance]);
 
   // Pulse glow when active
   useEffect(() => {
     if (isActive) {
-      const pulse = Animated.loop(Animated.sequence([Animated.timing(glow, {
-        toValue: 1,
-        duration: 1200,
-        useNativeDriver: true
-      }), Animated.timing(glow, {
-        toValue: 0,
-        duration: 1200,
-        useNativeDriver: true
-      })]));
-      pulse.start();
-      return () => pulse.stop();
+      glow.value = withRepeat(
+        withSequence(
+          withTiming(1, { duration: 1200 }),
+          withTiming(0, { duration: 1200 })
+        ),
+        -1,
+        false
+      );
     } else {
-      glow.setValue(0);
+      glow.value = withTiming(0, { duration: 300 });
     }
-  }, [isActive]);
+  }, [isActive, glow]);
+
   const handlePressIn = useCallback(() => {
-    Animated.spring(scale, {
-      toValue: 0.85,
-      tension: 200,
-      friction: 10,
-      useNativeDriver: true
-    }).start();
-  }, []);
+    scale.value = withSpring(0.85, { damping: 10, stiffness: 200 });
+  }, [scale]);
+
   const handlePressOut = useCallback(() => {
     // Bounce back with overshoot
-    Animated.spring(scale, {
-      toValue: 1,
-      tension: 300,
-      friction: 8,
-      useNativeDriver: true
-    }).start();
+    scale.value = withSpring(1, { damping: 8, stiffness: 300 });
 
     // Wiggle the icon
-    Animated.sequence([Animated.timing(wiggle, {
-      toValue: 1,
-      duration: 80,
-      useNativeDriver: true
-    }), Animated.timing(wiggle, {
-      toValue: -1,
-      duration: 80,
-      useNativeDriver: true
-    }), Animated.timing(wiggle, {
-      toValue: 0.5,
-      duration: 60,
-      useNativeDriver: true
-    }), Animated.timing(wiggle, {
-      toValue: -0.5,
-      duration: 60,
-      useNativeDriver: true
-    }), Animated.timing(wiggle, {
-      toValue: 0,
-      duration: 40,
-      useNativeDriver: true
-    })]).start();
-  }, []);
+    wiggle.value = withSequence(
+      withTiming(1, { duration: 80 }),
+      withTiming(-1, { duration: 80 }),
+      withTiming(0.5, { duration: 60 }),
+      withTiming(-0.5, { duration: 60 }),
+      withTiming(0, { duration: 40 })
+    );
+  }, [scale, wiggle]);
 
-  // Interpolated values
-  const translateY = entrance.interpolate({
-    inputRange: [0, 1],
-    outputRange: [40, 0]
-  });
-  const opacity = entrance.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 1]
-  });
-  const glowScale = glow.interpolate({
-    inputRange: [0, 1],
-    outputRange: [1, 1.08]
-  });
-  const glowOpacity = glow.interpolate({
-    inputRange: [0, 0.5, 1],
-    outputRange: [0.7, 1, 0.7]
-  });
-  const iconRotate = wiggle.interpolate({
-    inputRange: [-1, 0, 1],
-    outputRange: ["-12deg", "0deg", "12deg"]
-  });
-  return <Animated.View style={[styles.itemWrapper, {
-    opacity,
-    transform: [{
-      translateY
-    }, {
-      scale
-    }]
-  }]}>
-      <Pressable onPressIn={handlePressIn} onPressOut={handlePressOut} onPress={onPress}>
-        <Animated.View style={[styles.item, {
-        borderColor: isActive ? category.tint : colors.border2
-      }, isActive && {
+  // Animated Styles
+  const wrapperStyle = useAnimatedStyle(() => ({
+    opacity: entrance.value,
+    transform: [
+      { translateY: interpolate(entrance.value, [0, 1], [40, 0]) },
+      { scale: scale.value }
+    ]
+  }));
+
+  const itemStyle = useAnimatedStyle(() => {
+    const borderColor = isActive ? category.tint : colors.border2;
+    if (isActive) {
+      return {
+        borderColor,
         backgroundColor: category.bgTint,
         borderWidth: 1.5,
-        transform: [{
-          scale: glowScale
-        }],
-        opacity: glowOpacity
-      }]}>
-          <Animated.View style={{
-          transform: [{
-            rotate: iconRotate
-          }]
-        }}>
+        transform: [{ scale: interpolate(glow.value, [0, 1], [1, 1.08]) }],
+        opacity: interpolate(glow.value, [0, 0.5, 1], [0.7, 1, 0.7])
+      };
+    }
+    return {
+      borderColor,
+      backgroundColor: "transparent",
+      borderWidth: 1,
+      transform: [{ scale: 1 }],
+      opacity: 1
+    };
+  }, [isActive, colors.border2, category.tint, category.bgTint]);
+
+  const iconStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${interpolate(wiggle.value, [-1, 0, 1], [-12, 0, 12])}deg` }]
+  }));
+
+  return (
+    <Animated.View style={[styles.itemWrapper, wrapperStyle]}>
+      <Pressable onPressIn={handlePressIn} onPressOut={handlePressOut} onPress={onPress}>
+        <Animated.View style={[styles.item, itemStyle]}>
+          <Animated.View style={iconStyle}>
             <IconComponent color={isActive ? category.tint : colors.textMuted} size={28} />
           </Animated.View>
         </Animated.View>
-        <Text style={[styles.label, isActive && {
-        color: category.tint,
-        fontWeight: "700"
-      }]}>
+        <Text style={[styles.label, isActive && { color: category.tint, fontWeight: "700" }]}>
           {category.label}
         </Text>
       </Pressable>
-    </Animated.View>;
+    </Animated.View>
+  );
 }
 
 /* ── Main Component ───────────────────────────────────────────────────── */

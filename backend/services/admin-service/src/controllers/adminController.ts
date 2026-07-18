@@ -19,11 +19,12 @@ export function analyticsController(_request: Request, response: Response): void
   response.json(ok(getAnalytics()));
 }
 
-export function moderateProductController(request: Request, response: Response): void {
+export async function moderateProductController(request: Request, response: Response): Promise<void> {
   try {
-    response.json(ok(moderateProduct(request.params.id, request.body)));
-  } catch {
-    response.status(400).json(fail("MODERATION_VALIDATION_FAILED", "Moderation payload is invalid."));
+    const result = await moderateProduct(request.params.id, request.body);
+    response.json(ok(result));
+  } catch (error: any) {
+    response.status(400).json(fail("MODERATION_FAILED", error.message || "Moderation payload is invalid."));
   }
 }
 

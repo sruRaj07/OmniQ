@@ -4,12 +4,19 @@
  * holographic shimmer sweep, floating image parallax, glassmorphic border glow.
  * Author: OmniQ Team
  */
-import { StyleSheet, Text, View, Image, Pressable } from "react-native";
+import React from "react";
+import { StyleSheet, Text, View, Pressable } from "react-native";
+import { Image } from "expo-image";
 import type { StyleProp, ViewStyle } from "react-native";
 import { Link } from "expo-router";
 import { useAppTheme } from "@/store/useThemeStore";
 import type { Product } from "@/types/product.types";
 import { formatCurrency } from "@/utils/formatCurrency";
+
+// A generic fast-loading placeholder blurhash
+const blurhash =
+  "|rF?hV%2WCj[ayj[a|j[az_NaeWBj@ayfRayfQfQM{M|azj[azf6fQfQfQIpWXofj[ayj[j[fQayWCoeoeaya}j[ayfQa{oLj?j[WVj[ayayj[fQoff7azayj[ayj[j[ayofayayayj[fQj[ayayj[ayfjj[j[ayjuayj[";
+
 
 type ProductCardProps = {
   product: Product;
@@ -17,7 +24,7 @@ type ProductCardProps = {
   style?: StyleProp<ViewStyle>;
 };
 
-export function ProductCard({ product, index = 0, style }: ProductCardProps) {
+export const ProductCard = React.memo(function ProductCard({ product, index = 0, style }: ProductCardProps) {
   const { colors } = useAppTheme();
   const styles = getStyles(colors);
   const imageUrl = product.images && product.images.length > 0 ? product.images[0] : null;
@@ -31,7 +38,13 @@ export function ProductCard({ product, index = 0, style }: ProductCardProps) {
             {/* Image */}
             <View style={styles.imageContainer}>
               {imageUrl ? (
-                <Image source={{ uri: imageUrl }} style={styles.image} resizeMode="contain" />
+                <Image 
+                  source={{ uri: imageUrl }} 
+                  style={styles.image} 
+                  contentFit="contain"
+                  placeholder={blurhash}
+                  transition={200}
+                />
               ) : (
                 <Text style={styles.placeholder}>📦</Text>
               )}
@@ -67,7 +80,7 @@ export function ProductCard({ product, index = 0, style }: ProductCardProps) {
       </Link>
     </View>
   );
-}
+});
 
 const getStyles = (colors: any) => StyleSheet.create({
   column: {

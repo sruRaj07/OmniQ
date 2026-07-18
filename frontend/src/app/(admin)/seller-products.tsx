@@ -2,7 +2,8 @@
  * OmniQ mobile app - admin seller products moderation.
  * Author: OmniQ Team
  */
-import { StyleSheet, Text, View, ActivityIndicator, Alert, TouchableOpacity, ScrollView, Image } from "react-native";
+import { StyleSheet, Text, View, ActivityIndicator, Alert, TouchableOpacity, ScrollView, Image, Platform, Modal } from "react-native";
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, runOnJS } from "react-native-reanimated";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -12,7 +13,6 @@ import { useAppTheme } from "@/store/useThemeStore";
 import { ArrowLeftIcon } from "@/components/ui/ArrowLeftIcon";
 import { apiClient } from "@/lib/apiClient";
 import { formatCurrency } from "@/utils/formatCurrency";
-import { LinearGradient } from "expo-linear-gradient";
 import { ShieldIcon } from "@/components/ui/ShieldIcon";
 export default function AdminSellerProductsScreen() {
   const {
@@ -28,6 +28,34 @@ export default function AdminSellerProductsScreen() {
   }>();
   const router = useRouter();
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [loadingAction, setLoadingAction] = useState<{ id: string; action: string } | null>(null);
+  
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
+
+  const scaleAnim = useSharedValue(0);
+  const opacityAnim = useSharedValue(0);
+
+  const triggerSuccessAnimation = (msg: string) => {
+    setSuccessMessage(msg);
+    setShowSuccess(true);
+    opacityAnim.value = withTiming(1, { duration: 300 });
+    scaleAnim.value = withSpring(1, { damping: 10, stiffness: 50 }, () => {
+      setTimeout(() => {
+        runOnJS(setShowSuccess)(false);
+      }, 2000);
+    });
+  };
+
+  const successAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: opacityAnim.value,
+    transform: [{ scale: scaleAnim.value }]
+  }));
+
+  const textAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: opacityAnim.value
+  }));
+
   const {
     data: products,
     isLoading
@@ -39,6 +67,7 @@ export default function AdminSellerProductsScreen() {
     },
     enabled: !!sellerId
   }, queryClient);
+  
   const moderateProduct = useMutation({
     mutationFn: async ({
       id,
@@ -50,14 +79,31 @@ export default function AdminSellerProductsScreen() {
       await apiClient.patch(`/admin/products/${id}/moderate`, {
         action
       });
+      return { id, action };
     },
-    onSuccess: () => {
+    onMutate: (variables) => {
+      setLoadingAction(variables);
+    },
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({
         queryKey: ["adminSellerProducts", sellerId]
       });
+      setLoadingAction(null);
+      
+      const msg = variables.action === "approve" ? "Approved successfully" : 
+                  variables.action === "remove" ? "Rejected successfully" : 
+                  "Deleted successfully";
+                  
+      triggerSuccessAnimation(msg);
     },
     onError: (err: any) => {
-      Alert.alert("Error", err?.response?.data?.message || err.message);
+      setLoadingAction(null);
+      const msg = err?.response?.data?.message || err.message;
+      if (Platform.OS === "web") {
+        window.alert(`Failed to update: ${msg}`);
+      } else {
+        Alert.alert("Failed to update", msg);
+      }
     }
   }, queryClient);
   const formatDate = (dateString: string) => {
@@ -86,16 +132,15 @@ export default function AdminSellerProductsScreen() {
         </View> : <View style={styles.list}>
           {products?.map((product: any) => {
         const isExpanded = expandedId === product.id;
+        const isApproving = loadingAction?.id === product.id && loadingAction?.action === "approve";
+        const isRejecting = loadingAction?.id === product.id && loadingAction?.action === "remove";
+        const isDeleting = loadingAction?.id === product.id && loadingAction?.action === "delete";
+        const isProcessing = isApproving || isRejecting || isDeleting;
+
         return <TouchableOpacity key={product.id} activeOpacity={0.9} onPress={() => setExpandedId(isExpanded ? null : product.id)}>
-                <LinearGradient colors={["rgba(30, 30, 45, 0.7)", "rgba(15, 15, 26, 0.9)"]} start={{
-            x: 0,
-            y: 0
-          }} end={{
-            x: 1,
-            y: 1
-          }} style={styles.card}>
+                <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
                   <View style={styles.cardHeader}>
-                    <Text style={styles.productName} numberOfLines={isExpanded ? undefined : 2}>
+                    <Text style={[styles.productName, { color: colors.textPrimary }]} numberOfLines={isExpanded ? undefined : 2}>
                       {product.title}
                     </Text>
                     <View style={[styles.statusBadge, product.is_approved ? styles.badgeSuccess : styles.badgeWarning]}>
@@ -109,7 +154,7 @@ export default function AdminSellerProductsScreen() {
                     </View>
                   </View>
                   
-                  <Text style={styles.price}>{formatCurrency(product.price)}</Text>
+                  <Text style={[styles.price, { color: colors.textPrimary }]}>{formatCurrency(product.price)}</Text>
                   
                   <Text style={styles.mutedText} numberOfLines={isExpanded ? undefined : 2}>
                     {product.description}
@@ -121,7 +166,7 @@ export default function AdminSellerProductsScreen() {
               }} style={styles.image} />)}
                     </ScrollView>}
 
-                  {isExpanded && <View style={styles.expandedInfo}>
+                  {isExpanded && <View style={[styles.expandedInfo, { backgroundColor: colors.background, borderColor: colors.border }]}>
                       <View style={styles.infoRow}>
                         <Text style={styles.infoLabel}>Product ID:</Text>
                         <Text style={styles.infoValue} selectable>{product.id}</Text>
@@ -145,30 +190,43 @@ export default function AdminSellerProductsScreen() {
                     </View>}
 
                   <View style={styles.actions}>
-                    {!product.is_approved && <TouchableOpacity style={[styles.button, styles.btnSuccess]} onPress={() => moderateProduct.mutate({
+                    {!product.is_approved && <TouchableOpacity disabled={isProcessing} style={[styles.button, styles.btnSuccess]} onPress={() => moderateProduct.mutate({
                 id: product.id,
                 action: "approve"
               })}>
-                        <Text style={[styles.btnText, {
-                  color: "#4CAF50"
-                }]}>Approve</Text>
+                        {isApproving ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={[styles.btnText, { color: "#FFF" }]}>Approve</Text>}
                       </TouchableOpacity>}
-                    <TouchableOpacity style={[styles.button, styles.btnDanger]} onPress={() => moderateProduct.mutate({
+                      
+                    <TouchableOpacity disabled={isProcessing} style={[styles.button, styles.btnWarningBtn]} onPress={() => moderateProduct.mutate({
                 id: product.id,
                 action: "remove"
               })}>
-                      <Text style={[styles.btnText, {
-                  color: "#F93C65"
-                }]}>Reject / Delete</Text>
+                      {isRejecting ? <ActivityIndicator size="small" color="#F57C00" /> : <Text style={[styles.btnText, { color: "#F57C00" }]}>Reject</Text>}
+                    </TouchableOpacity>
+
+                    <TouchableOpacity disabled={isProcessing} style={[styles.button, styles.btnDanger]} onPress={() => moderateProduct.mutate({
+                id: product.id,
+                action: "delete"
+              })}>
+                      {isDeleting ? <ActivityIndicator size="small" color="#F93C65" /> : <Text style={[styles.btnText, { color: "#F93C65" }]}>Delete</Text>}
                     </TouchableOpacity>
                   </View>
-                </LinearGradient>
+                </View>
               </TouchableOpacity>;
       })}
         </View>}
       <View style={{
       height: 60
     }} />
+
+      <Modal visible={showSuccess} transparent animationType="fade">
+        <View style={styles.modalContainer}>
+          <Animated.View style={[styles.successCircle, successAnimatedStyle]}>
+            <Text style={styles.successIcon}>✓</Text>
+          </Animated.View>
+          <Animated.Text style={[styles.successText, textAnimatedStyle]}>{successMessage}</Animated.Text>
+        </View>
+      </Modal>
     </Screen>;
 }
 const getStyles = (colors: any) => StyleSheet.create({
@@ -211,10 +269,11 @@ const getStyles = (colors: any) => StyleSheet.create({
     gap: 16
   },
   card: {
-    borderRadius: 20,
+    borderRadius: 16,
     padding: 20,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.05)"
+    boxShadow: "0px 4px 12px rgba(0,0,0,0.06)",
+    elevation: 3
   },
   cardHeader: {
     flexDirection: "row",
@@ -310,24 +369,52 @@ const getStyles = (colors: any) => StyleSheet.create({
   },
   button: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
     alignItems: "center",
-    justifyContent: "center"
+    justifyContent: "center",
   },
   btnSuccess: {
-    backgroundColor: "rgba(76, 175, 80, 0.05)",
+    backgroundColor: "#4CAF50",
+  },
+  btnWarningBtn: {
+    backgroundColor: "transparent",
     borderWidth: 1,
-    borderColor: "rgba(76, 175, 80, 0.2)"
+    borderColor: "rgba(245, 124, 0, 0.4)"
   },
   btnDanger: {
-    backgroundColor: "rgba(249, 60, 101, 0.05)",
+    backgroundColor: "transparent",
     borderWidth: 1,
-    borderColor: "rgba(249, 60, 101, 0.2)"
+    borderColor: "rgba(249, 60, 101, 0.4)"
   },
   btnText: {
     fontSize: 13,
     fontWeight: "900",
     letterSpacing: 0.5
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.8)",
+    justifyContent: "center",
+    alignItems: "center"
+  },
+  successCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: "#4CAF50",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 20
+  },
+  successIcon: {
+    color: "#FFF",
+    fontSize: 40,
+    fontWeight: "bold"
+  },
+  successText: {
+    color: "#FFF",
+    fontSize: 22,
+    fontWeight: "bold"
   }
 });

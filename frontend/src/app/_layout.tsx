@@ -10,9 +10,11 @@ import { queryClient } from "@/lib/queryClient";
 import { AuthProvider } from "@/components/shared/AuthProvider";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
-import { Platform } from "react-native";
+import { Platform, LogBox } from "react-native";
 
 import { useAppTheme } from "@/store/useThemeStore";
+
+LogBox.ignoreLogs(['props.pointerEvents is deprecated', 'pointerEvents is deprecated']);
 
 export default function RootLayout() {
   const { colors, mode } = useAppTheme();

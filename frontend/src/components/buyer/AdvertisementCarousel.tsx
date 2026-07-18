@@ -1,9 +1,11 @@
 import React, { useRef, useEffect } from "react";
-import { StyleSheet, View, Text, ScrollView, Image, TouchableOpacity, Animated, useWindowDimensions } from "react-native";
+import { StyleSheet, View, Text, ScrollView, Image, TouchableOpacity, useWindowDimensions } from "react-native";
+import Animated, { useSharedValue, useAnimatedScrollHandler, useAnimatedStyle, interpolate, Extrapolation } from "react-native-reanimated";
 import { useAppTheme } from "@/store/useThemeStore";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/apiClient";
 import { useRouter } from "expo-router";
+
 type Advertisement = {
   id: string;
   title: string;
@@ -11,12 +13,30 @@ type Advertisement = {
   target_url: string;
   is_active: boolean;
 };
+
+// Sub-component for individual pagination dots to safely use hooks
+function PaginationDot({ scrollX, index, itemWidth, colors }: { scrollX: Animated.SharedValue<number>, index: number, itemWidth: number, colors: any }) {
+  const animatedStyle = useAnimatedStyle(() => {
+    const inputRange = [(index - 1) * itemWidth, index * itemWidth, (index + 1) * itemWidth];
+    return {
+      opacity: interpolate(scrollX.value, inputRange, [0.3, 1, 0.3], Extrapolation.CLAMP),
+      transform: [
+        { scale: interpolate(scrollX.value, inputRange, [0.8, 1.2, 0.8], Extrapolation.CLAMP) }
+      ]
+    };
+  });
+
+  return (
+    <Animated.View style={[styles.dot, { backgroundColor: colors.accent }, animatedStyle]} />
+  );
+}
+
 export function AdvertisementCarousel({ type = 'ads' }: { type?: 'ads' | 'offers' }) {
   const { colors } = useAppTheme();
-  const styles = getStyles(colors);
   const router = useRouter();
   const { width } = useWindowDimensions();
   const CARD_WIDTH = width - 48; // Full width minus padding
+  const ITEM_WIDTH = CARD_WIDTH + 12;
 
   const { data: ads, isLoading } = useQuery({
     queryKey: ["buyer-advertisements", type],
@@ -32,9 +52,15 @@ export function AdvertisementCarousel({ type = 'ads' }: { type?: 'ads' | 'offers
     }
   });
 
-  const scrollX = useRef(new Animated.Value(0)).current;
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollX = useSharedValue(0);
+  const scrollViewRef = useRef<Animated.ScrollView>(null);
   const currentIndexRef = useRef(0);
+
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      scrollX.value = event.contentOffset.x;
+    }
+  });
 
   useEffect(() => {
     if (!ads || ads.length <= 1) return;
@@ -42,13 +68,13 @@ export function AdvertisementCarousel({ type = 'ads' }: { type?: 'ads' | 'offers
     const interval = setInterval(() => {
       currentIndexRef.current = (currentIndexRef.current + 1) % ads.length;
       scrollViewRef.current?.scrollTo({
-        x: currentIndexRef.current * (CARD_WIDTH + 12),
+        x: currentIndexRef.current * ITEM_WIDTH,
         animated: true,
       });
     }, 4000);
 
     return () => clearInterval(interval);
-  }, [ads, CARD_WIDTH]);
+  }, [ads, ITEM_WIDTH]);
 
   if (isLoading || !ads || ads.length === 0) {
     return null;
@@ -64,25 +90,22 @@ export function AdvertisementCarousel({ type = 'ads' }: { type?: 'ads' | 'offers
     <View style={styles.container}>
       {type === 'offers' && (
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Exclusive Offers</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Exclusive Offers</Text>
         </View>
       )}
       <Animated.ScrollView
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
-        snapToInterval={CARD_WIDTH + 12}
+        snapToInterval={ITEM_WIDTH}
         decelerationRate="fast"
         contentContainerStyle={styles.scrollContent}
         ref={scrollViewRef}
         onMomentumScrollEnd={(e) => {
           const offsetX = e.nativeEvent.contentOffset.x;
-          currentIndexRef.current = Math.round(offsetX / (CARD_WIDTH + 12));
+          currentIndexRef.current = Math.round(offsetX / ITEM_WIDTH);
         }}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-          { useNativeDriver: true }
-        )}
+        onScroll={scrollHandler}
         scrollEventThrottle={16}
       >
         {ads.map((ad, index) => (
@@ -90,7 +113,7 @@ export function AdvertisementCarousel({ type = 'ads' }: { type?: 'ads' | 'offers
             key={ad.id} 
             activeOpacity={0.9} 
             onPress={() => handlePress(ad.target_url)} 
-            style={[styles.card, { width: CARD_WIDTH, height: Math.floor(CARD_WIDTH * (9 / 16)) }]}
+            style={[styles.card, { backgroundColor: colors.bgSecondary, width: CARD_WIDTH, height: Math.floor(CARD_WIDTH * (9 / 16)) }]}
           >
             <Image 
               source={{ uri: ad.image_url }} 
@@ -110,31 +133,24 @@ export function AdvertisementCarousel({ type = 'ads' }: { type?: 'ads' | 'offers
         ))}
       </Animated.ScrollView>
       
-      {ads.length > 1 && <View style={styles.pagination}>
-          {ads.map((_, i) => {
-        const inputRange = [(i - 1) * (CARD_WIDTH + 12), i * (CARD_WIDTH + 12), (i + 1) * (CARD_WIDTH + 12)];
-        const opacity = scrollX.interpolate({
-          inputRange,
-          outputRange: [0.3, 1, 0.3],
-          extrapolate: 'clamp'
-        });
-        const scale = scrollX.interpolate({
-          inputRange,
-          outputRange: [0.8, 1.2, 0.8],
-          extrapolate: 'clamp'
-        });
-        return <Animated.View key={i} style={[styles.dot, {
-          opacity,
-          transform: [{
-            scale
-          }]
-        }]} />;
-      })}
-      </View>}
+      {ads.length > 1 && (
+        <View style={styles.pagination}>
+          {ads.map((_, i) => (
+            <PaginationDot 
+              key={i} 
+              index={i} 
+              itemWidth={ITEM_WIDTH} 
+              scrollX={scrollX} 
+              colors={colors} 
+            />
+          ))}
+        </View>
+      )}
     </View>
   );
 }
-const getStyles = (colors: any) => StyleSheet.create({
+
+const styles = StyleSheet.create({
   container: {
     marginTop: 20,
     marginBottom: 8
@@ -144,20 +160,17 @@ const getStyles = (colors: any) => StyleSheet.create({
     marginBottom: 12
   },
   sectionTitle: {
-    color: colors.textPrimary,
     fontSize: 22,
     fontWeight: "700",
     letterSpacing: -0.5
   },
   scrollContent: {
     paddingRight: 24,
-    // to allow last card to align properly
     gap: 12
   },
   card: {
     borderRadius: 16,
     overflow: "hidden",
-    backgroundColor: colors.bgSecondary
   },
   image: {
     width: "100%",
@@ -188,6 +201,5 @@ const getStyles = (colors: any) => StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: colors.accent
   }
 });
