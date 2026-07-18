@@ -6,6 +6,8 @@ on:
       - main
     paths:
       - 'backend/**'
+      - 'pnpm-lock.yaml'
+      - 'package.json'
       - 'Dockerfile'
       - '.dockerignore'
       - '.github/workflows/deploy.yml'
