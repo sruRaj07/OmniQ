@@ -57,7 +57,7 @@ export function Screen({
   });
 
   const content = (
-    <View style={styles.inner}>
+    <View style={[styles.inner, !scroll && { flex: 1 }]}>
       {children}
     </View>
   );
