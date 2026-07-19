@@ -79,6 +79,7 @@ jobs:
           ingress: external
           targetPort: ${{ matrix.port }}
           environmentVariables: >-
+            REDIS_URL=${{ secrets.REDIS_URL }}
             EXPO_PUBLIC_SUPABASE_URL=${{ secrets.SUPABASE_URL }}
             EXPO_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
             SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
