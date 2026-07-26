@@ -28,7 +28,7 @@ export default function OrderDetailsScreen() {
   }
   if (!order) {
     return <Screen>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.canGoBack() ? router.back() : router.replace("/(buyer)/orders")}>
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
         <Text style={{
@@ -54,7 +54,7 @@ export default function OrderDetailsScreen() {
   const platformFee = order.platform_fee || 29;
   const total = order.total || order.amount || subtotal + platformFee;
   return <Screen scroll={true}>
-      <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+      <TouchableOpacity style={styles.backButton} onPress={() => router.canGoBack() ? router.back() : router.replace("/(buyer)/orders")}>
         <Text style={styles.backText}>← Back to Orders</Text>
       </TouchableOpacity>
 

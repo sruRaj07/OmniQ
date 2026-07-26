@@ -89,8 +89,10 @@ export default function AdminSellersScreen() {
                     <Text style={styles.city}>{seller.city || "Unknown"}</Text>
                   </View>
                 </View>
-                <View style={styles.statusBadge}>
-                  <Text style={styles.badgeText}>{seller.status}</Text>
+                <View style={[styles.statusBadge, { borderColor: seller.status === 'approved' ? colors.success : seller.status === 'pending' ? colors.warning : colors.danger }]}>
+                  <Text style={[styles.badgeText, { color: seller.status === 'approved' ? colors.success : seller.status === 'pending' ? colors.warning : colors.danger }]}>
+                    {seller.status === 'approved' ? "✓ APPROVED" : seller.status === 'pending' ? "⏳ PENDING" : seller.status?.toUpperCase()}
+                  </Text>
                 </View>
               </View>
 
@@ -260,16 +262,14 @@ const getStyles = (colors: any) => StyleSheet.create({
     fontWeight: "500"
   },
   statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
     borderWidth: 1,
-    backgroundColor: colors.surface,
-    borderColor: colors.border
+    backgroundColor: "transparent"
   },
   badgeText: {
-    color: colors.textPrimary,
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "800",
     textTransform: "uppercase",
     letterSpacing: 0.5

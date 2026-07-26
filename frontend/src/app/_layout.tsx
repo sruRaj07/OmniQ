@@ -14,7 +14,12 @@ import { Platform, LogBox } from "react-native";
 
 import { useAppTheme } from "@/store/useThemeStore";
 
-LogBox.ignoreLogs(['props.pointerEvents is deprecated', 'pointerEvents is deprecated']);
+LogBox.ignoreLogs([
+  'props.pointerEvents is deprecated',
+  'pointerEvents is deprecated',
+  'The action \'GO_BACK\' was not handled by any navigator.',
+  '"textShadow*" style props are deprecated',
+]);
 
 export default function RootLayout() {
   const { colors, mode } = useAppTheme();

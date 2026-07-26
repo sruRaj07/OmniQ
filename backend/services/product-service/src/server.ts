@@ -10,7 +10,7 @@ import compression from "compression";
 import cluster from "cluster";
 import os from "os";
 import { ok } from "../../../shared/utils/responseFormatter";
-import { createProductController, updateProductController, getProductController, listProductsController, listSellerProductsController, getAdvertisementsController, searchProductsController } from "./controllers/productController";
+import { createProductController, updateProductController, getProductController, listProductsController, listSellerProductsController, getAdvertisementsController, searchProductsController, getCategoryTagsController } from "./controllers/productController";
 import multer from "multer";
 
 dotenv.config();
@@ -42,6 +42,7 @@ if (cluster.isPrimary) {
   app.get("/products", listProductsController);
   app.get("/products/advertisements", getAdvertisementsController);
   app.get("/products/search", searchProductsController);
+  app.get("/products/tags", getCategoryTagsController);
   app.get("/products/seller", listSellerProductsController);
   app.get("/products/:id", getProductController);
   app.post("/products", upload.array("images", 5), createProductController);

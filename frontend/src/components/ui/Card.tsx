@@ -3,10 +3,10 @@
  * Author: OmniQ Team
  */
 import type { PropsWithChildren } from "react";
-import { StyleSheet, View, type ViewStyle } from "react-native";
+import { StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import { useAppTheme } from "@/store/useThemeStore";
 type CardProps = PropsWithChildren<{
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 }>;
 export function Card({
   children,

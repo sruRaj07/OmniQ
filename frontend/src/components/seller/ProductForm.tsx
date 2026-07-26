@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/Input";
 import { useAppTheme } from "@/store/useThemeStore";
 import { apiClient } from "@/lib/apiClient";
 import { useQueryClient } from "@tanstack/react-query";
+import { CategorySvgIcon } from "@/components/ui/CategorySvgIcon";
+
 export type ProductFormProps = {
   initialData?: any;
   onCloseEdit?: () => void;
@@ -27,6 +29,22 @@ export function ProductForm({ initialData, onCloseEdit }: ProductFormProps) {
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
   const [images, setImages] = useState<string[]>([]);
+  const [availableTags, setAvailableTags] = useState<string[]>(["grocery", "kitchen"]);
+
+  useEffect(() => {
+    // Dynamically fetch tag pills from the backend so adding new categories in future requires zero frontend app changes
+    const fetchTags = async () => {
+      try {
+        const res = await apiClient.get("/products/tags");
+        if (res.data?.success && Array.isArray(res.data?.data?.tags) && res.data.data.tags.length > 0) {
+          setAvailableTags(res.data.data.tags);
+        }
+      } catch (err) {
+        console.log("Using fallback tags:", err);
+      }
+    };
+    fetchTags();
+  }, []);
 
   useEffect(() => {
     if (initialData) {
@@ -68,9 +86,27 @@ export function ProductForm({ initialData, onCloseEdit }: ProductFormProps) {
   const removeImage = (index: number) => {
     setImages(images.filter((_, i) => i !== index));
   };
+  const normalizedCat = category.trim().toLowerCase();
+  const hasActiveTag = availableTags.includes(normalizedCat);
+
+  const handleSelectTag = (tag: string) => {
+    setCategory(tag.toLowerCase());
+  };
+
+  const handleRemoveTag = () => {
+    setCategory("");
+  };
+
   const handleSave = async () => {
-    if (!title || !price || !category || !stock || !description) {
-      Alert.alert("Error", "Please fill in all required fields.");
+    const finalCategory = category.trim().toLowerCase();
+    const finalStock = stock.trim() ? stock.trim() : "10"; // Stock optional, defaults to 10 if empty
+
+    if (!title.trim() || !price.trim() || !comparePrice.trim() || !finalCategory || !description.trim()) {
+      Alert.alert("Required Fields Missing", "Please fill in all required fields: Product Title, Selling Price, Market Price (M.R.P.), Category, and Description.");
+      return;
+    }
+    if (images.length === 0) {
+      Alert.alert("Product Image Required", "Please upload at least 1 product image before listing.");
       return;
     }
     if (description.length < 10) {
@@ -80,12 +116,12 @@ export function ProductForm({ initialData, onCloseEdit }: ProductFormProps) {
     setIsLoading(true);
     try {
       const formData = new FormData();
-      formData.append("title", title);
-      formData.append("price", price);
-      if (comparePrice) formData.append("compare_price", comparePrice);
-      formData.append("stock", stock);
-      formData.append("category", category);
-      if (description) formData.append("description", description);
+      formData.append("title", title.trim());
+      formData.append("price", price.trim());
+      formData.append("compare_price", comparePrice.trim());
+      formData.append("stock", finalStock);
+      formData.append("category", finalCategory);
+      formData.append("description", description.trim());
 
       // SKU is required by the validator in the backend
       formData.append("sku", `SKU-${Date.now().toString().slice(-6)}`);
@@ -143,8 +179,47 @@ export function ProductForm({ initialData, onCloseEdit }: ProductFormProps) {
       <Input placeholder="Product title" value={title} onChangeText={setTitle} />
       <Input placeholder="Selling Price (Your Price)" keyboardType="numeric" value={price} onChangeText={setPrice} />
       <Input placeholder="Market Price (M.R.P.)" keyboardType="numeric" value={comparePrice} onChangeText={setComparePrice} />
-      <Input placeholder="Stock" keyboardType="numeric" value={stock} onChangeText={setStock} />
-      <Input placeholder="Category" value={category} onChangeText={setCategory} />
+      <Input placeholder="Stock (Optional - Defaults to 10)" keyboardType="numeric" value={stock} onChangeText={setStock} />
+      
+      <View style={styles.categoryContainer}>
+        <Input 
+          placeholder="Category (e.g. grocery, kitchen)" 
+          value={category} 
+          onChangeText={(text) => setCategory(text.toLowerCase())} 
+          autoCapitalize="none"
+        />
+        
+        {/* Facebook-Style Category Tagging Section */}
+        <View style={styles.tagSection}>
+          {hasActiveTag ? (
+            <View>
+              <Text style={styles.tagHelperText}>Selected Category Tag (Only 1 category allowed per item):</Text>
+              <View style={styles.activeTagRow}>
+                <TouchableOpacity style={styles.selectedTagPill} onPress={handleRemoveTag} activeOpacity={0.8}>
+                  <CategorySvgIcon category={normalizedCat} size={16} showBackground={false} style={{ marginRight: 6 }} />
+                  <Text style={styles.selectedTagText}>{normalizedCat}</Text>
+                  <View style={styles.tagCloseBtn}>
+                    <Text style={styles.tagCloseText}>✕</Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <View>
+              <Text style={styles.tagHelperText}>Suggested Category Tags (Click to tag):</Text>
+              <View style={styles.tagsGrid}>
+                {availableTags.map((tag) => (
+                  <TouchableOpacity key={tag} style={styles.suggestedTagPill} onPress={() => handleSelectTag(tag)} activeOpacity={0.7}>
+                    <CategorySvgIcon category={tag} size={16} showBackground={false} style={{ marginRight: 6 }} />
+                    <Text style={styles.suggestedTagText}>{tag}</Text>
+                    <Text style={styles.tagAddText}> +</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
+        </View>
+      </View>
       <View>
         <Input placeholder="Description" multiline style={styles.textArea} value={description} onChangeText={setDescription} maxLength={500} />
         <Text style={styles.charCounter}>{description.length}/500 characters</Text>
@@ -320,5 +395,78 @@ const getStyles = (colors: any) => StyleSheet.create({
   cancelBtn: {
     marginTop: 8,
     marginBottom: 4
+  },
+  categoryContainer: {
+    gap: 8
+  },
+  tagSection: {
+    marginTop: -2,
+    marginBottom: 4,
+    paddingHorizontal: 4
+  },
+  tagHelperText: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontWeight: "600",
+    marginBottom: 8
+  },
+  tagsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10
+  },
+  suggestedTagPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.bgSecondary,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border2
+  },
+  suggestedTagText: {
+    color: colors.textPrimary,
+    fontWeight: "700",
+    fontSize: 14
+  },
+  tagAddText: {
+    color: colors.accent,
+    fontWeight: "900",
+    fontSize: 16,
+    marginLeft: 4
+  },
+  activeTagRow: {
+    flexDirection: "row"
+  },
+  selectedTagPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(79, 70, 229, 0.15)", // Brand Indigo tint
+    paddingLeft: 14,
+    paddingRight: 10,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: "#4F46E5"
+  },
+  selectedTagText: {
+    color: "#4F46E5",
+    fontWeight: "800",
+    fontSize: 14,
+    marginRight: 8
+  },
+  tagCloseBtn: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "#4F46E5",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  tagCloseText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "900"
   }
 });

@@ -30,7 +30,7 @@ export type ProductDto = {
   is_flagged?: boolean;
 };
 
-export async function listProducts(sellerId?: string, cursor?: string, limit: number = 20): Promise<{ products: ProductDto[], nextCursor: string | null }> {
+export async function listProducts(sellerId?: string, cursor?: string, limit: number = 100): Promise<{ products: ProductDto[], nextCursor: string | null }> {
   const cacheKey = `products:seller:${sellerId || 'all'}:cursor:${cursor || 'first'}:limit:${limit}`;
   if (!sellerId) {
     const cached = await redis.get(cacheKey);
@@ -203,9 +203,10 @@ export async function searchProducts(params: SearchParams): Promise<{ products: 
   // Build the query — only return approved products
   let query = supabase.from("products").select("*", { count: "exact" }).eq("is_approved", true);
 
-  // Full-text search on title, description, and category using ilike
+  // Full-text search on title, description, and category using ilike (sanitized for PostgREST reserved chars)
   if (q && q.trim().length > 0) {
-    const searchTerm = `%${q.trim()}%`;
+    const sanitizedQ = q.trim().replace(/[^a-zA-Z0-9\s]+/g, "%").replace(/%+/g, "%");
+    const searchTerm = `%${sanitizedQ}%`;
     query = query.or(`title.ilike.${searchTerm},description.ilike.${searchTerm},category.ilike.${searchTerm}`);
   }
 
@@ -264,4 +265,12 @@ export async function searchProducts(params: SearchParams): Promise<{ products: 
   }
 
   return { products, total };
+}
+
+export async function getCategoryTags(): Promise<string[]> {
+  // Configured dynamic tag pills served to frontend product listing form.
+  // Currently restricted to 'grocery' and 'kitchen' per current active business strategy.
+  // In the future, this array (or database table) can be expanded to dynamically add new tags without any frontend app changes!
+  const activeTags = ["grocery", "kitchen"];
+  return activeTags;
 }

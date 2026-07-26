@@ -322,7 +322,7 @@ export default function ManageAdsScreen() {
   return (
     <Screen scroll bottomNavItems={[]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace("/(admin)")} style={styles.backBtn}>
           <ArrowLeftIcon size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         
@@ -588,17 +588,11 @@ const getStyles = (colors: any) => StyleSheet.create({
     fontSize: 18,
     fontWeight: "800",
     marginBottom: 4,
-    textShadowColor: "rgba(0,0,0,0.8)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4
   },
   adLink: {
     color: "rgba(255,255,255,0.8)",
     fontSize: 13,
     fontWeight: "600",
-    textShadowColor: "rgba(0,0,0,0.8)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4
   },
   deleteBtn: {
     backgroundColor: "rgba(255, 255, 255, 0.2)",

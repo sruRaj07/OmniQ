@@ -14,6 +14,7 @@ import { ArrowLeftIcon } from "@/components/ui/ArrowLeftIcon";
 import { apiClient } from "@/lib/apiClient";
 import { formatCurrency } from "@/utils/formatCurrency";
 import { ShieldIcon } from "@/components/ui/ShieldIcon";
+import { CategorySvgIcon } from "@/components/ui/CategorySvgIcon";
 export default function AdminSellerProductsScreen() {
   const {
     colors
@@ -28,6 +29,7 @@ export default function AdminSellerProductsScreen() {
   }>();
   const router = useRouter();
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"pending" | "approved">("pending");
   const [loadingAction, setLoadingAction] = useState<{ id: string; action: string } | null>(null);
   
   const [showSuccess, setShowSuccess] = useState(false);
@@ -62,7 +64,7 @@ export default function AdminSellerProductsScreen() {
   } = useQuery({
     queryKey: ["adminSellerProducts", sellerId],
     queryFn: async () => {
-      const res = await apiClient.get(`/products?sellerId=${sellerId}`);
+      const res = await apiClient.get(`/products?sellerId=${sellerId}&limit=500`);
       return res.data.data;
     },
     enabled: !!sellerId
@@ -117,20 +119,35 @@ export default function AdminSellerProductsScreen() {
     });
   };
   return <Screen scroll>
-      <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+      <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace("/(admin)/sellers")} style={styles.backButton}>
         <ArrowLeftIcon size={24} color={colors.textPrimary} />
       </TouchableOpacity>
 
       <Text style={styles.title}>{storeName || "Seller"} Products</Text>
       <Text style={styles.subtitle}>Review and approve inventory</Text>
 
+      <View style={styles.tabsContainer}>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === "pending" && styles.activeTab]}
+          onPress={() => setActiveTab("pending")}
+        >
+          <Text style={[styles.tabText, activeTab === "pending" && styles.activeTabText]}>Pending</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === "approved" && styles.activeTab]}
+          onPress={() => setActiveTab("approved")}
+        >
+          <Text style={[styles.tabText, activeTab === "approved" && styles.activeTabText]}>Approved</Text>
+        </TouchableOpacity>
+      </View>
+
       {isLoading ? <ActivityIndicator size="large" color="#6C63FF" style={{
       marginTop: 40
-    }} /> : products?.length === 0 ? <View style={styles.emptyState}>
-          <ShieldIcon size={48} color="rgba(255,255,255,0.1)" />
-          <Text style={styles.emptyText}>No products found for this seller.</Text>
+    }} /> : (products?.filter((p: any) => (activeTab === "approved" ? p.is_approved : !p.is_approved)).length === 0) ? <View style={styles.emptyState}>
+          <ShieldIcon size={48} color="rgba(0,0,0,0.05)" />
+          <Text style={styles.emptyText}>No {activeTab} products found.</Text>
         </View> : <View style={styles.list}>
-          {products?.map((product: any) => {
+          {products?.filter((p: any) => (activeTab === "approved" ? p.is_approved : !p.is_approved)).map((product: any) => {
         const isExpanded = expandedId === product.id;
         const isApproving = loadingAction?.id === product.id && loadingAction?.action === "approve";
         const isRejecting = loadingAction?.id === product.id && loadingAction?.action === "remove";
@@ -143,14 +160,20 @@ export default function AdminSellerProductsScreen() {
                     <Text style={[styles.productName, { color: colors.textPrimary }]} numberOfLines={isExpanded ? undefined : 2}>
                       {product.title}
                     </Text>
-                    <View style={[styles.statusBadge, product.is_approved ? styles.badgeSuccess : styles.badgeWarning]}>
-                      <Text style={[styles.badgeText, product.is_approved ? {
-                  color: "#4CAF50"
-                } : {
-                  color: "#FFC107"
-                }]}>
-                        {product.is_approved ? "APPROVED" : "PENDING"}
-                      </Text>
+                    <View style={styles.badgeGroup}>
+                      {(product.category || product.category_id) ? (
+                        <View style={[styles.categoryBadge, { borderColor: colors.border }]}>
+                          <CategorySvgIcon category={product.category || product.category_id || ""} size={12} showBackground={false} style={{ marginRight: 4 }} />
+                          <Text style={[styles.categoryBadgeText, { color: colors.textSecondary }]}>
+                            #{String(product.category || product.category_id).toUpperCase()}
+                          </Text>
+                        </View>
+                      ) : null}
+                      <View style={[styles.statusBadge, product.is_approved ? { borderColor: colors.success } : { borderColor: colors.warning }]}>
+                        <Text style={[styles.badgeText, product.is_approved ? { color: colors.success } : { color: colors.warning }]}>
+                          {product.is_approved ? "✓ APPROVED" : "⏳ PENDING"}
+                        </Text>
+                      </View>
                     </View>
                   </View>
                   
@@ -166,7 +189,7 @@ export default function AdminSellerProductsScreen() {
               }} style={styles.image} />)}
                     </ScrollView>}
 
-                  {isExpanded && <View style={[styles.expandedInfo, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                  {isExpanded && <View style={[styles.expandedInfo, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
                       <View style={styles.infoRow}>
                         <Text style={styles.infoLabel}>Product ID:</Text>
                         <Text style={styles.infoValue} selectable>{product.id}</Text>
@@ -242,7 +265,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     letterSpacing: 0.5
   },
   title: {
-    color: "#FFF",
+    color: colors.textPrimary,
     fontSize: 28,
     fontWeight: "900",
     marginBottom: 4,
@@ -265,6 +288,36 @@ const getStyles = (colors: any) => StyleSheet.create({
     fontSize: 16,
     fontWeight: "600"
   },
+  tabsContainer: {
+    flexDirection: "row",
+    backgroundColor: colors.bgSecondary,
+    borderRadius: 8,
+    padding: 4,
+    marginBottom: 20
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: "center",
+    borderRadius: 6
+  },
+  activeTab: {
+    backgroundColor: colors.card,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2
+  },
+  tabText: {
+    color: colors.textSecondary,
+    fontWeight: "600",
+    fontSize: 14
+  },
+  activeTabText: {
+    color: colors.textPrimary,
+    fontWeight: "800"
+  },
   list: {
     gap: 16
   },
@@ -282,7 +335,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     marginBottom: 8
   },
   productName: {
-    color: "#FFF",
+    color: colors.textPrimary,
     fontSize: 18,
     fontWeight: "900",
     flex: 1,
@@ -290,13 +343,13 @@ const getStyles = (colors: any) => StyleSheet.create({
     lineHeight: 24
   },
   price: {
-    color: "#FFF",
+    color: colors.textPrimary,
     fontSize: 18,
     fontWeight: "800",
     marginBottom: 12
   },
   mutedText: {
-    color: "rgba(255, 255, 255, 0.5)",
+    color: colors.textSecondary,
     fontSize: 13,
     marginBottom: 16,
     lineHeight: 20,
@@ -308,41 +361,61 @@ const getStyles = (colors: any) => StyleSheet.create({
     marginHorizontal: -4
   },
   image: {
-    width: 64,
-    height: 64,
+    width: 80,
+    height: 80,
     borderRadius: 12,
     marginHorizontal: 4,
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: colors.bgSecondary,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)"
+    borderColor: colors.border
+  },
+  badgeGroup: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 6,
+  },
+  categoryBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "transparent",
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 4,
+    borderWidth: 1,
+  },
+  categoryBadgeText: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
   },
   statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
-    borderWidth: 1
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+    borderWidth: 1,
+    backgroundColor: "transparent"
   },
   badgeSuccess: {
-    backgroundColor: "rgba(76, 175, 80, 0.1)",
-    borderColor: "rgba(76, 175, 80, 0.3)"
+    borderColor: "#16A34A"
   },
   badgeWarning: {
-    backgroundColor: "rgba(255, 193, 7, 0.1)",
-    borderColor: "rgba(255, 193, 7, 0.3)"
+    borderColor: "#D97706"
   },
   badgeText: {
-    fontSize: 11,
-    fontWeight: "900",
+    fontSize: 10,
+    fontWeight: "800",
     textTransform: "uppercase",
     letterSpacing: 0.5
   },
   expandedInfo: {
-    backgroundColor: "rgba(0,0,0,0.2)",
+    backgroundColor: colors.bgSecondary,
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.03)"
+    borderColor: colors.border
   },
   infoRow: {
     flexDirection: "row",
@@ -351,12 +424,12 @@ const getStyles = (colors: any) => StyleSheet.create({
     paddingVertical: 4
   },
   infoLabel: {
-    color: "rgba(255,255,255,0.4)",
+    color: colors.textSecondary,
     fontSize: 13,
     fontWeight: "700"
   },
   infoValue: {
-    color: "rgba(255,255,255,0.8)",
+    color: colors.textPrimary,
     fontSize: 13,
     fontWeight: "600",
     textAlign: "right",

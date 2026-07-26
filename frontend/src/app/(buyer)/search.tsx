@@ -16,6 +16,7 @@ import { MenuIcon } from "@/components/ui/MenuIcon";
 import { useAppTheme } from "@/store/useThemeStore";
 import { useSearch, type SortOption } from "@/hooks/useSearch";
 import { apiClient } from "@/lib/apiClient";
+import { CategorySvgIcon } from "@/components/ui/CategorySvgIcon";
 
 /* ── Inline SVG Icons ─────────────────────────────────────────────────── */
 
@@ -107,7 +108,7 @@ function useProductCategories() {
       try {
         const {
           data
-        } = await apiClient.get("/products");
+        } = await apiClient.get("/products?limit=200");
         const products: any[] = data?.data || [];
         const uniqueCats = [...new Set(products.map((p: any) => p.category).filter(Boolean))] as string[];
         setCategories(uniqueCats);
@@ -396,11 +397,12 @@ export default function SearchScreen() {
           }]}>Browse Categories</Text>
               </View>
               <View style={styles.chipGrid}>
-                {dbCategories.map(cat => <TouchableOpacity key={cat} style={styles.categoryChip} onPress={() => {
+                {dbCategories.map(cat => <TouchableOpacity key={cat} style={[styles.categoryChip, { flexDirection: "row", alignItems: "center" }]} onPress={() => {
             setQuery(cat);
             setShowResults(true);
             executeSearch(cat);
           }} activeOpacity={0.7}>
+                    <CategorySvgIcon category={cat} size={16} showBackground={false} style={{ marginRight: 6 }} />
                     <Text style={styles.chipText}>{cat}</Text>
                   </TouchableOpacity>)}
               </View>

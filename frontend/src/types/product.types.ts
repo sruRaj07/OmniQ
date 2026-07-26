@@ -17,4 +17,11 @@ export type Product = {
   rating?: number;
   reviews?: number;
   badge?: string;
+  created_at?: string;
+  createdAt?: string;
+  updated_at?: string;
+  is_approved?: boolean;
+  is_flagged?: boolean;
+  is_active?: boolean;
+  category_id?: string;
 };

@@ -1,6 +1,5 @@
 import { useState, useMemo } from "react";
 import { StyleSheet, Text, View, ScrollView, Pressable, ActivityIndicator } from "react-native";
-import { Image } from "expo-image";
 import { FlashList } from "@shopify/flash-list";
 import { Screen } from "@/components/shared/Screen";
 import { BuyerHeader } from "@/components/buyer/BuyerHeader";
@@ -9,24 +8,10 @@ import { ShoppingCartIcon } from "@/components/ui/ShoppingCartIcon";
 import { BoxIcon } from "@/components/ui/BoxIcon";
 import { UserIcon } from "@/components/ui/UserIcon";
 import { MenuIcon } from "@/components/ui/MenuIcon";
+import { CategorySvgIcon } from "@/components/ui/CategorySvgIcon";
 import { useAppTheme } from "@/store/useThemeStore";
 import { useProducts } from "@/hooks/useProducts";
 import { ProductCard } from "@/components/buyer/ProductCard";
-
-// Helper to get a nice image for categories
-const getCategoryImage = (category: string) => {
-  const cat = category.toLowerCase();
-  if (cat.includes('cloth') || cat.includes('shirt') || cat.includes('apparel')) return 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=100&q=80';
-  if (cat.includes('shoe') || cat.includes('sneaker') || cat.includes('footwear')) return 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=100&q=80';
-  if (cat.includes('hat') || cat.includes('cap')) return 'https://images.unsplash.com/photo-1556306535-0f09a536f01f?w=100&q=80';
-  if (cat.includes('bag') || cat.includes('pack') || cat.includes('luggage')) return 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=100&q=80';
-  if (cat.includes('groc') || cat.includes('food')) return 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=100&q=80';
-  if (cat.includes('pet')) return 'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=100&q=80';
-  if (cat.includes('elec') || cat.includes('tech') || cat.includes('device')) return 'https://images.unsplash.com/photo-1498049794561-7780e7231661?w=100&q=80';
-  
-  // Default image (a nice generic box/package or storefront)
-  return 'https://images.unsplash.com/photo-1572375992501-4b0892d50c69?w=100&q=80'; 
-};
 
 export default function BrowseScreen() {
   const { colors } = useAppTheme();
@@ -34,10 +19,11 @@ export default function BrowseScreen() {
   
   const { products, isLoading } = useProducts();
   
-  // Dynamically derive categories from products
+  // Dynamically derive categories from products, but explicitly ensure Kitchen is present
   const categories = useMemo(() => {
-    const cats = Array.from(new Set(products.map(p => p.category).filter(Boolean) as string[]));
-    return ["All", ...cats];
+    const dynamicCats = products.map(p => p.category).filter(Boolean) as string[];
+    const allCats = new Set(["Grocery", "Kitchen", ...dynamicCats]);
+    return ["All", ...Array.from(allCats)];
   }, [products]);
 
   const [activeCategory, setActiveCategory] = useState("All");
@@ -78,13 +64,7 @@ export default function BrowseScreen() {
                   ]}
                   onPress={() => setActiveCategory(cat)}
                 >
-                  {cat !== "All" && (
-                    <Image 
-                      source={{ uri: getCategoryImage(cat) }} 
-                      style={styles.categoryImage} 
-                      contentFit="cover" 
-                    />
-                  )}
+                  <CategorySvgIcon category={cat} size={18} />
                   <Text
                     style={[
                       styles.categoryText,

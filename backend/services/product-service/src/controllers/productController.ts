@@ -4,14 +4,14 @@
  */
 import type { Request, Response } from "express";
 import { fail, ok } from "../../../../shared/utils/responseFormatter";
-import { createProduct, getProduct, listProducts, listSellerProducts, searchProducts } from "../services/productService";
+import { createProduct, getProduct, listProducts, listSellerProducts, searchProducts, getCategoryTags } from "../services/productService";
 
 export async function listProductsController(request: Request, response: Response): Promise<void> {
   try {
     const sellerId = request.query.sellerId as string | undefined;
     const cursor = request.query.cursor as string | undefined;
     const limitParam = parseInt(request.query.limit as string);
-    const limit = isNaN(limitParam) ? 20 : Math.min(limitParam, 50);
+    const limit = isNaN(limitParam) ? 100 : Math.min(limitParam, 500);
 
     const { products, nextCursor } = await listProducts(sellerId, cursor, limit);
     response.json(ok(products, { nextCursor, limit, total: products.length }));
@@ -215,5 +215,14 @@ export async function searchProductsController(request: Request, response: Respo
     }));
   } catch (error: any) {
     response.status(500).json(fail("SERVER_ERROR", error.message));
+  }
+}
+
+export async function getCategoryTagsController(_request: Request, response: Response): Promise<void> {
+  try {
+    const tags = await getCategoryTags();
+    response.json(ok({ tags }));
+  } catch (error: any) {
+    response.status(500).json(fail("SERVER_ERROR", error.message || "Failed to fetch category tags"));
   }
 }

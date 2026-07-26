@@ -122,7 +122,7 @@ export default function ApplySellerScreen() {
         <Button onPress={handleSubmit(onSubmit)} style={styles.submitBtn}>
           {loading ? "Submitting..." : "Submit Application"}
         </Button>
-        <Button variant="secondary" onPress={() => router.back()} style={styles.backBtn}>
+        <Button variant="secondary" onPress={() => router.canGoBack() ? router.back() : router.replace("/login" as any)} style={styles.backBtn}>
           Cancel
         </Button>
       </View>
