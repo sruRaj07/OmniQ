@@ -23,12 +23,11 @@ export default function AdminLayout() {
         screenOptions={{
           headerShown: false,
           freezeOnBlur: true,
-          gestureEnabled: true,
+          gestureEnabled: Platform.OS !== 'web',
           gestureDirection: "horizontal",
-          animation: slideDirection,
+          animation: Platform.OS === 'web' ? 'none' : slideDirection,
           animationTypeForReplace: "push",
-          customAnimationOnGesture: true,
-          fullScreenGestureEnabled: true,
+          fullScreenGestureEnabled: Platform.OS === 'ios',
           contentStyle: { backgroundColor: Platform.OS === 'web' ? colors.bgSecondary : colors.bgPrimary },
         }}
       />

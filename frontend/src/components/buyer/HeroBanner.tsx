@@ -2,7 +2,8 @@
  * OmniQ mobile app - promotional hero banner.
  * Author: OmniQ Team
  */
-import { StyleSheet, Text, View, Image } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import { Image } from "expo-image";
 import { Button } from "@/components/ui/Button";
 import { useAppTheme } from "@/store/useThemeStore";
 export function HeroBanner() {
@@ -28,9 +29,12 @@ export function HeroBanner() {
             <Text style={styles.buttonText}>Shop now →</Text>
           </View>
         </View>
-        <Image source={{
-        uri: "https://cdn3d.iconscout.com/3d/premium/thumb/gift-box-4993510-4161745.png"
-      }} style={styles.giftImage} />
+        <Image 
+          source="https://cdn3d.iconscout.com/3d/premium/thumb/gift-box-4993510-4161745.png" 
+          style={styles.giftImage} 
+          contentFit="contain"
+          priority="high"
+        />
       </View>
     </View>;
 }

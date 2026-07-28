@@ -8,11 +8,20 @@
     "userInterfaceStyle": "light",
     "icon": "./assets/images/icon.png",
     "plugins": [
-      "expo-router",
+      [
+        "expo-router",
+        {
+          "asyncRoutes": {
+            "web": true,
+            "default": true
+          }
+        }
+      ],
       "expo-image"
     ],
     "experiments": {
-      "typedRoutes": true
+      "typedRoutes": true,
+      "reactCompiler": true
     },
     "ios": {
       "supportsTablet": true,
@@ -33,7 +42,8 @@
       "enableShrinkResourcesInReleaseBuilds": true
     },
     "web": {
-      "bundler": "metro"
+      "bundler": "metro",
+      "output": "static"
     },
     "extra": {
       "router": {},

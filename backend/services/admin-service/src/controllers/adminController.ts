@@ -4,7 +4,7 @@
  */
 import type { Request, Response } from "express";
 import { fail, ok } from "../../../../shared/utils/responseFormatter";
-import { getAnalytics, getDashboard, moderateProduct, upsertZone, listZones } from "../services/adminService";
+import { getAnalytics, getDashboard, moderateProduct, upsertZone, listZones, listAllOrders } from "../services/adminService";
 
 export async function dashboardController(_request: Request, response: Response): Promise<void> {
   try {
@@ -48,7 +48,6 @@ export async function listZonesController(_request: Request, response: Response)
 
 export async function listAllOrdersController(_request: Request, response: Response): Promise<void> {
   try {
-    const { listAllOrders } = await import("../services/adminService");
     const orders = await listAllOrders();
     response.json(ok(orders));
   } catch (error: any) {

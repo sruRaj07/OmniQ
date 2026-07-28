@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View, Image, ActivityIndicator, Pressable } from "react-native";
+import { StyleSheet, Text, View, ActivityIndicator, Pressable } from "react-native";
+import { Image } from "expo-image";
 import { Card } from "@/components/ui/Card";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { HomeIcon } from "@/components/ui/HomeIcon";
@@ -85,9 +86,7 @@ export default function BuyerOrdersScreen() {
                 const product = item.product;
                 const imageUrl = product?.images?.[0] || `https://picsum.photos/seed/${product?.id || item.product_id}/100`;
                 return <View key={item.id || index} style={styles.imageContainer}>
-                          <Image source={{
-                    uri: imageUrl
-                  }} style={styles.image} resizeMode="cover" />
+                          <Image source={imageUrl} style={styles.image} contentFit="cover" transition={150} />
                         </View>;
               })}
                     {order.order_items?.length > 5 && <View style={styles.moreItemsContainer}>

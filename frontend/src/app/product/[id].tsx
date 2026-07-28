@@ -3,7 +3,7 @@
  * Author: OmniQ Team
  */
 import { Link, useLocalSearchParams, useRouter } from "expo-router";
-import { StyleSheet, Text, View, Image, ActivityIndicator, ScrollView, Dimensions, TouchableOpacity } from "react-native";
+import { StyleSheet, Text, View, ActivityIndicator, ScrollView, Dimensions, TouchableOpacity } from "react-native";
 import { ArrowLeftIcon } from "@/components/ui/ArrowLeftIcon";
 import { SearchInput } from "@/components/buyer/SearchInput";
 import { AnimatedCartButton } from "@/components/buyer/AnimatedCartButton";
@@ -19,6 +19,7 @@ import { apiClient } from "@/lib/apiClient";
 import type { Product } from "@/types/product.types";
 import { ProductCard } from "@/components/buyer/ProductCard";
 import { ImageZoomViewer } from "@/components/shared/ImageZoomViewer";
+import { Image } from "expo-image";
 export default function ProductDetailScreen() {
   const {
     colors
@@ -90,11 +91,17 @@ export default function ProductDetailScreen() {
     };
   }, [id]);
   if (isLoading) {
-    return <Screen>
-      <ActivityIndicator size="large" color={colors.accent} style={{
-        marginTop: 100
-      }} />
-    </Screen>;
+    return (
+      <Screen>
+        <View style={{ gap: 16, paddingVertical: 16, paddingHorizontal: 4 }}>
+          <View style={{ width: "100%", aspectRatio: 1, backgroundColor: colors.card2 || "#E5E7EB", borderRadius: 20 }} />
+          <View style={{ width: "75%", height: 26, backgroundColor: colors.card2 || "#E5E7EB", borderRadius: 8, marginTop: 8 }} />
+          <View style={{ width: "40%", height: 34, backgroundColor: colors.card2 || "#E5E7EB", borderRadius: 8, marginTop: 4 }} />
+          <View style={{ width: "100%", height: 60, backgroundColor: colors.card2 || "#E5E7EB", borderRadius: 12, marginTop: 16 }} />
+          <View style={{ width: "100%", height: 50, backgroundColor: colors.accent ? `${colors.accent}44` : "#E5E7EB", borderRadius: 25, marginTop: 12 }} />
+        </View>
+      </Screen>
+    );
   }
   if (!product) {
     return <Screen>
@@ -140,7 +147,7 @@ export default function ProductDetailScreen() {
               }}
               style={{ width: width, height: "100%", alignItems: "center", justifyContent: "center" }}
             >
-              <Image source={{ uri }} style={styles.productImage} resizeMode="contain" />
+              <Image source={{ uri }} style={styles.productImage} contentFit="contain" priority="high" transition={150} />
             </TouchableOpacity>
           ))}
         </ScrollView>

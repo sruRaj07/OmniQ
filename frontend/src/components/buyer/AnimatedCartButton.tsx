@@ -4,7 +4,7 @@
  * periodic excitement burst (jump + spin + wobble), and morphing icon swap.
  * Author: OmniQ Team
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, memo, useMemo } from "react";
 import { StyleSheet, View, TouchableOpacity } from "react-native";
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming, withSpring, withDelay, Easing, interpolate } from "react-native-reanimated";
 import { ShoppingCartIcon } from "@/components/ui/ShoppingCartIcon";
@@ -29,9 +29,9 @@ function AnimatedSparkle({ s, colors, styles }: any) {
   );
 }
 
-export function AnimatedCartButton({ onPress }: { onPress?: () => void; }) {
+export const AnimatedCartButton = memo(function AnimatedCartButton({ onPress }: { onPress?: () => void; }) {
   const { colors } = useAppTheme();
-  const styles = getStyles(colors);
+  const styles = useMemo(() => getStyles(colors), [colors]);
   
   // ── Core Animations ──
   const floatAnim = useSharedValue(0);
@@ -185,7 +185,7 @@ export function AnimatedCartButton({ onPress }: { onPress?: () => void; }) {
       </Animated.View>
     </TouchableOpacity>
   );
-}
+});
 
 const getStyles = (colors: any) => StyleSheet.create({
   wrapper: {

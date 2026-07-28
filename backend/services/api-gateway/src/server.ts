@@ -37,15 +37,15 @@ const proxyConfig = (target: string) => ({
   changeOrigin: true
 });
 
-// ⚡ PERFORMANCE: In-memory response cache for public endpoints.
-// Stores responses for 30s to eliminate redundant Supabase round-trips.
+// ⚡ PERFORMANCE: In-memory LRU response cache for public read endpoints.
+// Stores responses for 60s to eliminate redundant database round-trips and accelerate SSR.
 const responseCache = new Map<string, { data: any; expiry: number }>();
-const CACHE_TTL = 30_000; // 30 seconds
+const CACHE_TTL = 60_000; // 60 seconds TTL
 
 function cacheMiddleware(ttl = CACHE_TTL) {
   return (req: any, res: any, next: any) => {
-    // Only cache GET requests
-    if (req.method !== "GET") return next();
+    // Only cache pure public GET requests
+    if (req.method !== "GET" || req.headers.authorization) return next();
     
     const key = req.originalUrl;
     const cached = responseCache.get(key);
@@ -55,10 +55,19 @@ function cacheMiddleware(ttl = CACHE_TTL) {
       return res.json(cached.data);
     }
     
-    // Intercept the response to cache it
+    // Intercept response and prune expired LRU items
+    if (responseCache.size > 500) {
+      const now = Date.now();
+      for (const [k, v] of responseCache) {
+        if (v.expiry <= now) responseCache.delete(k);
+      }
+    }
+
     const originalJson = res.json.bind(res);
     res.json = (body: any) => {
-      responseCache.set(key, { data: body, expiry: Date.now() + ttl });
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        responseCache.set(key, { data: body, expiry: Date.now() + ttl });
+      }
       res.set("X-Cache", "MISS");
       return originalJson(body);
     };
@@ -67,16 +76,18 @@ function cacheMiddleware(ttl = CACHE_TTL) {
   };
 }
 
-app.get("/products*", productListLimiter, createProxyMiddleware(proxyConfig(process.env.PRODUCT_SERVICE_URL ?? "http://localhost:4001")));
+app.get("/products*", productListLimiter, cacheMiddleware(60_000), createProxyMiddleware(proxyConfig(process.env.PRODUCT_SERVICE_URL ?? "http://localhost:4001")));
 app.all("/products*", authMiddleware, createProxyMiddleware(proxyConfig(process.env.PRODUCT_SERVICE_URL ?? "http://localhost:4001")));
 
 app.post("/orders*", authMiddleware, orderLimiter, createProxyMiddleware(proxyConfig(process.env.ORDER_SERVICE_URL ?? "http://localhost:4002")));
 app.all("/orders*", authMiddleware, createProxyMiddleware(proxyConfig(process.env.ORDER_SERVICE_URL ?? "http://localhost:4002")));
 
+app.get("/sellers*", cacheMiddleware(60_000), createProxyMiddleware(proxyConfig(process.env.SELLER_SERVICE_URL ?? "http://localhost:4003")));
 app.all("/sellers*", authMiddleware, createProxyMiddleware(proxyConfig(process.env.SELLER_SERVICE_URL ?? "http://localhost:4003")));
 app.all("/users*", authMiddleware, createProxyMiddleware(proxyConfig(process.env.USER_SERVICE_URL ?? "http://localhost:4004")));
 
 app.post("/location/zone-check", authMiddleware, zoneCheckLimiter, createProxyMiddleware(proxyConfig(process.env.LOCATION_SERVICE_URL ?? "http://localhost:4005")));
+app.get("/location*", cacheMiddleware(60_000), createProxyMiddleware(proxyConfig(process.env.LOCATION_SERVICE_URL ?? "http://localhost:4005")));
 app.all("/location*", authMiddleware, createProxyMiddleware(proxyConfig(process.env.LOCATION_SERVICE_URL ?? "http://localhost:4005")));
 
 app.all("/admin*", authMiddleware, adminLimiter, createProxyMiddleware(proxyConfig(process.env.ADMIN_SERVICE_URL ?? "http://localhost:4006")));

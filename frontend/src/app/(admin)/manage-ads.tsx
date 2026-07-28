@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Image, Alert, ActivityIndicator, Platform } from "react-native";
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Platform } from "react-native";
+import { Image } from "expo-image";
 import { Screen } from "@/components/shared/Screen";
 import { Input } from "@/components/ui/Input";
 import { useAppTheme } from "@/store/useThemeStore";
@@ -218,7 +219,7 @@ export default function ManageAdsScreen() {
         <Text style={styles.inputLabel}>BANNER ARTWORK (16:9)</Text>
         <TouchableOpacity style={styles.imagePicker} onPress={handlePickImage} activeOpacity={0.8}>
           {imageUri ? (
-            <Image source={{ uri: imageUri }} style={styles.previewImage} resizeMode="cover" />
+            <Image source={imageUri} style={styles.previewImage} contentFit="cover" transition={150} />
           ) : (
             <View style={styles.imagePlaceholder}>
               <Text style={styles.imagePickerIcon}>+</Text>
@@ -276,7 +277,7 @@ export default function ManageAdsScreen() {
                   <View style={styles.inputGroup}>
                     <Text style={styles.inputLabel}>BANNER ARTWORK</Text>
                     <TouchableOpacity style={styles.imagePickerSmall} onPress={handleEditPickImage} activeOpacity={0.8}>
-                      <Image source={{ uri: editImageUri || item.image_url }} style={styles.previewImage} resizeMode="cover" />
+                      <Image source={editImageUri || item.image_url} style={styles.previewImage} contentFit="cover" transition={150} />
                       <View style={styles.editImageOverlay}>
                         <Text style={styles.editImageText}>Change Image</Text>
                       </View>
@@ -289,7 +290,7 @@ export default function ManageAdsScreen() {
                 </View>
               ) : (
                 <View style={styles.adRow}>
-                  <Image source={{ uri: item.image_url }} style={styles.adRowImage} />
+                  <Image source={item.image_url} style={styles.adRowImage} contentFit="cover" transition={150} />
                   <View style={styles.adRowContent}>
                     <Text style={styles.adRowTitle} numberOfLines={1}>
                       {item.title.replace("[OFFER] ", "")}

@@ -3,7 +3,8 @@
  * Author: OmniQ Team
  */
 import React from "react";
-import { StyleSheet, Text, View, Image, TouchableOpacity } from "react-native";
+import { StyleSheet, Text, View, TouchableOpacity } from "react-native";
+import { Image } from "expo-image";
 import { Card } from "@/components/ui/Card";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useAppTheme } from "@/store/useThemeStore";
@@ -40,7 +41,7 @@ export function OrderCard({ order, isSeller, onPress }: OrderCardProps) {
   const cardContent = (
     <Card style={styles.card}>
       {imageUrl ? (
-        <Image source={{ uri: imageUrl }} style={styles.image} />
+        <Image source={imageUrl} style={styles.image} contentFit="cover" transition={150} />
       ) : (
         <View style={styles.placeholderIcon} />
       )}

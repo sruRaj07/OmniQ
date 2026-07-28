@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { lightTheme, ThemeColors } from '@/constants/colors';
-export type ThemeMode = 'light';
+export type ThemeMode = 'light' | 'dark' | 'system';
 interface ThemeState {
   mode: ThemeMode;
   colors: ThemeColors;

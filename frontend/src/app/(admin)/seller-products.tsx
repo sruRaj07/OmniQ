@@ -2,7 +2,8 @@
  * OmniQ mobile app - admin seller products moderation.
  * Author: OmniQ Team
  */
-import { StyleSheet, Text, View, ActivityIndicator, Alert, TouchableOpacity, ScrollView, Image, Platform, Modal } from "react-native";
+import { StyleSheet, Text, View, ActivityIndicator, Alert, TouchableOpacity, ScrollView, Platform, Modal } from "react-native";
+import { Image } from "expo-image";
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, runOnJS } from "react-native-reanimated";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -184,9 +185,7 @@ export default function AdminSellerProductsScreen() {
                   </Text>
                   
                   {product.images && product.images.length > 0 && <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageScroll}>
-                      {product.images.map((uri: string, idx: number) => <Image key={idx} source={{
-                uri
-              }} style={styles.image} />)}
+                      {product.images.map((uri: string, idx: number) => <Image key={idx} source={uri} style={styles.image} contentFit="cover" transition={150} />)}
                     </ScrollView>}
 
                   {isExpanded && <View style={[styles.expandedInfo, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>

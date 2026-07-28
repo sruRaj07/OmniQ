@@ -1,5 +1,5 @@
 /**
- * OmniQ mobile app - order data hook.
+ * OmniQ mobile app - order data hook with Stale-While-Revalidate zero-spinner policies.
  * Author: OmniQ Team
  */
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -13,20 +13,25 @@ export function useOrders() {
     queryFn: async () => {
       const { data } = await apiClient.get("/orders");
       return data.data || [];
-    }
+    },
+    staleTime: 5 * 60 * 1000, // Serve instant memory cache for 5 minutes without re-fetching
+    gcTime: 30 * 60 * 1000,   // Keep unused data in memory for 30 minutes
+    placeholderData: (previousData: any) => previousData, // Prevent flickering loaders during tab switches
   });
 
   const sellerQuery = useQuery({
     queryKey: ["seller-orders"],
     queryFn: async () => {
-      // If the user is not a seller, this might fail, so we catch and return []
       try {
         const { data } = await apiClient.get("/orders/seller");
         return data.data || [];
       } catch (error) {
         return [];
       }
-    }
+    },
+    staleTime: 3 * 60 * 1000, // 3-minute instant cache for seller operations
+    gcTime: 30 * 60 * 1000,
+    placeholderData: (previousData: any) => previousData,
   });
 
   const updateStatusMutation = useMutation({
@@ -44,6 +49,7 @@ export function useOrders() {
     buyerOrders: buyerQuery.data || [],
     sellerOrders: sellerQuery.data || [],
     isLoading: buyerQuery.isLoading || sellerQuery.isLoading,
+    isFetching: buyerQuery.isFetching || sellerQuery.isFetching,
     updateOrderStatus: updateStatusMutation.mutate,
     isUpdatingStatus: updateStatusMutation.isPending,
   };

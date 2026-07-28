@@ -4,14 +4,14 @@
  */
 import type { Request, Response } from "express";
 import { fail, ok } from "../../../../shared/utils/responseFormatter";
-import { createProduct, getProduct, listProducts, listSellerProducts, searchProducts, getCategoryTags } from "../services/productService";
+import { createProduct, getProduct, listProducts, listSellerProducts, searchProducts, getCategoryTags, updateProduct } from "../services/productService";
 
 export async function listProductsController(request: Request, response: Response): Promise<void> {
   try {
     const sellerId = request.query.sellerId as string | undefined;
     const cursor = request.query.cursor as string | undefined;
     const limitParam = parseInt(request.query.limit as string);
-    const limit = isNaN(limitParam) ? 100 : Math.min(limitParam, 500);
+    const limit = isNaN(limitParam) || limitParam <= 0 ? 20 : Math.min(limitParam, 50);
 
     const { products, nextCursor } = await listProducts(sellerId, cursor, limit);
     response.json(ok(products, { nextCursor, limit, total: products.length }));
@@ -156,8 +156,6 @@ export async function updateProductController(request: Request, response: Respon
       return;
     }
 
-    // Dynamic import to avoid circular dependency issues if any, or just import at top. Let's assume it's imported at top.
-    const { updateProduct } = await import("../services/productService");
     const product = await updateProduct(id, request.body, authUserId);
     response.status(200).json(ok(product));
   } catch (error: any) {
@@ -192,7 +190,8 @@ export async function searchProductsController(request: Request, response: Respo
     const minPrice = request.query.minPrice ? Number(request.query.minPrice) : undefined;
     const maxPrice = request.query.maxPrice ? Number(request.query.maxPrice) : undefined;
     const sort = (request.query.sort as string | undefined) || "relevance";
-    const limit = request.query.limit ? Number(request.query.limit) : 20;
+    const limitParam = Number(request.query.limit);
+    const limit = isNaN(limitParam) || limitParam <= 0 ? 20 : Math.min(limitParam, 50);
     const offset = request.query.offset ? Number(request.query.offset) : 0;
     const suggestions = request.query.suggestions === "true";
 

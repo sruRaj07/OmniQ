@@ -17,4 +17,22 @@ config.resolver.nodeModulesPaths = [
   path.resolve(monorepoRoot, "node_modules"),
 ];
 
+// ⚡ PRODUCTION OPTIMIZATIONS: Configure aggressive minification & dead-code elimination
+config.transformer = {
+  ...config.transformer,
+  minifierConfig: {
+    compress: {
+      // Automatically remove all verbose console logs and debug statements in production builds
+      drop_console: process.env.NODE_ENV === "production",
+      drop_debugger: true,
+      reduce_funcs: true,
+      passes: 2,
+    },
+    output: {
+      comments: false, // Strip out all documentation and license comments from bundles
+      ascii_only: true,
+    },
+  },
+};
+
 module.exports = config;

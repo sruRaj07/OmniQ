@@ -2,12 +2,11 @@
  * OmniQ mobile app - buyer home feed.
  * Author: OmniQ Team
  */
+import { lazy, Suspense, useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { CategoryScroll } from "@/components/buyer/CategoryScroll";
-import { AdvertisementCarousel } from "@/components/buyer/AdvertisementCarousel";
 import { HeroBanner } from "@/components/buyer/HeroBanner";
 import { ProductCard } from "@/components/buyer/ProductCard";
-import { AnimatedCartButton } from "@/components/buyer/AnimatedCartButton";
 import { HomeIcon } from "@/components/ui/HomeIcon";
 import { ShoppingCartIcon } from "@/components/ui/ShoppingCartIcon";
 import { BoxIcon } from "@/components/ui/BoxIcon";
@@ -20,11 +19,15 @@ import { BuyerHeader } from "@/components/buyer/BuyerHeader";
 import { useAppTheme } from "@/store/useThemeStore";
 import { useProducts } from "@/hooks/useProducts";
 import { useRouter } from "expo-router";
+
+// ⚡ LAZY-LOAD: Defer heavy below-the-fold components to accelerate first paint
+const AdvertisementCarousel = lazy(() => import("@/components/buyer/AdvertisementCarousel").then(m => ({ default: m.AdvertisementCarousel })));
+
 export default function BuyerHomeScreen() {
   const {
     colors
   } = useAppTheme();
-  const styles = getStyles(colors);
+  const styles = useMemo(() => getStyles(colors), [colors]);
   const {
     products,
     isLoading
@@ -54,10 +57,13 @@ export default function BuyerHomeScreen() {
           icon: UserIcon,
           label: "Profile"
         }]}>
-        <AdvertisementCarousel type="ads" />
+        <Suspense fallback={<View style={{ height: 180 }} />}>
+          <AdvertisementCarousel type="ads" />
+        </Suspense>
         <HeroBanner />
-        <AdvertisementCarousel type="offers" />
-        {/* <CategoryScroll /> */}
+        <Suspense fallback={<View style={{ height: 180 }} />}>
+          <AdvertisementCarousel type="offers" />
+        </Suspense>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Trending Now</Text>
           <Text style={styles.link}>See all</Text>

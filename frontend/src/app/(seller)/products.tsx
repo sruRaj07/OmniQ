@@ -9,13 +9,14 @@ import { Screen } from "@/components/shared/Screen";
 import { useAppTheme } from "@/store/useThemeStore";
 import { useSellerProducts } from "@/hooks/useProducts";
 import { formatCurrency } from "@/utils/formatCurrency";
-import { Image, ActivityIndicator, TouchableOpacity } from "react-native";
+import { ActivityIndicator, TouchableOpacity } from "react-native";
+import { Image } from "expo-image";
 import { HomeIcon } from "@/components/ui/HomeIcon";
 import { ListIcon } from "@/components/ui/ListIcon";
 import { BoxIcon } from "@/components/ui/BoxIcon";
 import { UserIcon } from "@/components/ui/UserIcon";
 import { CategorySvgIcon } from "@/components/ui/CategorySvgIcon";
-import React, { useState } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 
 const formatListingDate = (dateString?: string) => {
   if (!dateString) return "Recently listed";
@@ -28,17 +29,18 @@ const formatListingDate = (dateString?: string) => {
   }
 };
 
-export default function SellerProductsScreen() {
-  const {
-    colors
-  } = useAppTheme();
-  const styles = getStyles(colors);
-  const {
-    products,
-    isLoading
-  } = useSellerProducts();
-  const [editingProduct, setEditingProduct] = useState<any>(null);
-  const getStatusBadge = (product: any) => {
+const SellerProductItem = React.memo(function SellerProductItem({
+  product,
+  styles,
+  colors,
+  onSelect,
+}: {
+  product: any;
+  styles: any;
+  colors: any;
+  onSelect: (p: any) => void;
+}) {
+  const getStatusBadge = () => {
     if (product.is_approved) {
       return (
         <View style={[styles.badge, { borderColor: colors.success }]}>
@@ -59,6 +61,54 @@ export default function SellerProductsScreen() {
       </View>
     );
   };
+
+  return (
+    <TouchableOpacity onPress={() => onSelect(product)} activeOpacity={0.85}>
+      <Card style={[styles.product, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        {product.images && product.images.length > 0 ? (
+          <Image source={product.images[0]} style={styles.image} contentFit="contain" transition={150} />
+        ) : (
+          <View style={[styles.image, styles.imagePlaceholder]}>
+            <Text style={{ color: colors.textMuted, fontSize: 10, fontWeight: "600" }}>No Image</Text>
+          </View>
+        )}
+        <View style={styles.info}>
+          <Text style={styles.name} numberOfLines={2}>{product.title}</Text>
+          <Text style={styles.meta}>{formatListingDate(product.created_at || product.createdAt)}</Text>
+          <View style={styles.badgeWrap}>
+            {(product.category || product.category_id) ? (
+              <View style={[styles.categoryBadge, { borderColor: colors.border }]}>
+                <CategorySvgIcon category={product.category || product.category_id || ""} size={12} showBackground={false} style={{ marginRight: 4 }} />
+                <Text style={[styles.categoryBadgeText, { color: colors.textSecondary }]}>
+                  #{String(product.category || product.category_id).toUpperCase()}
+                </Text>
+              </View>
+            ) : null}
+            {getStatusBadge()}
+          </View>
+        </View>
+        <View style={styles.priceContainer}>
+          <Text style={styles.price}>{formatCurrency(product.price)}</Text>
+        </View>
+      </Card>
+    </TouchableOpacity>
+  );
+});
+
+export default function SellerProductsScreen() {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => getStyles(colors), [colors]);
+  const { products, isLoading } = useSellerProducts();
+  const [editingProduct, setEditingProduct] = useState<any>(null);
+
+  const handleSelectProduct = useCallback((p: any) => {
+    setEditingProduct(p);
+  }, []);
+
+  const handleCloseEdit = useCallback(() => {
+    setEditingProduct(null);
+  }, []);
+
   return <>
       <Screen bottomNavItems={[{
       href: "/(seller)/dashboard" as any,
@@ -78,7 +128,7 @@ export default function SellerProductsScreen() {
       label: "Profile"
     }]}>
         <Text style={styles.title}>{editingProduct ? "Edit Product" : "Products"}</Text>
-        <ProductForm initialData={editingProduct} onCloseEdit={() => setEditingProduct(null)} />
+        <ProductForm initialData={editingProduct} onCloseEdit={handleCloseEdit} />
         <Text style={styles.section}>Live Inventory</Text>
         {isLoading ? <View style={{
         flex: 1,
@@ -91,36 +141,14 @@ export default function SellerProductsScreen() {
         color: colors.textSecondary,
         textAlign: "center",
         paddingVertical: 20
-      }}>No products listed yet.</Text> : products.map(product => (
-            <TouchableOpacity key={product.id} onPress={() => setEditingProduct(product)} activeOpacity={0.85}>
-              <Card style={[styles.product, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                {product.images && product.images.length > 0 ? (
-                  <Image source={{ uri: product.images[0] }} style={styles.image} resizeMode="contain" />
-                ) : (
-                  <View style={[styles.image, styles.imagePlaceholder]}>
-                    <Text style={{ color: colors.textMuted, fontSize: 10, fontWeight: "600" }}>No Image</Text>
-                  </View>
-                )}
-                <View style={styles.info}>
-                  <Text style={styles.name} numberOfLines={2}>{product.title}</Text>
-                  <Text style={styles.meta}>{formatListingDate(product.created_at || product.createdAt)}</Text>
-                  <View style={styles.badgeWrap}>
-                    {(product.category || product.category_id) ? (
-                      <View style={[styles.categoryBadge, { borderColor: colors.border }]}>
-                        <CategorySvgIcon category={product.category || product.category_id || ""} size={12} showBackground={false} style={{ marginRight: 4 }} />
-                        <Text style={[styles.categoryBadgeText, { color: colors.textSecondary }]}>
-                          #{String(product.category || product.category_id).toUpperCase()}
-                        </Text>
-                      </View>
-                    ) : null}
-                    {getStatusBadge(product)}
-                  </View>
-                </View>
-                <View style={styles.priceContainer}>
-                  <Text style={styles.price}>{formatCurrency(product.price)}</Text>
-                </View>
-              </Card>
-            </TouchableOpacity>
+      }}>No products listed yet.</Text> : products.map((product: any) => (
+            <SellerProductItem
+              key={product.id}
+              product={product}
+              styles={styles}
+              colors={colors}
+              onSelect={handleSelectProduct}
+            />
           ))}
       </Screen>
       

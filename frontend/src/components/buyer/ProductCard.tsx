@@ -4,7 +4,7 @@
  * holographic shimmer sweep, floating image parallax, glassmorphic border glow.
  * Author: OmniQ Team
  */
-import React from "react";
+import React, { useMemo } from "react";
 import { StyleSheet, Text, View, Pressable } from "react-native";
 import { Image } from "expo-image";
 import type { StyleProp, ViewStyle } from "react-native";
@@ -17,7 +17,6 @@ import { formatCurrency } from "@/utils/formatCurrency";
 const blurhash =
   "|rF?hV%2WCj[ayj[a|j[az_NaeWBj@ayfRayfQfQM{M|azj[azf6fQfQfQIpWXofj[ayj[j[fQayWCoeoeaya}j[ayfQa{oLj?j[WVj[ayayj[fQoff7azayj[ayj[j[ayofayayayj[fQj[ayayj[ayfjj[j[ayjuayj[";
 
-
 type ProductCardProps = {
   product: Product;
   index?: number;
@@ -26,7 +25,7 @@ type ProductCardProps = {
 
 export const ProductCard = React.memo(function ProductCard({ product, index = 0, style }: ProductCardProps) {
   const { colors } = useAppTheme();
-  const styles = getStyles(colors);
+  const styles = useMemo(() => getStyles(colors), [colors]);
   const imageUrl = product.images && product.images.length > 0 ? product.images[0] : null;
 
   return (

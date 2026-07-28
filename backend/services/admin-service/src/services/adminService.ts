@@ -70,8 +70,6 @@ export async function getAnalytics() {
   return { revenueByCategory: { Fashion: 42, Tech: 31, Jewellery: 18 }, topArea: "Koramangala" };
 }
 
-import { supabaseAdmin } from "../../../../shared/utils/supabaseClient";
-
 export async function moderateProduct(id: string, input: unknown) {
   const parsed = moderationSchema.parse(input);
   

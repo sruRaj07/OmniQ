@@ -1,10 +1,11 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { StyleSheet, Text, View, Image, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
 import { Screen } from "@/components/shared/Screen";
 import { useAppTheme } from "@/store/useThemeStore";
 import { useOrders } from "@/hooks/useOrders";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { formatCurrency } from "@/utils/formatCurrency";
+import { Image } from "expo-image";
 export default function OrderDetailsScreen() {
   const {
     colors
@@ -118,7 +119,7 @@ export default function OrderDetailsScreen() {
               <View style={styles.itemImageContainer}>
                 <Image source={{
               uri: imageUrl
-            }} style={styles.itemImage} resizeMode="cover" />
+            }} style={styles.itemImage} contentFit="cover" transition={150} />
               </View>
               <View style={styles.itemDetails}>
                 <Text style={styles.itemName} numberOfLines={2}>{productTitle}</Text>

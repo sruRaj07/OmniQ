@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from "react";
-import { StyleSheet, View, Text, ScrollView, Image, TouchableOpacity, useWindowDimensions } from "react-native";
-import Animated, { useSharedValue, useAnimatedScrollHandler, useAnimatedStyle, interpolate, Extrapolation } from "react-native-reanimated";
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, useWindowDimensions } from "react-native";
+import { Image } from "expo-image";
+import Animated, { useSharedValue, useAnimatedScrollHandler, useAnimatedStyle, interpolate, Extrapolation, type SharedValue } from "react-native-reanimated";
 import { useAppTheme } from "@/store/useThemeStore";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/apiClient";
@@ -15,7 +16,7 @@ type Advertisement = {
 };
 
 // Sub-component for individual pagination dots to safely use hooks
-function PaginationDot({ scrollX, index, itemWidth, colors }: { scrollX: Animated.SharedValue<number>, index: number, itemWidth: number, colors: any }) {
+function PaginationDot({ scrollX, index, itemWidth, colors }: { scrollX: SharedValue<number>, index: number, itemWidth: number, colors: any }) {
   const animatedStyle = useAnimatedStyle(() => {
     const inputRange = [(index - 1) * itemWidth, index * itemWidth, (index + 1) * itemWidth];
     return {
@@ -76,7 +77,14 @@ export function AdvertisementCarousel({ type = 'ads' }: { type?: 'ads' | 'offers
     return () => clearInterval(interval);
   }, [ads, ITEM_WIDTH]);
 
-  if (isLoading || !ads || ads.length === 0) {
+  if (isLoading) {
+    return (
+      <View style={[styles.container, { paddingHorizontal: 24 }]}>
+        <View style={{ width: CARD_WIDTH, height: Math.floor(CARD_WIDTH * (9 / 16)), backgroundColor: colors.card2 || "#2A2826", borderRadius: 16 }} />
+      </View>
+    );
+  }
+  if (!ads || ads.length === 0) {
     return null;
   }
 
@@ -116,9 +124,11 @@ export function AdvertisementCarousel({ type = 'ads' }: { type?: 'ads' | 'offers
             style={[styles.card, { backgroundColor: colors.bgSecondary, width: CARD_WIDTH, height: Math.floor(CARD_WIDTH * (9 / 16)) }]}
           >
             <Image 
-              source={{ uri: ad.image_url }} 
+              source={ad.image_url} 
               style={styles.image} 
-              resizeMode="cover" 
+              contentFit="cover" 
+              transition={150}
+              priority="high"
             />
             {type === 'ads' ? (
               <View style={styles.sponsoredBadge}>

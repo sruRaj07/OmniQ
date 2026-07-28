@@ -1,4 +1,5 @@
 packages:
   - "frontend"
+  - "web-storefront"
   - "backend/shared"
   - "backend/services/*"

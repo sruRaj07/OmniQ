@@ -1,5 +1,5 @@
 /**
- * OmniQ mobile app - search hook with debounce and recent searches.
+ * OmniQ mobile app - search hook with debounce, AbortController cancellation, and recent searches.
  * Author: OmniQ Team
  */
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -30,6 +30,10 @@ export function useSearch() {
   const [offset, setOffset] = useState(0);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // ⚡ ABORT CONTROLLER REFS: Instantaneous network cleanup on typing / rapid filter shifts
+  const searchAbortRef = useRef<AbortController | null>(null);
+  const suggestionAbortRef = useRef<AbortController | null>(null);
 
   // Load recent searches on mount
   useEffect(() => {
@@ -72,34 +76,42 @@ export function useSearch() {
   // Debounced search for suggestions (fires while typing)
   useEffect(() => {
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    if (suggestionAbortRef.current) suggestionAbortRef.current.abort();
 
     if (!query.trim()) {
       setSuggestions([]);
-      setResults([]);
-      setTotal(0);
+      if (!isLoading) {
+        setResults([]);
+        setTotal(0);
+      }
       return;
     }
 
     debounceTimer.current = setTimeout(() => {
       fetchSuggestions(query.trim());
-    }, 300);
+    }, 250);
 
     return () => {
       if (debounceTimer.current) clearTimeout(debounceTimer.current);
+      if (suggestionAbortRef.current) suggestionAbortRef.current.abort();
     };
   }, [query]);
 
   const fetchSuggestions = async (q: string) => {
     try {
+      suggestionAbortRef.current = new AbortController();
       const { data } = await apiClient.get("/products/search", {
         params: { q, suggestions: "true", limit: 5 },
+        signal: suggestionAbortRef.current.signal,
       });
       const meta = data?.meta;
       if (meta?.suggestions) {
         setSuggestions(meta.suggestions);
       }
-    } catch {
-      // Silently fail
+    } catch (err: any) {
+      if (err.name !== "CanceledError" && err.code !== "ERR_CANCELED") {
+        // Silently ignore canceled aborted requests, log other errors if needed
+      }
     }
   };
 
@@ -108,6 +120,10 @@ export function useSearch() {
     async (searchQuery?: string) => {
       const q = (searchQuery ?? query).trim();
       if (!q) return;
+
+      // Abort any inflight search request to guarantee zero race conditions
+      if (searchAbortRef.current) searchAbortRef.current.abort();
+      searchAbortRef.current = new AbortController();
 
       setIsLoading(true);
       try {
@@ -119,7 +135,10 @@ export function useSearch() {
         params.limit = 40;
         params.offset = 0;
 
-        const { data } = await apiClient.get("/products/search", { params });
+        const { data } = await apiClient.get("/products/search", {
+          params,
+          signal: searchAbortRef.current.signal,
+        });
         setResults(data?.data || []);
         setTotal(data?.meta?.total ?? 0);
         setOffset(40);
@@ -127,7 +146,10 @@ export function useSearch() {
 
         // Save to recent
         await saveRecentSearch(q);
-      } catch (error) {
+      } catch (error: any) {
+        if (error.name === "CanceledError" || error.code === "ERR_CANCELED") {
+          return; // Ignore state updates for aborted obsolete queries
+        }
         console.error("Search failed:", error);
         setResults([]);
         setTotal(0);

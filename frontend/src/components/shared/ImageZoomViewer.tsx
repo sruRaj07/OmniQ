@@ -95,7 +95,7 @@ export function ImageZoomViewer({ visible, imageUrl, onClose }: Props) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
       <GestureHandlerRootView style={styles.container}>
-        <View style={[styles.background, { backgroundColor: colors.background }]} />
+        <View style={[styles.background, { backgroundColor: colors.bgPrimary }]} />
         
         <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
           <Text style={[styles.closeText, { color: colors.textPrimary }]}>✕</Text>
@@ -123,7 +123,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   background: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     opacity: 1,
   },
   closeButton: {

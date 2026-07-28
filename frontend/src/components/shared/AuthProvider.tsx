@@ -50,9 +50,5 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [session, initialized, segments]);
 
-  if (!initialized) {
-    return null; // Or a splash screen / loading spinner
-  }
-
   return <>{children}</>;
 }

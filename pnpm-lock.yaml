@@ -8,18 +8,21 @@ importers:
 
   .:
     devDependencies:
+      '@supabase/supabase-js':
+        specifier: ^2.43.0
+        version: 2.108.2
       concurrently:
         specifier: ^8.2.2
         version: 8.2.2
+      dotenv:
+        specifier: ^16.4.0
+        version: 16.6.1
       typescript:
         specifier: ^5.3.0
         version: 5.9.3
 
   backend/services/admin-service:
     dependencies:
-      '@supabase/supabase-js':
-        specifier: ^2.43.0
-        version: 2.108.2
       cors:
         specifier: ^2.8.5
         version: 2.8.6
@@ -32,6 +35,9 @@ importers:
       helmet:
         specifier: ^7.1.0
         version: 7.2.0
+      multer:
+        specifier: ^1.4.5-lts.1
+        version: 1.4.5-lts.2
       tsx:
         specifier: ^4.11.0
         version: 4.22.4
@@ -45,6 +51,9 @@ importers:
       '@types/express':
         specifier: ^4.17.21
         version: 4.17.25
+      '@types/multer':
+        specifier: ^1.4.11
+        version: 1.4.13
       typescript:
         specifier: ^5.3.0
         version: 5.9.3
@@ -54,9 +63,6 @@ importers:
 
   backend/services/api-gateway:
     dependencies:
-      '@supabase/supabase-js':
-        specifier: ^2.43.0
-        version: 2.108.2
       compression:
         specifier: ^1.7.4
         version: 1.8.1
@@ -78,27 +84,15 @@ importers:
       http-proxy-middleware:
         specifier: ^3.0.0
         version: 3.0.7
-      ioredis:
-        specifier: ^5.3.0
-        version: 5.11.1
       jsonwebtoken:
         specifier: ^9.0.0
         version: 9.0.3
       morgan:
         specifier: ^1.10.0
         version: 1.11.0
-      rate-limit-redis:
-        specifier: ^4.2.0
-        version: 4.3.1(express-rate-limit@7.5.1(express@4.22.2))
       tsx:
         specifier: ^4.11.0
         version: 4.22.4
-      winston:
-        specifier: ^3.13.0
-        version: 3.19.0
-      zod:
-        specifier: ^3.23.0
-        version: 3.25.76
     devDependencies:
       '@types/compression':
         specifier: ^1.7.5
@@ -124,9 +118,6 @@ importers:
 
   backend/services/location-service:
     dependencies:
-      '@supabase/supabase-js':
-        specifier: ^2.43.0
-        version: 2.108.2
       cors:
         specifier: ^2.8.5
         version: 2.8.6
@@ -139,9 +130,6 @@ importers:
       helmet:
         specifier: ^7.1.0
         version: 7.2.0
-      ioredis:
-        specifier: ^5.3.0
-        version: 5.11.1
       tsx:
         specifier: ^4.11.0
         version: 4.22.4
@@ -164,9 +152,6 @@ importers:
 
   backend/services/order-service:
     dependencies:
-      '@supabase/supabase-js':
-        specifier: ^2.43.0
-        version: 2.108.2
       cors:
         specifier: ^2.8.5
         version: 2.8.6
@@ -201,9 +186,6 @@ importers:
 
   backend/services/product-service:
     dependencies:
-      '@supabase/supabase-js':
-        specifier: ^2.43.0
-        version: 2.108.2
       compression:
         specifier: ^1.8.1
         version: 1.8.1
@@ -250,9 +232,6 @@ importers:
 
   backend/services/seller-service:
     dependencies:
-      '@supabase/supabase-js':
-        specifier: ^2.43.0
-        version: 2.108.2
       cors:
         specifier: ^2.8.5
         version: 2.8.6
@@ -287,9 +266,6 @@ importers:
 
   backend/services/user-service:
     dependencies:
-      '@supabase/supabase-js':
-        specifier: ^2.43.0
-        version: 2.108.2
       cors:
         specifier: ^2.8.5
         version: 2.8.6
@@ -373,6 +349,9 @@ importers:
       axios:
         specifier: ^1.7.0
         version: 1.18.1
+      babel-plugin-react-compiler:
+        specifier: ^1.0.0
+        version: 1.0.0
       expo:
         specifier: ~56.0.14
         version: 56.0.14(@babel/core@7.29.7)(@expo/dom-webview@56.0.5)(@expo/metro-runtime@56.0.16)(expo-router@56.2.13)(react-dom@19.2.3(react@19.2.3))(react-native-web@0.21.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-native-worklets@0.8.3(@babel/core@7.29.7)(@react-native/metro-config@0.86.0(@babel/core@7.29.7))(react-native@0.85.3(@babel/core@7.29.7)(@react-native/metro-config@0.86.0(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.3))(react@19.2.3))(react-native@0.85.3(@babel/core@7.29.7)(@react-native/metro-config@0.86.0(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.3))(react@19.2.3)(typescript@6.0.3)
@@ -3971,12 +3950,6 @@ packages:
   range-parser@1.2.1:
     resolution: {integrity: sha512-Hrgsx+orqoygnmhFbKaHE6c296J+HTAQXoxEF6gNupROmmGJRoyzfG3ccAveqCBrwr/2yxQ5BVd/GTl5agOwSg==}
     engines: {node: '>= 0.6'}
-
-  rate-limit-redis@4.3.1:
-    resolution: {integrity: sha512-+a1zU8+D7L8siDK9jb14refQXz60vq427VuiplgnaLk9B2LnvGe/APLTfhwb4uNIL7eWVknh8GnRp/unCj+lMA==}
-    engines: {node: '>= 16'}
-    peerDependencies:
-      express-rate-limit: '>= 6'
 
   raw-body@2.5.3:
     resolution: {integrity: sha512-s4VSOf6yN0rvbRZGxs8Om5CWj6seneMwK3oDb4lWDH0UPhWcxwOWw5+qk24bxq87szX1ydrwylIOp2uG1ojUpA==}
@@ -8766,10 +8739,6 @@ snapshots:
       inherits: 2.0.4
 
   range-parser@1.2.1: {}
-
-  rate-limit-redis@4.3.1(express-rate-limit@7.5.1(express@4.22.2)):
-    dependencies:
-      express-rate-limit: 7.5.1(express@4.22.2)
 
   raw-body@2.5.3:
     dependencies:

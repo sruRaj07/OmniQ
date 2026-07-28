@@ -8,6 +8,8 @@ export type ApiMeta = {
   total?: number;
   offset?: number;
   suggestions?: string[];
+  nextCursor?: string | null;
+  [key: string]: unknown;
 };
 
 export type ApiSuccess<TData> = {

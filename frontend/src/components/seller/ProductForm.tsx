@@ -3,7 +3,8 @@
  * Author: OmniQ Team
  */
 import React, { useState, useEffect } from "react";
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, ActivityIndicator, Alert, Platform, Modal } from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Platform, Modal } from "react-native";
+import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -160,6 +161,7 @@ export function ProductForm({ initialData, onCloseEdit }: ProductFormProps) {
           headers: { "Content-Type": "multipart/form-data" }
         });
       }
+      queryClient.invalidateQueries({ queryKey: ["products"] });
       setShowSuccessModal(true);
     } catch (error: any) {
       console.log("API Error caught:", error?.response?.data || error.message);
@@ -229,9 +231,7 @@ export function ProductForm({ initialData, onCloseEdit }: ProductFormProps) {
         <Text style={styles.imageTitle}>Product Images ({images.length}/5)</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.imageScroll}>
           {images.map((uri, index) => <TouchableOpacity key={index} onPress={() => removeImage(index)} style={styles.imageBoxSelected}>
-              <Image source={{
-            uri
-          }} style={styles.imagePreview} />
+              <Image source={uri} style={styles.imagePreview} contentFit="cover" transition={150} />
               <View style={styles.removeOverlay}>
                 <Text style={styles.removeText}>✕</Text>
               </View>

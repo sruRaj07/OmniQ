@@ -13,12 +13,11 @@ export default function AuthLayout() {
     <Stack
       screenOptions={{
         headerShown: false,
-        animation: "slide_from_right",
+        animation: Platform.OS === 'web' ? 'none' : "slide_from_right",
         freezeOnBlur: true,
-        gestureEnabled: true,
+        gestureEnabled: Platform.OS !== 'web',
         gestureDirection: "horizontal",
-        customAnimationOnGesture: true,
-        fullScreenGestureEnabled: true,
+        fullScreenGestureEnabled: Platform.OS === 'ios',
         contentStyle: { backgroundColor: Platform.OS === 'web' ? colors.bgSecondary : colors.bgPrimary },
       }}
     />

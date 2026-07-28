@@ -11,6 +11,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "build": "expo export",
+    "preview:web": "expo export --platform web && npx -y serve dist -l 3000",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
     "test": "echo \"No frontend tests configured yet\""
@@ -23,6 +24,7 @@
     "@supabase/supabase-js": "^2.43.0",
     "@tanstack/react-query": "^5.40.0",
     "axios": "^1.7.0",
+    "babel-plugin-react-compiler": "^1.0.0",
     "expo": "~56.0.14",
     "expo-image": "~56.0.11",
     "expo-image-manipulator": "~56.0.20",
@@ -53,10 +55,5 @@
     "@babel/preset-env": "7.29.7",
     "@types/react": "~19.2.17",
     "typescript": "^6.0.3"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild"
-    ]
   }
 }

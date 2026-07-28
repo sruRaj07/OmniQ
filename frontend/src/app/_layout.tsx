@@ -33,11 +33,10 @@ export default function RootLayout() {
               screenOptions={{
                 headerShown: false,
                 freezeOnBlur: true,
-                gestureEnabled: true,
+                gestureEnabled: Platform.OS !== 'web',
                 gestureDirection: "horizontal",
-                animation: "slide_from_right",
-                customAnimationOnGesture: true,
-                fullScreenGestureEnabled: true,
+                animation: Platform.OS === 'web' ? 'none' : 'slide_from_right',
+                fullScreenGestureEnabled: Platform.OS === 'ios',
                 contentStyle: { backgroundColor: Platform.OS === 'web' ? colors.bgSecondary : colors.bgPrimary },
               }}
             />

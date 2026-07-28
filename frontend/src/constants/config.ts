@@ -10,7 +10,7 @@ const PROD_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ
 const getDevApiUrl = () => {
   // On Web in development, automatically match the browser's current hostname (localhost or LAN IP)
   // to prevent network errors caused by stale LAN IPs in .env
-  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.location !== 'undefined') {
     return `http://${window.location.hostname || 'localhost'}:4000`;
   }
   return process.env.EXPO_PUBLIC_API_URL || (Platform.OS === 'android' ? 'http://10.0.2.2:4000' : 'http://localhost:4000');

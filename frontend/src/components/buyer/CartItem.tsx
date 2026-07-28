@@ -2,7 +2,8 @@
  * OmniQ mobile app - cart item row.
  * Author: OmniQ Team
  */
-import { StyleSheet, Text, View, Image, Pressable } from "react-native";
+import { StyleSheet, Text, View, Pressable } from "react-native";
+import { Image } from "expo-image";
 import { Link } from "expo-router";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -30,7 +31,7 @@ export function CartItem({
       <Link href={`/product/${item.product.id}`} asChild>
         <Pressable style={styles.topRow}>
           {imageUrl ? <View style={styles.imageContainer}>
-              <Image source={{ uri: imageUrl }} style={styles.image} resizeMode="contain" />
+              <Image source={imageUrl} style={styles.image} contentFit="contain" transition={150} />
             </View> : <Text style={styles.placeholderImage}>📦</Text>}
           <View style={styles.info}>
             <Text style={styles.title} numberOfLines={1}>{item.product.title}</Text>

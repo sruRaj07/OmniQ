@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { StyleSheet, Text, View, ScrollView, Pressable, ActivityIndicator } from "react-native";
 import { FlashList } from "@shopify/flash-list";
 import { Screen } from "@/components/shared/Screen";
@@ -12,13 +12,15 @@ import { CategorySvgIcon } from "@/components/ui/CategorySvgIcon";
 import { useAppTheme } from "@/store/useThemeStore";
 import { useProducts } from "@/hooks/useProducts";
 import { ProductCard } from "@/components/buyer/ProductCard";
+import { ProductGridSkeleton } from "@/components/buyer/ProductGridSkeleton";
+import type { Product } from "@/types/product.types";
 
 export default function BrowseScreen() {
   const { colors } = useAppTheme();
-  const styles = getStyles(colors);
-  
+  const styles = useMemo(() => getStyles(colors), [colors]);
+
   const { products, isLoading } = useProducts();
-  
+
   // Dynamically derive categories from products, but explicitly ensure Kitchen is present
   const categories = useMemo(() => {
     const dynamicCats = products.map(p => p.category).filter(Boolean) as string[];
@@ -32,6 +34,12 @@ export default function BrowseScreen() {
     if (activeCategory === "All") return products;
     return products.filter(p => p.category === activeCategory);
   }, [products, activeCategory]);
+
+  const renderProductItem = useCallback(({ item, index }: { item: Product; index: number }) => (
+    <View style={[styles.gridItem, index % 2 === 0 ? styles.padRight : styles.padLeft]}>
+      <ProductCard product={item} style={styles.cardFullWidth} />
+    </View>
+  ), [styles]);
 
   return (
     <Screen
@@ -48,8 +56,8 @@ export default function BrowseScreen() {
       <View style={styles.container}>
         {/* Top Horizontal Categories Scroll (Screenshot exact match design) */}
         <View style={styles.categoriesContainer}>
-          <ScrollView 
-            horizontal 
+          <ScrollView
+            horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.categoriesScrollContent}
           >
@@ -82,12 +90,14 @@ export default function BrowseScreen() {
         {/* Main Content */}
         <View style={styles.content}>
           {isLoading ? (
-            <ActivityIndicator size="large" color={colors.accent} style={{ marginTop: 40 }} />
+            <View style={{ paddingHorizontal: 16 }}>
+              <ProductGridSkeleton count={6} />
+            </View>
           ) : (
             <FlashList
               data={displayProducts}
               numColumns={2}
-              estimatedItemSize={250}
+              {...({ estimatedItemSize: 250 } as any)}
               contentContainerStyle={styles.contentScroll}
               showsVerticalScrollIndicator={false}
               ListHeaderComponent={
@@ -96,12 +106,8 @@ export default function BrowseScreen() {
                   <Text style={styles.productCount}>{displayProducts.length} items</Text>
                 </View>
               }
-              renderItem={({ item, index }) => (
-                <View style={{ flex: 1, paddingRight: index % 2 === 0 ? 8 : 0, paddingLeft: index % 2 === 1 ? 8 : 0 }}>
-                  <ProductCard product={item} style={{ width: '100%' }} />
-                </View>
-              )}
-              keyExtractor={(item) => item.id}
+              renderItem={renderProductItem}
+              keyExtractor={(item: any) => item.id}
             />
           )}
         </View>
@@ -114,7 +120,7 @@ const getStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
     flexDirection: "column",
-    backgroundColor: "#F7F9FC", 
+    backgroundColor: "#F7F9FC",
   },
   categoriesContainer: {
     backgroundColor: "#E5E7EB", // Grey background to match screenshot
@@ -160,7 +166,7 @@ const getStyles = (colors: any) => StyleSheet.create({
   },
   contentScroll: {
     padding: 16,
-    paddingBottom: 100, 
+    paddingBottom: 100,
   },
   headerRow: {
     flexDirection: "row",
@@ -182,5 +188,17 @@ const getStyles = (colors: any) => StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
+  },
+  gridItem: {
+    flex: 1,
+  },
+  padRight: {
+    paddingRight: 8,
+  },
+  padLeft: {
+    paddingLeft: 8,
+  },
+  cardFullWidth: {
+    width: "100%",
   }
 });
