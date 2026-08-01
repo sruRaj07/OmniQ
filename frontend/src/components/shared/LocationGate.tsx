@@ -3,7 +3,7 @@
  * Author: OmniQ Team
  */
 import { StyleSheet, Text, View, ActivityIndicator } from "react-native";
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors } from "@/store/useThemeStore";
 import { useLocation } from "@/hooks/useLocation";
 import { LocationIcon } from "@/components/ui/LocationIcon";
 export function LocationGate({
@@ -13,9 +13,7 @@ export function LocationGate({
   pincode?: string;
   city?: string;
 }) {
-  const {
-    colors
-  } = useAppTheme();
+  const colors = useThemeColors();
   const styles = getStyles(colors);
   const {
     isServiceable,

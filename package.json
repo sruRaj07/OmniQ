@@ -10,6 +10,7 @@
     "dev:frontend": "pnpm --filter frontend dev",
     "dev:api": "pnpm --filter @omniq/api-gateway dev",
     "build": "pnpm --recursive build",
+    "preview:web": "pnpm --filter frontend preview:web",
     "typecheck": "pnpm --recursive typecheck",
     "test": "pnpm --recursive test",
     "lint": "pnpm --recursive lint"
@@ -28,6 +29,30 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "esbuild"
-    ]
+    ],
+    "packageExtensions": {
+      "@tanstack/router-generator": {
+        "dependencies": {
+          "recast": "^0.23.9"
+        }
+      }
+    },
+    "overrides": {
+      "@tanstack/react-router": "1.120.20",
+      "@tanstack/router-generator": "1.120.20",
+      "@tanstack/router-plugin": "1.120.20",
+      "@tanstack/react-start-plugin": "1.120.17",
+      "@tanstack/start-plugin-core": "1.120.17",
+      "@tanstack/server-functions-plugin": "1.120.17",
+      "@tanstack/directive-functions-plugin": "1.120.17",
+      "@tanstack/start-server-functions-handler": "1.120.19",
+      "@tanstack/react-start-server": "1.120.20",
+      "@tanstack/react-start-client": "1.120.20",
+      "@tanstack/start-server-core": "1.120.19",
+      "@tanstack/start-client-core": "1.120.19",
+      "@tanstack/router-core": "1.120.19",
+      "@tanstack/history": "1.120.17",
+      "@tanstack/virtual-file-routes": "1.120.17"
+    }
   }
 }

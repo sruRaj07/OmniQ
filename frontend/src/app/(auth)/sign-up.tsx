@@ -13,7 +13,7 @@ import { EyeOffIcon } from "@/components/ui/EyeOffIcon";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Screen } from "@/components/shared/Screen";
 import { TermsModal } from "@/components/shared/TermsModal";
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors } from "@/store/useThemeStore";
 import { supabase } from "@/lib/supabase";
 import { apiClient } from "@/lib/apiClient";
 WebBrowser.maybeCompleteAuthSession();
@@ -28,9 +28,7 @@ const signUpSchema = z.object({
 });
 type SignUpFormData = z.infer<typeof signUpSchema>;
 export default function SignUpScreen() {
-  const {
-    colors
-  } = useAppTheme();
+  const colors = useThemeColors();
   const styles = getStyles(colors);
   const router = useRouter();
   const {

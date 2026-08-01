@@ -3,17 +3,18 @@
  * Author: OmniQ Team
  */
 import { StyleSheet, Text, View, ActivityIndicator, TouchableOpacity } from "react-native";
-import { useState } from "react";
+import { useState, useCallback } from "react";
+import { FlashList } from "@shopify/flash-list";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { Screen } from "@/components/shared/Screen";
 import { ShieldIcon } from "@/components/ui/ShieldIcon";
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors } from "@/store/useThemeStore";
 import { apiClient } from "@/lib/apiClient";
 import { formatCurrency } from "@/utils/formatCurrency";
 
 export default function AdminOrdersScreen() {
-  const { colors } = useAppTheme();
+  const colors = useThemeColors();
   const styles = getStyles(colors);
   const [activeTab, setActiveTab] = useState<'new' | 'delivered'>('new');
 
@@ -53,8 +54,9 @@ export default function AdminOrdersScreen() {
     });
   };
 
-  return (
-    <Screen scroll>
+
+  const renderHeader = useCallback(() => (
+    <>
       <View style={styles.header}>
         <Text style={styles.title}>All Orders</Text>
         <Text style={styles.subtitle}>
@@ -76,146 +78,158 @@ export default function AdminOrdersScreen() {
           <Text style={[styles.tabText, activeTab === 'delivered' && styles.activeTabText]}>Delivered</Text>
         </TouchableOpacity>
       </View>
+    </>
+  ), [activeTab, filteredOrders.length, styles]);
 
-      {isLoading ? (
-        <ActivityIndicator size="large" color={colors.accent} style={{ marginTop: 40 }} />
-      ) : filteredOrders.length === 0 ? (
-        <View style={styles.emptyState}>
-          <ShieldIcon size={48} color={colors.border} />
-          <Text style={styles.emptyText}>No {activeTab} orders found.</Text>
+  const renderItem = useCallback(({ item: order }: { item: any }) => {
+    // Extract unique sellers from all items in this order
+    const sellerMap: Record<string, { name: string; city: string }> = {};
+    if (order.order_items) {
+      order.order_items.forEach((item: any) => {
+        const s = item.product?.seller;
+        if (s && s.id && !sellerMap[s.id]) {
+          sellerMap[s.id] = { name: s.business_name, city: s.city };
+        }
+      });
+    }
+    // Fallback to order-level seller if no item-level data
+    if (Object.keys(sellerMap).length === 0 && order.seller) {
+      sellerMap[order.seller_id] = {
+        name: order.seller.business_name,
+        city: order.seller.city
+      };
+    }
+    const pickups = Object.values(sellerMap);
+
+    return (
+      <View style={styles.orderCard}>
+        {/* Order header */}
+        <View style={styles.orderHeaderRow}>
+          <Text style={styles.orderId} selectable>#{order.id.substring(0, 8).toUpperCase()}</Text>
+          <View style={[
+            styles.statusBadge,
+            order.status === 'delivered' && styles.statusDelivered,
+            order.status === 'pending' && styles.statusPending,
+          ]}>
+            <Text style={[
+              styles.badgeText,
+              order.status === 'delivered' && styles.badgeTextDelivered,
+            ]}>{order.status}</Text>
+          </View>
         </View>
-      ) : (
-        <View style={styles.list}>
-          {filteredOrders.map((order: any) => (
-            <View key={order.id} style={styles.orderCard}>
-              {/* Order header */}
-              <View style={styles.orderHeaderRow}>
-                <Text style={styles.orderId} selectable>#{order.id.substring(0, 8).toUpperCase()}</Text>
-                <View style={[
-                  styles.statusBadge,
-                  order.status === 'delivered' && styles.statusDelivered,
-                  order.status === 'pending' && styles.statusPending,
-                ]}>
-                  <Text style={[
-                    styles.badgeText,
-                    order.status === 'delivered' && styles.badgeTextDelivered,
-                  ]}>{order.status}</Text>
-                </View>
+
+        {/* Date & Amount */}
+        <View style={styles.orderMeta}>
+          <View style={styles.metaRow}>
+            <Text style={styles.metaLabel}>Date</Text>
+            <Text style={styles.metaValue}>{formatDate(order.created_at)}</Text>
+          </View>
+          <View style={styles.metaRow}>
+            <Text style={styles.metaLabel}>Total</Text>
+            <Text style={[styles.metaValue, styles.metaAmount]}>{formatCurrency(order.total)}</Text>
+          </View>
+          <View style={styles.metaRow}>
+            <Text style={styles.metaLabel}>Platform Fee</Text>
+            <Text style={styles.metaValue}>{formatCurrency(order.platform_fee)}</Text>
+          </View>
+          <View style={styles.metaRow}>
+            <Text style={styles.metaLabel}>Payment</Text>
+            <Text style={[styles.metaValue, { textTransform: "uppercase" }]}>{order.payment_method}</Text>
+          </View>
+        </View>
+
+        {/* Pickup & Delivery info */}
+        <View style={styles.infoContainer}>
+          {pickups.map((seller: any, idx: number) => (
+            <View key={idx} style={styles.infoBlock}>
+              <View style={styles.infoLabelRow}>
+                <View style={[styles.infoDot, { backgroundColor: colors.accent }]} />
+                <Text style={styles.infoLabel}>
+                  {pickups.length > 1 ? `PICKUP ${idx + 1} OF ${pickups.length}` : "PICKUP FROM"}
+                </Text>
               </View>
-
-              {/* Date & Amount */}
-              <View style={styles.orderMeta}>
-                <View style={styles.metaRow}>
-                  <Text style={styles.metaLabel}>Date</Text>
-                  <Text style={styles.metaValue}>{formatDate(order.created_at)}</Text>
-                </View>
-                <View style={styles.metaRow}>
-                  <Text style={styles.metaLabel}>Total</Text>
-                  <Text style={[styles.metaValue, styles.metaAmount]}>{formatCurrency(order.total)}</Text>
-                </View>
-                <View style={styles.metaRow}>
-                  <Text style={styles.metaLabel}>Platform Fee</Text>
-                  <Text style={styles.metaValue}>{formatCurrency(order.platform_fee)}</Text>
-                </View>
-                <View style={styles.metaRow}>
-                  <Text style={styles.metaLabel}>Payment</Text>
-                  <Text style={[styles.metaValue, { textTransform: "uppercase" }]}>{order.payment_method}</Text>
-                </View>
-              </View>
-
-              {/* Pickup & Delivery info */}
-              {(() => {
-                // Extract unique sellers from all items in this order
-                const sellerMap: Record<string, { name: string; city: string }> = {};
-                if (order.order_items) {
-                  order.order_items.forEach((item: any) => {
-                    const s = item.product?.seller;
-                    if (s && s.id && !sellerMap[s.id]) {
-                      sellerMap[s.id] = { name: s.business_name, city: s.city };
-                    }
-                  });
-                }
-                // Fallback to order-level seller if no item-level data
-                if (Object.keys(sellerMap).length === 0 && order.seller) {
-                  sellerMap[order.seller_id] = {
-                    name: order.seller.business_name,
-                    city: order.seller.city
-                  };
-                }
-                const pickups = Object.values(sellerMap);
-
-                return (
-                  <View style={styles.infoContainer}>
-                    {pickups.map((seller: any, idx: number) => (
-                      <View key={idx} style={styles.infoBlock}>
-                        <View style={styles.infoLabelRow}>
-                          <View style={[styles.infoDot, { backgroundColor: colors.accent }]} />
-                          <Text style={styles.infoLabel}>
-                            {pickups.length > 1 ? `PICKUP ${idx + 1} OF ${pickups.length}` : "PICKUP FROM"}
-                          </Text>
-                        </View>
-                        <Text style={styles.infoName}>{seller.name}</Text>
-                        <Text style={styles.infoDetail}>{seller.city || "City not set"}</Text>
-                      </View>
-                    ))}
-
-                    <View style={styles.infoDivider} />
-
-                    <View style={styles.infoBlock}>
-                      <View style={styles.infoLabelRow}>
-                        <View style={[styles.infoDot, { backgroundColor: "#34A853" }]} />
-                        <Text style={styles.infoLabel}>DELIVER TO</Text>
-                      </View>
-                      {order.buyer && (
-                        <>
-                          <Text style={styles.infoName}>{order.buyer.full_name || "Unknown Buyer"}</Text>
-                          {order.buyer.phone_number && <Text style={styles.infoDetail}>{order.buyer.phone_number}</Text>}
-                        </>
-                      )}
-                      {order.delivery_address && (
-                        <Text style={styles.infoDetail}>
-                          {order.delivery_address.street || order.delivery_address.line1}, {order.delivery_address.city} — {order.delivery_address.zip || order.delivery_address.pincode}
-                        </Text>
-                      )}
-                    </View>
-                  </View>
-                );
-              })()}
-
-              {/* Items */}
-              {order.order_items && order.order_items.length > 0 && (
-                <View style={styles.itemsSection}>
-                  <Text style={styles.itemsTitle}>Items ({order.order_items.length})</Text>
-                  {order.order_items.map((item: any, idx: number) => (
-                    <View key={idx} style={styles.itemRow}>
-                      <Text style={styles.itemName} numberOfLines={1}>
-                        {item.quantity}× {item.product?.title || "Unknown Product"}
-                      </Text>
-                      <Text style={styles.itemPrice}>{formatCurrency(item.subtotal)}</Text>
-                    </View>
-                  ))}
-                </View>
-              )}
-
-              {/* Mark Delivered button */}
-              {order.status !== 'delivered' && order.status !== 'cancelled' && (
-                <TouchableOpacity
-                  style={styles.deliverBtn}
-                  onPress={() => handleMarkDelivered(order.id)}
-                  disabled={updateStatusMutation.isPending}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.deliverBtnText}>
-                    {updateStatusMutation.isPending ? "Updating..." : "Mark Delivered"}
-                  </Text>
-                </TouchableOpacity>
-              )}
+              <Text style={styles.infoName}>{seller.name}</Text>
+              <Text style={styles.infoDetail}>{seller.city || "City not set"}</Text>
             </View>
           ))}
-        </View>
-      )}
 
-      <View style={{ height: 60 }} />
+          <View style={styles.infoDivider} />
+
+          <View style={styles.infoBlock}>
+            <View style={styles.infoLabelRow}>
+              <View style={[styles.infoDot, { backgroundColor: "#34A853" }]} />
+              <Text style={styles.infoLabel}>DELIVER TO</Text>
+            </View>
+            {order.buyer && (
+              <>
+                <Text style={styles.infoName}>{order.buyer.full_name || "Unknown Buyer"}</Text>
+                {order.buyer.phone_number && <Text style={styles.infoDetail}>{order.buyer.phone_number}</Text>}
+              </>
+            )}
+            {order.delivery_address && (
+              <Text style={styles.infoDetail}>
+                {order.delivery_address.street || order.delivery_address.line1}, {order.delivery_address.city} — {order.delivery_address.zip || order.delivery_address.pincode}
+              </Text>
+            )}
+          </View>
+        </View>
+
+        {/* Items */}
+        {order.order_items && order.order_items.length > 0 && (
+          <View style={styles.itemsSection}>
+            <Text style={styles.itemsTitle}>Items ({order.order_items.length})</Text>
+            {order.order_items.map((item: any, idx: number) => (
+              <View key={idx} style={styles.itemRow}>
+                <Text style={styles.itemName} numberOfLines={1}>
+                  {item.quantity}× {item.product?.title || "Unknown Product"}
+                </Text>
+                <Text style={styles.itemPrice}>{formatCurrency(item.subtotal)}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Mark Delivered button */}
+        {order.status !== 'delivered' && order.status !== 'cancelled' && (
+          <TouchableOpacity
+            style={styles.deliverBtn}
+            onPress={() => handleMarkDelivered(order.id)}
+            disabled={updateStatusMutation.isPending}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.deliverBtnText}>
+              {updateStatusMutation.isPending ? "Updating..." : "Mark Delivered"}
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  }, [colors.accent, styles, updateStatusMutation.isPending]);
+
+  return (
+    <Screen scroll={false}>
+      {isLoading ? (
+        <>
+          {renderHeader()}
+          <ActivityIndicator size="large" color={colors.accent} style={{ marginTop: 40 }} />
+        </>
+      ) : (
+        <FlashList
+          data={filteredOrders}
+          renderItem={renderItem}
+          {...({ estimatedItemSize: 400 } as any)}
+          ListHeaderComponent={renderHeader}
+          contentContainerStyle={{ paddingBottom: 100 }}
+          showsVerticalScrollIndicator={false}
+          ItemSeparatorComponent={() => <View style={{ height: 16 }} />}
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <ShieldIcon size={48} color={colors.border} />
+              <Text style={styles.emptyText}>No {activeTab} orders found.</Text>
+            </View>
+          }
+        />
+      )}
     </Screen>
   );
 }

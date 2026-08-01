@@ -9,12 +9,12 @@ import { StyleSheet, View } from "react-native";
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming, withSpring, withDelay, Easing, interpolate } from "react-native-reanimated";
 import { ShoppingCartIcon } from "@/components/ui/ShoppingCartIcon";
 import { SparklesIcon } from "@/components/ui/SparklesIcon";
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors } from "@/store/useThemeStore";
 
 const SPARKLE_COUNT = 8;
 
 export function AnimatedEmptyCart() {
-  const { colors } = useAppTheme();
+  const colors = useThemeColors();
   const styles = getStyles(colors);
   
   // ── Core Animations ──

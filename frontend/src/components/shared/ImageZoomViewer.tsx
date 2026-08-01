@@ -3,7 +3,7 @@ import { Modal, StyleSheet, View, TouchableOpacity, Text } from 'react-native';
 import { Image } from 'expo-image';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
-import { useAppTheme } from '@/store/useThemeStore';
+import { useThemeColors } from '@/store/useThemeStore';
 
 interface Props {
   visible: boolean;
@@ -12,7 +12,7 @@ interface Props {
 }
 
 export function ImageZoomViewer({ visible, imageUrl, onClose }: Props) {
-  const { colors } = useAppTheme();
+  const colors = useThemeColors();
   
   const scale = useSharedValue(1);
   const savedScale = useSharedValue(1);

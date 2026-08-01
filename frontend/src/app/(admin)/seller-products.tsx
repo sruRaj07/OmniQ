@@ -8,18 +8,17 @@ import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, run
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
-import { useState } from "react";
+import { useState, useCallback } from "react";
+import { FlashList } from "@shopify/flash-list";
 import { Screen } from "@/components/shared/Screen";
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors } from "@/store/useThemeStore";
 import { ArrowLeftIcon } from "@/components/ui/ArrowLeftIcon";
 import { apiClient } from "@/lib/apiClient";
 import { formatCurrency } from "@/utils/formatCurrency";
 import { ShieldIcon } from "@/components/ui/ShieldIcon";
 import { CategorySvgIcon } from "@/components/ui/CategorySvgIcon";
 export default function AdminSellerProductsScreen() {
-  const {
-    colors
-  } = useAppTheme();
+  const colors = useThemeColors();
   const styles = getStyles(colors);
   const {
     sellerId,
@@ -119,7 +118,10 @@ export default function AdminSellerProductsScreen() {
       minute: '2-digit'
     });
   };
-  return <Screen scroll>
+  const filteredProducts = products?.filter((p: any) => (activeTab === "approved" ? p.is_approved : !p.is_approved)) || [];
+
+  const renderHeader = useCallback(() => (
+    <>
       <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace("/(admin)/sellers")} style={styles.backButton}>
         <ArrowLeftIcon size={24} color={colors.textPrimary} />
       </TouchableOpacity>
@@ -141,105 +143,123 @@ export default function AdminSellerProductsScreen() {
           <Text style={[styles.tabText, activeTab === "approved" && styles.activeTabText]}>Approved</Text>
         </TouchableOpacity>
       </View>
+    </>
+  ), [activeTab, styles, storeName, colors.textPrimary, router]);
 
-      {isLoading ? <ActivityIndicator size="large" color="#6C63FF" style={{
-      marginTop: 40
-    }} /> : (products?.filter((p: any) => (activeTab === "approved" ? p.is_approved : !p.is_approved)).length === 0) ? <View style={styles.emptyState}>
-          <ShieldIcon size={48} color="rgba(0,0,0,0.05)" />
-          <Text style={styles.emptyText}>No {activeTab} products found.</Text>
-        </View> : <View style={styles.list}>
-          {products?.filter((p: any) => (activeTab === "approved" ? p.is_approved : !p.is_approved)).map((product: any) => {
-        const isExpanded = expandedId === product.id;
-        const isApproving = loadingAction?.id === product.id && loadingAction?.action === "approve";
-        const isRejecting = loadingAction?.id === product.id && loadingAction?.action === "remove";
-        const isDeleting = loadingAction?.id === product.id && loadingAction?.action === "delete";
-        const isProcessing = isApproving || isRejecting || isDeleting;
+  const renderItem = useCallback(({ item: product }: { item: any }) => {
+    const isExpanded = expandedId === product.id;
+    const isApproving = loadingAction?.id === product.id && loadingAction?.action === "approve";
+    const isRejecting = loadingAction?.id === product.id && loadingAction?.action === "remove";
+    const isDeleting = loadingAction?.id === product.id && loadingAction?.action === "delete";
+    const isProcessing = isApproving || isRejecting || isDeleting;
 
-        return <TouchableOpacity key={product.id} activeOpacity={0.9} onPress={() => setExpandedId(isExpanded ? null : product.id)}>
-                <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                  <View style={styles.cardHeader}>
-                    <Text style={[styles.productName, { color: colors.textPrimary }]} numberOfLines={isExpanded ? undefined : 2}>
-                      {product.title}
-                    </Text>
-                    <View style={styles.badgeGroup}>
-                      {(product.category || product.category_id) ? (
-                        <View style={[styles.categoryBadge, { borderColor: colors.border }]}>
-                          <CategorySvgIcon category={product.category || product.category_id || ""} size={12} showBackground={false} style={{ marginRight: 4 }} />
-                          <Text style={[styles.categoryBadgeText, { color: colors.textSecondary }]}>
-                            #{String(product.category || product.category_id).toUpperCase()}
-                          </Text>
-                        </View>
-                      ) : null}
-                      <View style={[styles.statusBadge, product.is_approved ? { borderColor: colors.success } : { borderColor: colors.warning }]}>
-                        <Text style={[styles.badgeText, product.is_approved ? { color: colors.success } : { color: colors.warning }]}>
-                          {product.is_approved ? "✓ APPROVED" : "⏳ PENDING"}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                  
-                  <Text style={[styles.price, { color: colors.textPrimary }]}>{formatCurrency(product.price)}</Text>
-                  
-                  <Text style={styles.mutedText} numberOfLines={isExpanded ? undefined : 2}>
-                    {product.description}
+    return (
+      <TouchableOpacity activeOpacity={0.9} onPress={() => setExpandedId(isExpanded ? null : product.id)}>
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.cardHeader}>
+            <Text style={[styles.productName, { color: colors.textPrimary }]} numberOfLines={isExpanded ? undefined : 2}>
+              {product.title}
+            </Text>
+            <View style={styles.badgeGroup}>
+              {(product.category || product.category_id) ? (
+                <View style={[styles.categoryBadge, { borderColor: colors.border }]}>
+                  <CategorySvgIcon category={product.category || product.category_id || ""} size={12} showBackground={false} style={{ marginRight: 4 }} />
+                  <Text style={[styles.categoryBadgeText, { color: colors.textSecondary }]}>
+                    #{String(product.category || product.category_id).toUpperCase()}
                   </Text>
-                  
-                  {product.images && product.images.length > 0 && <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageScroll}>
-                      {product.images.map((uri: string, idx: number) => <Image key={idx} source={uri} style={styles.image} contentFit="cover" transition={150} />)}
-                    </ScrollView>}
-
-                  {isExpanded && <View style={[styles.expandedInfo, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
-                      <View style={styles.infoRow}>
-                        <Text style={styles.infoLabel}>Product ID:</Text>
-                        <Text style={styles.infoValue} selectable>{product.id}</Text>
-                      </View>
-                      <View style={styles.infoRow}>
-                        <Text style={styles.infoLabel}>Category:</Text>
-                        <Text style={styles.infoValue}>{product.category_id || "Uncategorized"}</Text>
-                      </View>
-                      <View style={styles.infoRow}>
-                        <Text style={styles.infoLabel}>Stock Available:</Text>
-                        <Text style={styles.infoValue}>{product.stock_quantity ?? "0"} units</Text>
-                      </View>
-                      <View style={styles.infoRow}>
-                        <Text style={styles.infoLabel}>Added On:</Text>
-                        <Text style={styles.infoValue}>{formatDate(product.created_at)}</Text>
-                      </View>
-                      <View style={styles.infoRow}>
-                        <Text style={styles.infoLabel}>Last Updated:</Text>
-                        <Text style={styles.infoValue}>{formatDate(product.updated_at)}</Text>
-                      </View>
-                    </View>}
-
-                  <View style={styles.actions}>
-                    {!product.is_approved && <TouchableOpacity disabled={isProcessing} style={[styles.button, styles.btnSuccess]} onPress={() => moderateProduct.mutate({
-                id: product.id,
-                action: "approve"
-              })}>
-                        {isApproving ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={[styles.btnText, { color: "#FFF" }]}>Approve</Text>}
-                      </TouchableOpacity>}
-                      
-                    <TouchableOpacity disabled={isProcessing} style={[styles.button, styles.btnWarningBtn]} onPress={() => moderateProduct.mutate({
-                id: product.id,
-                action: "remove"
-              })}>
-                      {isRejecting ? <ActivityIndicator size="small" color="#F57C00" /> : <Text style={[styles.btnText, { color: "#F57C00" }]}>Reject</Text>}
-                    </TouchableOpacity>
-
-                    <TouchableOpacity disabled={isProcessing} style={[styles.button, styles.btnDanger]} onPress={() => moderateProduct.mutate({
-                id: product.id,
-                action: "delete"
-              })}>
-                      {isDeleting ? <ActivityIndicator size="small" color="#F93C65" /> : <Text style={[styles.btnText, { color: "#F93C65" }]}>Delete</Text>}
-                    </TouchableOpacity>
-                  </View>
                 </View>
-              </TouchableOpacity>;
-      })}
-        </View>}
-      <View style={{
-      height: 60
-    }} />
+              ) : null}
+              <View style={[styles.statusBadge, product.is_approved ? { borderColor: colors.success } : { borderColor: colors.warning }]}>
+                <Text style={[styles.badgeText, product.is_approved ? { color: colors.success } : { color: colors.warning }]}>
+                  {product.is_approved ? "✓ APPROVED" : "⏳ PENDING"}
+                </Text>
+              </View>
+            </View>
+          </View>
+          
+          <Text style={[styles.price, { color: colors.textPrimary }]}>{formatCurrency(product.price)}</Text>
+          
+          <Text style={styles.mutedText} numberOfLines={isExpanded ? undefined : 2}>
+            {product.description}
+          </Text>
+          
+          {product.images && product.images.length > 0 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageScroll}>
+              {product.images.map((uri: string, idx: number) => (
+                <Image key={idx} source={uri} style={styles.image} contentFit="cover" transition={150} />
+              ))}
+            </ScrollView>
+          )}
+
+          {isExpanded && (
+            <View style={[styles.expandedInfo, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Product ID:</Text>
+                <Text style={styles.infoValue} selectable>{product.id}</Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Category:</Text>
+                <Text style={styles.infoValue}>{product.category_id || "Uncategorized"}</Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Stock Available:</Text>
+                <Text style={styles.infoValue}>{product.stock_quantity ?? "0"} units</Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Added On:</Text>
+                <Text style={styles.infoValue}>{formatDate(product.created_at)}</Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Last Updated:</Text>
+                <Text style={styles.infoValue}>{formatDate(product.updated_at)}</Text>
+              </View>
+            </View>
+          )}
+
+          <View style={styles.actions}>
+            {!product.is_approved && (
+              <TouchableOpacity disabled={isProcessing} style={[styles.button, styles.btnSuccess]} onPress={() => moderateProduct.mutate({ id: product.id, action: "approve" })}>
+                {isApproving ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={[styles.btnText, { color: "#FFF" }]}>Approve</Text>}
+              </TouchableOpacity>
+            )}
+                    
+            <TouchableOpacity disabled={isProcessing} style={[styles.button, styles.btnWarningBtn]} onPress={() => moderateProduct.mutate({ id: product.id, action: "remove" })}>
+              {isRejecting ? <ActivityIndicator size="small" color="#F57C00" /> : <Text style={[styles.btnText, { color: "#F57C00" }]}>Reject</Text>}
+            </TouchableOpacity>
+
+            <TouchableOpacity disabled={isProcessing} style={[styles.button, styles.btnDanger]} onPress={() => moderateProduct.mutate({ id: product.id, action: "delete" })}>
+              {isDeleting ? <ActivityIndicator size="small" color="#F93C65" /> : <Text style={[styles.btnText, { color: "#F93C65" }]}>Delete</Text>}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  }, [expandedId, loadingAction, colors, styles, moderateProduct]);
+
+  return <Screen scroll={false}>
+      {isLoading ? (
+        <>
+          {renderHeader()}
+          <ActivityIndicator size="large" color="#6C63FF" style={{ marginTop: 40 }} />
+        </>
+      ) : (
+        <FlashList
+          data={filteredProducts}
+          renderItem={renderItem}
+          {...({ estimatedItemSize: 250 } as any)}
+          extraData={expandedId}
+          ListHeaderComponent={renderHeader}
+          contentContainerStyle={{ paddingBottom: 100 }}
+          showsVerticalScrollIndicator={false}
+          ItemSeparatorComponent={() => <View style={{ height: 16 }} />}
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <ShieldIcon size={48} color="rgba(0,0,0,0.05)" />
+              <Text style={styles.emptyText}>No {activeTab} products found.</Text>
+            </View>
+          }
+        />
+      )}
 
       <Modal visible={showSuccess} transparent animationType="fade">
         <View style={styles.modalContainer}>

@@ -7,7 +7,7 @@ import * as z from "zod";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Screen } from "@/components/shared/Screen";
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors } from "@/store/useThemeStore";
 import { apiClient } from "@/lib/apiClient";
 import { useSellerStatus } from "@/hooks/useSellerStatus";
 const applySchema = z.object({
@@ -19,9 +19,7 @@ const applySchema = z.object({
 });
 type ApplyFormData = z.infer<typeof applySchema>;
 export default function ApplySellerScreen() {
-  const {
-    colors
-  } = useAppTheme();
+  const colors = useThemeColors();
   const styles = getStyles(colors);
   const router = useRouter();
   const [loading, setLoading] = useState(false);

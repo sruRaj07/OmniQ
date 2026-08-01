@@ -2,12 +2,12 @@
  * OmniQ mobile app - seller order card.
  * Author: OmniQ Team
  */
-import React from "react";
+import React, { memo, useMemo } from "react";
 import { StyleSheet, Text, View, TouchableOpacity } from "react-native";
 import { Image } from "expo-image";
 import { Card } from "@/components/ui/Card";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors } from "@/store/useThemeStore";
 import { formatCurrency } from "@/utils/formatCurrency";
 
 type OrderCardProps = {
@@ -16,9 +16,9 @@ type OrderCardProps = {
   onPress?: () => void;
 };
 
-export function OrderCard({ order, isSeller, onPress }: OrderCardProps) {
-  const { colors } = useAppTheme();
-  const styles = getStyles(colors);
+export const OrderCard = memo(function OrderCard({ order, isSeller, onPress }: OrderCardProps) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
 
   // Extract info from order items
   const items = order.order_items || [];
@@ -67,7 +67,15 @@ export function OrderCard({ order, isSeller, onPress }: OrderCardProps) {
   }
 
   return cardContent;
-}
+}, (prev, next) => {
+  return (
+    prev.order.id === next.order.id &&
+    prev.order.status === next.order.status &&
+    prev.order.total === next.order.total &&
+    prev.order.total_amount === next.order.total_amount &&
+    prev.isSeller === next.isSeller
+  );
+});
 
 const getStyles = (colors: any) => StyleSheet.create({
   card: {

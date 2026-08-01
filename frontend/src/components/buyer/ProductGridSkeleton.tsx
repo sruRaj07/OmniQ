@@ -1,9 +1,9 @@
 import React from "react";
 import { StyleSheet, View } from "react-native";
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors } from "@/store/useThemeStore";
 
 export function ProductGridSkeleton({ count = 6 }: { count?: number }) {
-  const { colors } = useAppTheme();
+  const colors = useThemeColors();
   const styles = getStyles(colors);
 
   return (

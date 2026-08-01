@@ -18,7 +18,7 @@ import { ShieldIcon } from "@/components/ui/ShieldIcon";
 import { GridIcon } from "@/components/ui/GridIcon";
 import { SearchIcon } from "@/components/ui/SearchIcon";
 import { Screen } from "@/components/shared/Screen";
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors, useAppTheme } from "@/store/useThemeStore";
 import { apiClient } from "@/lib/apiClient";
 import { LinearGradient } from "expo-linear-gradient";
 import { MetricCard } from "@/components/admin/MetricCard";

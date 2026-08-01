@@ -1,4 +1,11 @@
 {
   "compilerOptions": {},
-  "extends": "expo/tsconfig.base"
+  "extends": "expo/tsconfig.base",
+  "exclude": [
+    "frontend",
+    "backend",
+    "web-storefront",
+    "admin",
+    "omniq"
+  ]
 }

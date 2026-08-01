@@ -8,11 +8,11 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Screen } from "@/components/shared/Screen";
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors } from "@/store/useThemeStore";
 import { supabase } from "@/lib/supabase";
 
 export default function OtpResetScreen() {
-  const { colors } = useAppTheme();
+  const colors = useThemeColors();
   const styles = getStyles(colors);
   const router = useRouter();
   

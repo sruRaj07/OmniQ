@@ -2,8 +2,7 @@ import React from "react";
 import { StyleSheet, View, Text, TouchableOpacity } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SearchInput } from "./SearchInput";
-import { AnimatedCartButton } from "./AnimatedCartButton";
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors, useAppTheme } from "@/store/useThemeStore";
 import { useRouter } from "expo-router";
 
 export function BuyerHeader() {
@@ -23,9 +22,8 @@ export function BuyerHeader() {
       <View style={styles.searchRow}>
         <SearchInput 
           placeholder="Search OmniQ" 
-          style={{ flex: 1, marginBottom: 0, marginRight: 12 }} 
+          style={{ flex: 1, marginBottom: 0 }} 
         />
-        <AnimatedCartButton onPress={() => router.push("/(buyer)/cart")} />
       </View>
     </LinearGradient>
   );

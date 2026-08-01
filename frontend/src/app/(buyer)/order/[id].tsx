@@ -1,15 +1,13 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
 import { Screen } from "@/components/shared/Screen";
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors } from "@/store/useThemeStore";
 import { useOrders } from "@/hooks/useOrders";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { formatCurrency } from "@/utils/formatCurrency";
 import { Image } from "expo-image";
 export default function OrderDetailsScreen() {
-  const {
-    colors
-  } = useAppTheme();
+  const colors = useThemeColors();
   const styles = getStyles(colors);
   const {
     id

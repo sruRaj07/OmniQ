@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/Input";
 import { EyeIcon } from "@/components/ui/EyeIcon";
 import { EyeOffIcon } from "@/components/ui/EyeOffIcon";
 import { Screen } from "@/components/shared/Screen";
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors } from "@/store/useThemeStore";
 import { supabase } from "@/lib/supabase";
 import { apiClient } from "@/lib/apiClient";
 WebBrowser.maybeCompleteAuthSession();
@@ -25,9 +25,7 @@ const signInSchema = z.object({
 });
 type SignInFormData = z.infer<typeof signInSchema>;
 export default function SignInScreen() {
-  const {
-    colors
-  } = useAppTheme();
+  const colors = useThemeColors();
   const styles = getStyles(colors);
   const router = useRouter();
   const {

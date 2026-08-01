@@ -2,7 +2,7 @@ import React, { useRef, useEffect } from "react";
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity, useWindowDimensions } from "react-native";
 import { Image } from "expo-image";
 import Animated, { useSharedValue, useAnimatedScrollHandler, useAnimatedStyle, interpolate, Extrapolation, type SharedValue } from "react-native-reanimated";
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors } from "@/store/useThemeStore";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/apiClient";
 import { useRouter } from "expo-router";
@@ -33,7 +33,7 @@ function PaginationDot({ scrollX, index, itemWidth, colors }: { scrollX: SharedV
 }
 
 export function AdvertisementCarousel({ type = 'ads' }: { type?: 'ads' | 'offers' }) {
-  const { colors } = useAppTheme();
+  const colors = useThemeColors();
   const router = useRouter();
   const { width } = useWindowDimensions();
   const CARD_WIDTH = width - 48; // Full width minus padding

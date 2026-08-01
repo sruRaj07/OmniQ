@@ -9,7 +9,7 @@ import { StyleSheet, View, TouchableOpacity } from "react-native";
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming, withSpring, withDelay, Easing, interpolate } from "react-native-reanimated";
 import { ShoppingCartIcon } from "@/components/ui/ShoppingCartIcon";
 import { SparklesIcon } from "@/components/ui/SparklesIcon";
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors } from "@/store/useThemeStore";
 
 const SPARKLE_COUNT = 6;
 
@@ -30,7 +30,7 @@ function AnimatedSparkle({ s, colors, styles }: any) {
 }
 
 export const AnimatedCartButton = memo(function AnimatedCartButton({ onPress }: { onPress?: () => void; }) {
-  const { colors } = useAppTheme();
+  const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
   
   // ── Core Animations ──

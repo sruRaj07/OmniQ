@@ -1,6 +1,7 @@
+import React, { memo, useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors } from "@/store/useThemeStore";
 import { formatCurrency } from "@/utils/formatCurrency";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 type TopSellerCardProps = {
@@ -12,7 +13,7 @@ type TopSellerCardProps = {
   status: string;
   timeAgo?: string;
 };
-export function TopSellerCard({
+export const TopSellerCard = memo(function TopSellerCard({
   rank,
   name,
   orders,
@@ -21,10 +22,8 @@ export function TopSellerCard({
   status,
   timeAgo
 }: TopSellerCardProps) {
-  const {
-    colors
-  } = useAppTheme();
-  const styles = getStyles(colors);
+  const colors = useThemeColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   const isFirst = rank === 1;
   const isSecond = rank === 2;
   const isThird = rank === 3;
@@ -46,7 +45,7 @@ export function TopSellerCard({
         <StatusBadge status={status} />
       </View>
     </View>;
-}
+});
 const getStyles = (colors: any) => StyleSheet.create({
   card: {
     flexDirection: "row",

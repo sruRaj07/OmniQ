@@ -2,7 +2,8 @@
  * OmniQ mobile app - buyer explore screen.
  * Author: OmniQ Team
  */
-import { StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { FlashList } from "@shopify/flash-list";
 import { ProductCard } from "@/components/buyer/ProductCard";
 import { ProductGridSkeleton } from "@/components/buyer/ProductGridSkeleton";
 import { Input } from "@/components/ui/Input";
@@ -10,17 +11,29 @@ import { Screen } from "@/components/shared/Screen";
 import { BuyerHeader } from "@/components/buyer/BuyerHeader";
 import { useAppTheme } from "@/store/useThemeStore";
 import { useProducts } from "@/hooks/useProducts";
+import { useCallback } from "react";
+import type { Product } from "@/types/product.types";
+
 export default function ExploreScreen() {
-  const {
-    colors
-  } = useAppTheme();
+  const { colors } = useAppTheme();
   const styles = getStyles(colors);
+  
   const {
     products,
-    isLoading
+    isLoading,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage
   } = useProducts();
+
+  const renderProductItem = useCallback(({ item, index }: { item: Product; index: number }) => (
+    <View style={{ flex: 1, paddingRight: index % 2 === 0 ? 8 : 0, paddingLeft: index % 2 !== 0 ? 8 : 0 }}>
+      <ProductCard product={item} style={{ width: '100%' }} />
+    </View>
+  ), []);
+
   return <>
-      <Screen header={<BuyerHeader />} bottomNavItems={[{
+      <Screen scroll={false} header={<BuyerHeader />} bottomNavItems={[{
       href: "/(buyer)",
       icon: "🏠",
       label: "Home"
@@ -45,16 +58,48 @@ export default function ExploreScreen() {
       icon: "👤",
       label: "Profile"
     }]}>
-        <Text style={styles.title}>Explore</Text>
-        <Input placeholder="Search products, brands, sellers..." />
-        <View style={styles.grid}>
-          {isLoading ? <ProductGridSkeleton count={6} /> : products.length === 0 ? <Text style={{
-          color: colors.textMuted,
-          marginVertical: 20
-        }}>No products found.</Text> : products.map(product => <ProductCard key={product.id} product={product} />)}
+        <View style={{ flex: 1 }}>
+          {isLoading ? (
+             <View style={{ padding: 16 }}>
+               <Text style={styles.title}>Explore</Text>
+               <Input placeholder="Search products, brands, sellers..." />
+               <View style={{ marginTop: 20 }}>
+                 <ProductGridSkeleton count={6} />
+               </View>
+             </View>
+          ) : (
+            <FlashList
+              data={products}
+              numColumns={2}
+              {...({ estimatedItemSize: 250 } as any)}
+              contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
+              showsVerticalScrollIndicator={false}
+              ListHeaderComponent={
+                <View style={{ marginBottom: 20 }}>
+                  <Text style={styles.title}>Explore</Text>
+                  <Input placeholder="Search products, brands, sellers..." />
+                </View>
+              }
+              onEndReached={() => {
+                if (hasNextPage && !isFetchingNextPage) {
+                  fetchNextPage();
+                }
+              }}
+              onEndReachedThreshold={0.5}
+              ListFooterComponent={
+                isFetchingNextPage ? (
+                  <ActivityIndicator size="small" color={colors.accent} style={{ marginVertical: 20 }} />
+                ) : null
+              }
+              ListEmptyComponent={
+                <Text style={{ color: colors.textMuted, marginVertical: 20 }}>No products found.</Text>
+              }
+              renderItem={renderProductItem}
+              keyExtractor={(item: any) => item.id}
+            />
+          )}
         </View>
       </Screen>
-      
     </>;
 }
 const getStyles = (colors: any) => StyleSheet.create({

@@ -2,19 +2,20 @@
  * OmniQ mobile app - admin sellers screen.
  * Author: OmniQ Team
  */
-import { StyleSheet, Text, View, ActivityIndicator, Alert, ScrollView, TouchableOpacity } from "react-native";
-import { useState } from "react";
+import { StyleSheet, Text, View, ActivityIndicator, Alert, TouchableOpacity } from "react-native";
+import { useState, useCallback } from "react";
+import { FlashList } from "@shopify/flash-list";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { Screen } from "@/components/shared/Screen";
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors } from "@/store/useThemeStore";
 import { apiClient } from "@/lib/apiClient";
 import { LocationIcon } from "@/components/ui/LocationIcon";
 import { ShieldIcon } from "@/components/ui/ShieldIcon";
 import { useRouter } from "expo-router";
 
 export default function AdminSellersScreen() {
-  const { colors } = useAppTheme();
+  const colors = useThemeColors();
   const styles = getStyles(colors);
   const router = useRouter();
   
@@ -44,8 +45,8 @@ export default function AdminSellersScreen() {
     activeTab === 'requests' ? seller.status === 'pending' : seller.status !== 'pending'
   );
 
-  return (
-    <Screen scroll>
+  const renderHeader = useCallback(() => (
+    <>
       <View style={styles.header}>
         <View style={styles.headerContent}>
           <Text style={styles.title}>Seller Management</Text>
@@ -67,89 +68,104 @@ export default function AdminSellersScreen() {
           <Text style={[styles.tabText, activeTab === 'approved' && styles.activeTabText]}>Approved</Text>
         </TouchableOpacity>
       </View>
+    </>
+  ), [activeTab, styles]);
 
+  const renderItem = useCallback(({ item: seller }: { item: any }) => (
+    <View style={styles.card}>
+      <View style={styles.cardHeader}>
+        <View style={{ flex: 1, paddingRight: 10 }}>
+          <Text style={styles.storeName}>{seller.business_name || "Unknown Store"}</Text>
+          <View style={styles.detailsRow}>
+            <Text style={styles.category}>{seller.category || "Uncategorized"}</Text>
+            <View style={styles.dotSeparator} />
+            <LocationIcon size={12} color={colors.textMuted} />
+            <Text style={styles.city}>{seller.city || "Unknown"}</Text>
+          </View>
+        </View>
+        <View style={[styles.statusBadge, { borderColor: seller.status === 'approved' ? colors.success : seller.status === 'pending' ? colors.warning : colors.danger }]}>
+          <Text style={[styles.badgeText, { color: seller.status === 'approved' ? colors.success : seller.status === 'pending' ? colors.warning : colors.danger }]}>
+            {seller.status === 'approved' ? "✓ APPROVED" : seller.status === 'pending' ? "⏳ PENDING" : seller.status?.toUpperCase()}
+          </Text>
+        </View>
+      </View>
+
+      <Text style={styles.description} numberOfLines={2}>
+        {seller.description || "No description provided."}
+      </Text>
+      
+      <View style={styles.actions}>
+        {seller.status === "pending" && (
+          <>
+            <TouchableOpacity 
+              style={[styles.button, { backgroundColor: colors.accent, borderColor: colors.accent }]} 
+              onPress={() => updateStatus.mutate({ id: seller.id, status: "approved" })}
+            >
+              <Text style={[styles.btnText, { color: "#FFFFFF" }]}>Approve</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.button} 
+              onPress={() => updateStatus.mutate({ id: seller.id, status: "rejected" })}
+            >
+              <Text style={styles.btnText}>Reject</Text>
+            </TouchableOpacity>
+          </>
+        )}
+        
+        {seller.status === "approved" && (
+          <TouchableOpacity 
+            style={styles.button} 
+            onPress={() => updateStatus.mutate({ id: seller.id, status: "suspended" })}
+          >
+            <Text style={styles.btnText}>Suspend</Text>
+          </TouchableOpacity>
+        )}
+        
+        {seller.status === "suspended" && (
+          <TouchableOpacity 
+            style={styles.button} 
+            onPress={() => updateStatus.mutate({ id: seller.id, status: "approved" })}
+          >
+            <Text style={styles.btnText}>Restore</Text>
+          </TouchableOpacity>
+        )}
+        
+        {seller.status === "approved" && (
+          <TouchableOpacity 
+            style={styles.button} 
+            onPress={() => router.push(`/(admin)/seller-products?sellerId=${seller.id}&storeName=${encodeURIComponent(seller.business_name || '')}`)}
+          >
+            <Text style={styles.btnText}>Review Products</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  ), [colors, styles, updateStatus, router]);
+
+  return (
+    <Screen scroll={false}>
       {isLoading ? (
-        <ActivityIndicator size="large" color={colors.accent} style={{ marginTop: 40 }} />
-      ) : filteredSellers.length === 0 ? (
-        <View style={styles.emptyState}>
-          <ShieldIcon size={48} color="rgba(255,255,255,0.1)" />
-          <Text style={styles.emptyText}>No {activeTab} sellers found.</Text>
-        </View>
+        <>
+          {renderHeader()}
+          <ActivityIndicator size="large" color={colors.accent} style={{ marginTop: 40 }} />
+        </>
       ) : (
-        <View style={styles.list}>
-          {filteredSellers.map((seller: any) => (
-            <View key={seller.id} style={styles.card}>
-              <View style={styles.cardHeader}>
-                <View style={{ flex: 1, paddingRight: 10 }}>
-                  <Text style={styles.storeName}>{seller.business_name || "Unknown Store"}</Text>
-                  <View style={styles.detailsRow}>
-                    <Text style={styles.category}>{seller.category || "Uncategorized"}</Text>
-                    <View style={styles.dotSeparator} />
-                    <LocationIcon size={12} color={colors.textMuted} />
-                    <Text style={styles.city}>{seller.city || "Unknown"}</Text>
-                  </View>
-                </View>
-                <View style={[styles.statusBadge, { borderColor: seller.status === 'approved' ? colors.success : seller.status === 'pending' ? colors.warning : colors.danger }]}>
-                  <Text style={[styles.badgeText, { color: seller.status === 'approved' ? colors.success : seller.status === 'pending' ? colors.warning : colors.danger }]}>
-                    {seller.status === 'approved' ? "✓ APPROVED" : seller.status === 'pending' ? "⏳ PENDING" : seller.status?.toUpperCase()}
-                  </Text>
-                </View>
-              </View>
-
-              <Text style={styles.description} numberOfLines={2}>
-                {seller.description || "No description provided."}
-              </Text>
-              
-              <View style={styles.actions}>
-                {seller.status === "pending" && (
-                  <>
-                    <TouchableOpacity 
-                      style={[styles.button, { backgroundColor: colors.accent, borderColor: colors.accent }]} 
-                      onPress={() => updateStatus.mutate({ id: seller.id, status: "approved" })}
-                    >
-                      <Text style={[styles.btnText, { color: "#FFFFFF" }]}>Approve</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity 
-                      style={styles.button} 
-                      onPress={() => updateStatus.mutate({ id: seller.id, status: "rejected" })}
-                    >
-                      <Text style={styles.btnText}>Reject</Text>
-                    </TouchableOpacity>
-                  </>
-                )}
-                
-                {seller.status === "approved" && (
-                  <TouchableOpacity 
-                    style={styles.button} 
-                    onPress={() => updateStatus.mutate({ id: seller.id, status: "suspended" })}
-                  >
-                    <Text style={styles.btnText}>Suspend</Text>
-                  </TouchableOpacity>
-                )}
-                
-                {seller.status === "suspended" && (
-                  <TouchableOpacity 
-                    style={styles.button} 
-                    onPress={() => updateStatus.mutate({ id: seller.id, status: "approved" })}
-                  >
-                    <Text style={styles.btnText}>Restore</Text>
-                  </TouchableOpacity>
-                )}
-                
-                {seller.status === "approved" && (
-                  <TouchableOpacity 
-                    style={styles.button} 
-                    onPress={() => router.push(`/(admin)/seller-products?sellerId=${seller.id}&storeName=${encodeURIComponent(seller.business_name || '')}`)}
-                  >
-                    <Text style={styles.btnText}>Review Products</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
+        <FlashList
+          data={filteredSellers}
+          renderItem={renderItem}
+          {...({ estimatedItemSize: 200 } as any)}
+          ListHeaderComponent={renderHeader}
+          contentContainerStyle={{ paddingBottom: 100 }}
+          showsVerticalScrollIndicator={false}
+          ItemSeparatorComponent={() => <View style={{ height: 16 }} />}
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <ShieldIcon size={48} color="rgba(255,255,255,0.1)" />
+              <Text style={styles.emptyText}>No {activeTab} sellers found.</Text>
             </View>
-          ))}
-        </View>
+          }
+        />
       )}
-      <View style={{ height: 60 }} />
     </Screen>
   );
 }

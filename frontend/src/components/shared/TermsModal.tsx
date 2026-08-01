@@ -1,7 +1,7 @@
 import React, { useRef, useState } from "react";
 import { Modal, View, Text, StyleSheet, ScrollView, NativeSyntheticEvent, NativeScrollEvent, Platform } from "react-native";
 import { Button } from "@/components/ui/Button";
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors } from "@/store/useThemeStore";
 
 interface TermsModalProps {
   visible: boolean;
@@ -10,7 +10,7 @@ interface TermsModalProps {
 }
 
 export function TermsModal({ visible, onClose, onAccept }: TermsModalProps) {
-  const { colors } = useAppTheme();
+  const colors = useThemeColors();
   const styles = getStyles(colors);
   
   const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false);

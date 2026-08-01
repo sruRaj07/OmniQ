@@ -1,6 +1,6 @@
 import React from "react";
 import { TouchableOpacity, View, StyleSheet, TouchableOpacityProps } from "react-native";
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors } from "@/store/useThemeStore";
 
 interface CheckboxProps extends TouchableOpacityProps {
   value: boolean;
@@ -8,7 +8,7 @@ interface CheckboxProps extends TouchableOpacityProps {
 }
 
 export function Checkbox({ value, onValueChange, style, disabled, ...props }: CheckboxProps) {
-  const { colors } = useAppTheme();
+  const colors = useThemeColors();
   
   return (
     <TouchableOpacity

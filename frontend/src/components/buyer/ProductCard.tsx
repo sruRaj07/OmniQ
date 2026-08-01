@@ -5,11 +5,11 @@
  * Author: OmniQ Team
  */
 import React, { useMemo } from "react";
-import { StyleSheet, Text, View, Pressable } from "react-native";
+import { StyleSheet, Text, View, Pressable, Platform } from "react-native";
 import { Image } from "expo-image";
 import type { StyleProp, ViewStyle } from "react-native";
 import { Link } from "expo-router";
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors } from "@/store/useThemeStore";
 import type { Product } from "@/types/product.types";
 import { formatCurrency } from "@/utils/formatCurrency";
 
@@ -24,7 +24,7 @@ type ProductCardProps = {
 };
 
 export const ProductCard = React.memo(function ProductCard({ product, index = 0, style }: ProductCardProps) {
-  const { colors } = useAppTheme();
+  const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
   const imageUrl = product.images && product.images.length > 0 ? product.images[0] : null;
 
@@ -42,7 +42,8 @@ export const ProductCard = React.memo(function ProductCard({ product, index = 0,
                   style={styles.image} 
                   contentFit="contain"
                   placeholder={blurhash}
-                  transition={200}
+                  priority={index < 4 ? "high" : "normal"}
+                  transition={Platform.OS === 'web' ? 0 : 200}
                 />
               ) : (
                 <Text style={styles.placeholder}>📦</Text>
@@ -71,13 +72,19 @@ export const ProductCard = React.memo(function ProductCard({ product, index = 0,
                 ) : null}
               </View>
 
-              {/* Prime / Delivery info could go here */}
-              <Text style={styles.deliveryText} numberOfLines={1}>FREE Delivery by OmniQ</Text>
+      <Text style={styles.deliveryText} numberOfLines={1}>FREE Delivery by OmniQ</Text>
             </View>
           </View>
         </Pressable>
       </Link>
     </View>
+  );
+}, (prev, next) => {
+  return (
+    prev.product.id === next.product.id &&
+    prev.product.price === next.product.price &&
+    prev.product.title === next.product.title &&
+    prev.index === next.index
   );
 });
 

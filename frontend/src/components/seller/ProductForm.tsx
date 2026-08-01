@@ -8,7 +8,7 @@ import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors } from "@/store/useThemeStore";
 import { apiClient } from "@/lib/apiClient";
 import { useQueryClient } from "@tanstack/react-query";
 import { CategorySvgIcon } from "@/components/ui/CategorySvgIcon";
@@ -19,7 +19,7 @@ export type ProductFormProps = {
 };
 
 export function ProductForm({ initialData, onCloseEdit }: ProductFormProps) {
-  const { colors } = useAppTheme();
+  const colors = useThemeColors();
   const styles = getStyles(colors);
   const isEditing = !!initialData;
 

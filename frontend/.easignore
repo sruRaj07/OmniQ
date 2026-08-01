@@ -1,10 +1,46 @@
+# Git & Version Control
 .git
-.pnpm-store
+**/.git
+**/.git/**
+.github
+**/.github
+
+# Dependencies & Package Stores (Crucial for eliminating >3GB tarball bloat)
 node_modules
-backend
-supabase
-android
-ios
+**/node_modules
+**/node_modules/**
+.pnpm-store
+**/.pnpm-store
+**/.pnpm-store/**
+.npm
+**/.npm
+
+# Build Outputs & Caches
 .expo
+**/.expo
+dist
+**/dist
+build
+**/build
+.vinxi
+**/.vinxi
+.output
+**/.output
+.turbo
+**/.turbo
+.cache
+**/.cache
+
+# Monorepo Backend & Web Apps
+/backend
+/web-storefront
+/supabase
+
+# Temporary & System Files
 .DS_Store
+**/.DS_Store
+*.log
+**/*.log
 .watchman-cookie-*
+scratch
+**/scratch

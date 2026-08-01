@@ -12,34 +12,39 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
 import { Platform, LogBox } from "react-native";
 
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors } from "@/store/useThemeStore";
+import { useMemo } from "react";
 
 LogBox.ignoreLogs([
   'props.pointerEvents is deprecated',
   'pointerEvents is deprecated',
   'The action \'GO_BACK\' was not handled by any navigator.',
   '"textShadow*" style props are deprecated',
+  'Animated: `useNativeDriver` is not supported because the native animated module is missing',
+  'Animated: `useNativeDriver`',
 ]);
 
+
 export default function RootLayout() {
-  const { colors, mode } = useAppTheme();
+  const colors = useThemeColors();
+
+  const screenOptions = useMemo(() => ({
+    headerShown: false,
+    freezeOnBlur: true,
+    gestureEnabled: Platform.OS !== 'web',
+    gestureDirection: "horizontal" as const,
+    animation: Platform.OS === 'web' ? 'none' as const : 'slide_from_right' as const,
+    fullScreenGestureEnabled: Platform.OS === 'ios',
+    contentStyle: { backgroundColor: Platform.OS === 'web' ? colors.bgSecondary : colors.bgPrimary },
+  }), [colors]);
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <StatusBar style="dark" />
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                freezeOnBlur: true,
-                gestureEnabled: Platform.OS !== 'web',
-                gestureDirection: "horizontal",
-                animation: Platform.OS === 'web' ? 'none' : 'slide_from_right',
-                fullScreenGestureEnabled: Platform.OS === 'ios',
-                contentStyle: { backgroundColor: Platform.OS === 'web' ? colors.bgSecondary : colors.bgPrimary },
-              }}
-            />
+            <Stack screenOptions={screenOptions} />
           </AuthProvider>
         </QueryClientProvider>
       </ErrorBoundary>

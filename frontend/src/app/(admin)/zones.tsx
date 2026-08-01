@@ -9,12 +9,10 @@ import { queryClient } from "@/lib/queryClient";
 import { Screen } from "@/components/shared/Screen";
 import { GlobeIcon } from "@/components/ui/GlobeIcon";
 import { ShieldIcon } from "@/components/ui/ShieldIcon";
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors } from "@/store/useThemeStore";
 import { apiClient } from "@/lib/apiClient";
 export default function AdminZonesScreen() {
-  const {
-    colors
-  } = useAppTheme();
+  const colors = useThemeColors();
   const styles = getStyles(colors);
   const [isAdding, setIsAdding] = useState(false);
   const [newZoneName, setNewZoneName] = useState("");
@@ -90,9 +88,7 @@ function ZoneCard({
 }: {
   zone: any;
 }) {
-  const {
-    colors
-  } = useAppTheme();
+  const colors = useThemeColors();
   const styles = getStyles(colors);
   const [newPin, setNewPin] = useState("");
   const [isEditingName, setIsEditingName] = useState(false);

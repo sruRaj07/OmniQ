@@ -3,7 +3,7 @@ import { apiClient } from "@/lib/apiClient";
 import { useAuthStore } from "@/store/authStore";
 
 export function useSellerStatus() {
-  const { user } = useAuthStore();
+  const user = useAuthStore(state => state.user);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["sellerStatus", user?.id],

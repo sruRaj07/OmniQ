@@ -3,7 +3,7 @@
  * Author: OmniQ Team
  */
 import { StyleSheet, Text, View } from "react-native";
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors } from "@/store/useThemeStore";
 import { typography } from "@/constants/typography";
 type BadgeProps = {
   label: string;
@@ -13,9 +13,7 @@ export function Badge({
   label,
   tone = "accent"
 }: BadgeProps) {
-  const {
-    colors
-  } = useAppTheme();
+  const colors = useThemeColors();
   const styles = getStyles(colors);
   return <View style={[styles.badge, styles[tone]]}>
       <Text style={styles.label}>{label}</Text>

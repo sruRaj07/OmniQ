@@ -6,13 +6,12 @@ import { Link, useLocalSearchParams, useRouter } from "expo-router";
 import { StyleSheet, Text, View, ActivityIndicator, ScrollView, Dimensions, TouchableOpacity } from "react-native";
 import { ArrowLeftIcon } from "@/components/ui/ArrowLeftIcon";
 import { SearchInput } from "@/components/buyer/SearchInput";
-import { AnimatedCartButton } from "@/components/buyer/AnimatedCartButton";
 import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Screen } from "@/components/shared/Screen";
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors } from "@/store/useThemeStore";
 import { useCartStore } from "@/store/cartStore";
 import { formatCurrency } from "@/utils/formatCurrency";
 import { apiClient } from "@/lib/apiClient";
@@ -21,9 +20,7 @@ import { ProductCard } from "@/components/buyer/ProductCard";
 import { ImageZoomViewer } from "@/components/shared/ImageZoomViewer";
 import { Image } from "expo-image";
 export default function ProductDetailScreen() {
-  const {
-    colors
-  } = useAppTheme();
+  const colors = useThemeColors();
   const styles = getStyles(colors);
   const router = useRouter();
   const {
@@ -114,21 +111,33 @@ export default function ProductDetailScreen() {
   }
   const discount = product.compare_price ? Math.round((product.compare_price - product.price) / product.compare_price * 100) : 0;
   const imageUrl = product.images && product.images.length > 0 ? product.images[0] : null;
-  return <Screen>
-    <View style={styles.top}>
+  const topHeader = (
+    <View style={[styles.top, { paddingHorizontal: 24, paddingTop: 18, marginBottom: 12, backgroundColor: colors.bgPrimary }]}>
       <Link href="/(buyer)" asChild>
         <TouchableOpacity style={styles.backButton}>
-          <ArrowLeftIcon size={28} color={colors.textPrimary} />
+          <ArrowLeftIcon size={22} color={colors.textPrimary} />
         </TouchableOpacity>
       </Link>
       <View style={styles.searchContainer}>
         <SearchInput
           placeholder="Search OmniQ"
-          style={{ flex: 1, marginBottom: 0, marginRight: 12 }}
+          style={{ 
+            flex: 1, 
+            marginBottom: 0,
+            backgroundColor: colors.card,
+            borderWidth: 1,
+            borderColor: "transparent",
+            borderRadius: 12,
+            elevation: 4,
+            boxShadow: "0px 3px 8px rgba(0,0,0,0.08)"
+          }}
         />
-        <AnimatedCartButton onPress={() => router.push("/(buyer)/cart")} />
       </View>
     </View>
+  );
+
+  return <Screen header={topHeader}>
+    <Text style={styles.title}>{product.title}</Text>
     <View style={styles.imagePanel}>
       {product.images && product.images.length > 0 ? (
         <ScrollView
@@ -167,9 +176,8 @@ export default function ProductDetailScreen() {
       onClose={() => setIsZoomVisible(false)} 
     />
 
-    <Text style={styles.title}>{product.title}</Text>
     <View style={styles.rating}>
-      <Text style={styles.meta}>{product.stock_quantity > 0 ? `${product.stock_quantity} in stock` : "Out of stock"}</Text>
+      {product.stock_quantity > 0 ? <Text style={styles.meta}>{product.stock_quantity} in stock</Text> : null}
     </View>
     {product.description ? (
       <View style={styles.descriptionWrapper}>
@@ -204,11 +212,13 @@ export default function ProductDetailScreen() {
     {relatedProducts.length > 0 && (
       <View style={styles.relatedSection}>
         <Text style={styles.relatedTitle}>Customers who viewed this also viewed</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.relatedScroll}>
+        <View style={styles.relatedGrid}>
           {relatedProducts.map(rp => (
-            <ProductCard key={rp.id} product={rp} style={styles.relatedCard} />
+            <View key={rp.id} style={styles.relatedCardContainer}>
+              <ProductCard product={rp} style={{ width: '100%' }} />
+            </View>
           ))}
-        </ScrollView>
+        </View>
       </View>
     )}
   </Screen>;
@@ -228,12 +238,14 @@ const getStyles = (colors: any) => StyleSheet.create({
     justifyContent: "space-between",
   },
   backButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "transparent",
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.card,
     alignItems: "center",
-    justifyContent: "center"
+    justifyContent: "center",
+    elevation: 3,
+    boxShadow: "0px 2px 6px rgba(0,0,0,0.1)"
   },
   imagePanel: {
     height: 400,
@@ -274,9 +286,9 @@ const getStyles = (colors: any) => StyleSheet.create({
   },
   title: {
     color: colors.textPrimary,
-    fontSize: 28,
-    lineHeight: 34,
-    fontWeight: "900",
+    fontSize: 20,
+    lineHeight: 26,
+    fontWeight: "600",
     marginTop: 16
   },
   rating: {
@@ -424,12 +436,14 @@ const getStyles = (colors: any) => StyleSheet.create({
     marginBottom: 16,
     paddingHorizontal: 24,
   },
-  relatedScroll: {
+  relatedGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
     paddingHorizontal: 24,
-    gap: 12,
   },
-  relatedCard: {
-    width: 150,
-    marginBottom: 0,
+  relatedCardContainer: {
+    width: "48%",
+    marginBottom: 16,
   }
 });

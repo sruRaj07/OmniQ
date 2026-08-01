@@ -4,7 +4,7 @@
  */
 import type { PropsWithChildren } from "react";
 import { StyleSheet, View, Platform, StatusBar } from "react-native";
-import Animated, { useSharedValue, useAnimatedScrollHandler, useAnimatedStyle, interpolate, Extrapolation } from "react-native-reanimated";
+import Animated, { useSharedValue, useAnimatedScrollHandler, useAnimatedStyle, interpolate, Extrapolation, runOnJS } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAppTheme } from "@/store/useThemeStore";
 import { BottomNavBar, type NavItem } from "@/components/ui/BottomNavBar";
@@ -32,7 +32,6 @@ export function Screen({
 
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
-      // 1. Prevent iOS rubber-banding (negative scrollY)
       const currentY = Math.max(0, event.contentOffset.y);
       const diff = currentY - lastScrollY.value;
       lastScrollY.value = currentY;
@@ -43,8 +42,7 @@ export function Screen({
       translateY.value = Math.max(0, Math.min(110, newY));
 
       if (onScroll) {
-        // Warning: runOnJS(onScroll)(event) would be needed if onScroll is a JS function
-        // For simple integrations, let's keep it clean
+        runOnJS(onScroll)({ nativeEvent: { layoutMeasurement: event.layoutMeasurement, contentOffset: event.contentOffset, contentSize: event.contentSize } });
       }
     }
   });

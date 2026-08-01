@@ -4,7 +4,7 @@
  */
 import type { PropsWithChildren } from "react";
 import { Pressable, StyleSheet, Text, type PressableProps, type ViewStyle, type StyleProp } from "react-native";
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors } from "@/store/useThemeStore";
 import { typography } from "@/constants/typography";
 type ButtonProps = PropsWithChildren<Omit<PressableProps, "children" | "style"> & {
   onPress?: () => void;
@@ -20,9 +20,7 @@ export function Button({
   textStyle,
   ...pressableProps
 }: ButtonProps) {
-  const {
-    colors
-  } = useAppTheme();
+  const colors = useThemeColors();
   const styles = getStyles(colors);
   
   // Resolve label style dynamically based on variant

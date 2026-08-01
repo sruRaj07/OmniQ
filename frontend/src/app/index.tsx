@@ -19,11 +19,11 @@ import Animated, {
   runOnJS,
 } from "react-native-reanimated";
 import { useRouter } from "expo-router";
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors } from "@/store/useThemeStore";
 import { supabase } from "@/lib/supabase";
 
 export default function SplashScreen() {
-  const { colors } = useAppTheme();
+  const colors = useThemeColors();
   const styles = getStyles(colors);
   const router = useRouter();
 
@@ -61,9 +61,15 @@ export default function SplashScreen() {
         console.error("Auth check failed during splash:", err);
       }
 
-      // On web: redirect as fast as possible (min 300ms for logo to appear)
+      // On web: redirect instantly to avoid blocking First Contentful Paint.
       // On native: hold for 1.2s so users see the branding
-      const targetDelay = Platform.OS === "web" ? 300 : 1200;
+      if (Platform.OS === "web") {
+        if (!mounted) return;
+        router.replace(targetRoute as any);
+        return;
+      }
+
+      const targetDelay = 1200;
       const elapsed = Date.now() - startTime;
       const remainingTime = Math.max(0, targetDelay - elapsed);
 
@@ -71,7 +77,7 @@ export default function SplashScreen() {
         if (!mounted) return;
         masterOpacity.value = withTiming(
           0,
-          { duration: Platform.OS === "web" ? 150 : 400, easing: Easing.inOut(Easing.ease) },
+          { duration: 400, easing: Easing.inOut(Easing.ease) },
           () => {
             runOnJS(router.replace)(targetRoute as any);
           }

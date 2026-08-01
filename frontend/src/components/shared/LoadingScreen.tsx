@@ -3,11 +3,9 @@
  * Author: OmniQ Team
  */
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors } from "@/store/useThemeStore";
 export function LoadingScreen() {
-  const {
-    colors
-  } = useAppTheme();
+  const colors = useThemeColors();
   const styles = getStyles(colors);
   return <View style={styles.root}>
       <ActivityIndicator color={colors.accentLight} />

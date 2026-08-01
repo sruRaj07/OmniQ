@@ -7,7 +7,7 @@ import * as z from "zod";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Screen } from "@/components/shared/Screen";
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors } from "@/store/useThemeStore";
 import { apiClient } from "@/lib/apiClient";
 import { supabase } from "@/lib/supabase";
 const otpSchema = z.object({
@@ -15,9 +15,7 @@ const otpSchema = z.object({
 });
 type OtpFormData = z.infer<typeof otpSchema>;
 export default function VerifyOtpScreen() {
-  const {
-    colors
-  } = useAppTheme();
+  const colors = useThemeColors();
   const styles = getStyles(colors);
   const router = useRouter();
   const {

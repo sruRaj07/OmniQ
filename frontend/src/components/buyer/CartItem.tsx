@@ -2,37 +2,43 @@
  * OmniQ mobile app - cart item row.
  * Author: OmniQ Team
  */
+import React, { memo, useMemo } from "react";
 import { StyleSheet, Text, View, Pressable } from "react-native";
 import { Image } from "expo-image";
 import { Link } from "expo-router";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors } from "@/store/useThemeStore";
 import type { CartLine } from "@/store/cartStore";
 import { formatCurrency } from "@/utils/formatCurrency";
+
 type CartItemProps = {
   item: CartLine;
   onIncrement: () => void;
   onDecrement: () => void;
   onRemove: () => void;
 };
-export function CartItem({
+
+export const CartItem = memo(function CartItem({
   item,
   onIncrement,
   onDecrement,
   onRemove
 }: CartItemProps) {
-  const {
-    colors
-  } = useAppTheme();
-  const styles = getStyles(colors);
+  const colors = useThemeColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   const imageUrl = item.product.images && item.product.images.length > 0 ? item.product.images[0] : null;
-  return <Card style={styles.card}>
+  return (
+    <Card style={styles.card}>
       <Link href={`/product/${item.product.id}`} asChild>
         <Pressable style={styles.topRow}>
-          {imageUrl ? <View style={styles.imageContainer}>
+          {imageUrl ? (
+            <View style={styles.imageContainer}>
               <Image source={imageUrl} style={styles.image} contentFit="contain" transition={150} />
-            </View> : <Text style={styles.placeholderImage}>📦</Text>}
+            </View>
+          ) : (
+            <Text style={styles.placeholderImage}>📦</Text>
+          )}
           <View style={styles.info}>
             <Text style={styles.title} numberOfLines={1}>{item.product.title}</Text>
             <Text style={styles.meta}>{item.product.seller || 'OmniQ'}{item.size ? ` · Size ${item.size}` : ""}{item.color ? ` · ${item.color}` : ""}</Text>
@@ -48,8 +54,17 @@ export function CartItem({
         </View>
         <Text onPress={onRemove} style={styles.remove}>Delete</Text>
       </View>
-    </Card>;
-}
+    </Card>
+  );
+}, (prev, next) => {
+  return (
+    prev.item.product.id === next.item.product.id &&
+    prev.item.quantity === next.item.quantity &&
+    prev.item.size === next.item.size &&
+    prev.item.color === next.item.color
+  );
+});
+
 const getStyles = (colors: any) => StyleSheet.create({
   card: {
     padding: 16,

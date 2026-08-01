@@ -1,6 +1,8 @@
+import React, { memo, useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors } from "@/store/useThemeStore";
+
 type MetricCardProps = {
   title: string;
   value: string;
@@ -9,7 +11,8 @@ type MetricCardProps = {
   icon: React.ReactNode;
   glowColor: string;
 };
-export function MetricCard({
+
+export const MetricCard = memo(function MetricCard({
   title,
   value,
   trend,
@@ -17,22 +20,21 @@ export function MetricCard({
   icon,
   glowColor
 }: MetricCardProps) {
-  const {
-    colors
-  } = useAppTheme();
-  const styles = getStyles(colors);
-  return <View style={styles.card}>
+  const colors = useThemeColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
+  return (
+    <View style={styles.card}>
       <View style={styles.iconWrapper}>
         {icon}
       </View>
 
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.value}>{value}</Text>
-      <Text style={[styles.trend, {
-      color: trendColor
-    }]}>{trend}</Text>
-    </View>;
-}
+      <Text style={[styles.trend, { color: trendColor }]}>{trend}</Text>
+    </View>
+  );
+});
+
 const getStyles = (colors: any) => StyleSheet.create({
   card: {
     width: "47.5%",

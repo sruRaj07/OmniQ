@@ -2,29 +2,33 @@
  * OmniQ mobile app - seller KPI card.
  * Author: OmniQ Team
  */
+import React, { memo, useMemo } from "react";
 import { StyleSheet, Text } from "react-native";
 import { Card } from "@/components/ui/Card";
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors } from "@/store/useThemeStore";
+
 type KpiCardProps = {
   label: string;
   value: string;
   trend: string;
 };
-export function KpiCard({
+
+export const KpiCard = memo(function KpiCard({
   label,
   value,
   trend,
 }: KpiCardProps) {
-  const {
-    colors
-  } = useAppTheme();
-  const styles = getStyles(colors);
-  return <Card style={styles.card}>
+  const colors = useThemeColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
+  return (
+    <Card style={styles.card}>
       <Text style={styles.label}>{label}</Text>
       <Text style={styles.value}>{value}</Text>
       <Text style={styles.trend}>{trend}</Text>
-    </Card>;
-}
+    </Card>
+  );
+});
+
 const getStyles = (colors: any) => StyleSheet.create({
   card: {
     width: "47%",

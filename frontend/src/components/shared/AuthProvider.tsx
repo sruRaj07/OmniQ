@@ -6,7 +6,10 @@ import { useAuthStore } from "@/store/authStore";
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const segments = useSegments();
-  const { session, initialized, setSession, setInitialized } = useAuthStore();
+  const session = useAuthStore(state => state.session);
+  const initialized = useAuthStore(state => state.initialized);
+  const setSession = useAuthStore(state => state.setSession);
+  const setInitialized = useAuthStore(state => state.setInitialized);
 
   useEffect(() => {
     // Check active session on mount — wrapped in try/catch to prevent crash

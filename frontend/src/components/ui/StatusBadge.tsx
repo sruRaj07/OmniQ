@@ -4,7 +4,7 @@
  */
 import React from "react";
 import { Text } from "react-native";
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors } from "@/store/useThemeStore";
 import { typography } from "@/constants/typography";
 import type { OrderStatus } from "@/types/order.types";
 
@@ -13,7 +13,7 @@ type StatusBadgeProps = {
 };
 
 export function StatusBadge({ status }: StatusBadgeProps) {
-  const { colors } = useAppTheme();
+  const colors = useThemeColors();
   const normalized = status.toLowerCase();
   const displayLabel = normalized === "pending" ? "On the way" : status;
   

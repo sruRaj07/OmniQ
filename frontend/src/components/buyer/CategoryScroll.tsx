@@ -5,7 +5,7 @@
 import { ScrollView, StyleSheet, Text, View, Pressable } from "react-native";
 import { useState, useRef, useEffect, useCallback } from "react";
 import Svg, { Path, Rect, Line } from "react-native-svg";
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors } from "@/store/useThemeStore";
 
 /* ── SVG Category Icons ───────────────────────────────────────────────── */
 
@@ -13,9 +13,7 @@ function GroceryIcon({
   color = "#22C55E",
   size = 28
 }) {
-  const {
-    colors
-  } = useAppTheme();
+  const colors = useThemeColors();
   const styles = getStyles(colors);
   return <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <Path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
@@ -27,9 +25,7 @@ function KitchenIcon({
   color = "#F59E0B",
   size = 28
 }) {
-  const {
-    colors
-  } = useAppTheme();
+  const colors = useThemeColors();
   const styles = getStyles(colors);
   return <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <Path d="M18 8h1a4 4 0 0 1 0 8h-1" />
@@ -43,9 +39,7 @@ function ClothesIcon({
   color = "#EC4899",
   size = 28
 }) {
-  const {
-    colors
-  } = useAppTheme();
+  const colors = useThemeColors();
   const styles = getStyles(colors);
   return <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <Path d="M20.38 3.46L16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z" />
@@ -55,9 +49,7 @@ function ElectricalIcon({
   color = "#3B82F6",
   size = 28
 }) {
-  const {
-    colors
-  } = useAppTheme();
+  const colors = useThemeColors();
   const styles = getStyles(colors);
   return <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <Path d="M13 2L3 14 12 14 11 22 21 10 12 10 13 2Z" />
@@ -67,9 +59,7 @@ function OthersIcon({
   color = "#8B85FF",
   size = 28
 }) {
-  const {
-    colors
-  } = useAppTheme();
+  const colors = useThemeColors();
   const styles = getStyles(colors);
   return <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <Rect x="3" y="3" width="7" height="7" rx="1" />
@@ -123,7 +113,7 @@ function AnimatedCategoryItem({
   isActive: boolean;
   onPress: () => void;
 }) {
-  const { colors } = useAppTheme();
+  const colors = useThemeColors();
   const styles = getStyles(colors);
   const IconComponent = category.icon;
 
@@ -230,9 +220,7 @@ function AnimatedCategoryItem({
 /* ── Main Component ───────────────────────────────────────────────────── */
 
 export function CategoryScroll() {
-  const {
-    colors
-  } = useAppTheme();
+  const colors = useThemeColors();
   const styles = getStyles(colors);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   return <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>

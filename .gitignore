@@ -10,3 +10,15 @@ coverage
 supabase/.temp
 *.log
 .DS_Store
+
+# pnpm local store
+.pnpm-store/
+
+# web-storefront (Vinxi / Nitro / Tanstack)
+web-storefront/.output/
+web-storefront/.vinxi/
+web-storefront/app.config.timestamp_*.js
+web-storefront/app/routeTree.gen.ts
+
+# frontend
+frontend/index.js

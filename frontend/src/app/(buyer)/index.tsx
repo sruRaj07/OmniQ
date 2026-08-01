@@ -3,7 +3,8 @@
  * Author: OmniQ Team
  */
 import { lazy, Suspense, useMemo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { FlashList } from "@shopify/flash-list";
 import { CategoryScroll } from "@/components/buyer/CategoryScroll";
 import { HeroBanner } from "@/components/buyer/HeroBanner";
 import { ProductCard } from "@/components/buyer/ProductCard";
@@ -19,24 +20,32 @@ import { BuyerHeader } from "@/components/buyer/BuyerHeader";
 import { useAppTheme } from "@/store/useThemeStore";
 import { useProducts } from "@/hooks/useProducts";
 import { useRouter } from "expo-router";
+import { useCallback } from "react";
+import type { Product } from "@/types/product.types";
 
 // ⚡ LAZY-LOAD: Defer heavy below-the-fold components to accelerate first paint
 const AdvertisementCarousel = lazy(() => import("@/components/buyer/AdvertisementCarousel").then(m => ({ default: m.AdvertisementCarousel })));
 
 export default function BuyerHomeScreen() {
-  const {
-    colors
-  } = useAppTheme();
+  const { colors } = useAppTheme();
   const styles = useMemo(() => getStyles(colors), [colors]);
   const {
     products,
-    isLoading
+    isLoading,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage
   } = useProducts();
   const router = useRouter();
+
+  const renderProductItem = useCallback(({ item, index }: { item: Product; index: number }) => (
+    <View style={{ flex: 1, paddingRight: index % 2 === 0 ? 8 : 0, paddingLeft: index % 2 !== 0 ? 8 : 0 }}>
+      <ProductCard product={item} style={{ width: '100%' }} />
+    </View>
+  ), []);
+
   return <>
-      <Screen 
-        header={<BuyerHeader />}
-        bottomNavItems={[{
+      <Screen scroll={false} header={<BuyerHeader />} bottomNavItems={[{
           href: "/(buyer)",
           icon: HomeIcon,
           label: "Home"
@@ -57,28 +66,50 @@ export default function BuyerHomeScreen() {
           icon: UserIcon,
           label: "Profile"
         }]}>
-        <Suspense fallback={<View style={{ height: 180 }} />}>
-          <AdvertisementCarousel type="ads" />
-        </Suspense>
-        <HeroBanner />
-        <Suspense fallback={<View style={{ height: 180 }} />}>
-          <AdvertisementCarousel type="offers" />
-        </Suspense>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Trending Now</Text>
-          <Text style={styles.link}>See all</Text>
-        </View>
-        <View style={styles.grid}>
-          {isLoading ? <Text style={{
-          color: colors.textMuted,
-          marginVertical: 20
-        }}>Loading products...</Text> : products.length === 0 ? <Text style={{
-          color: colors.textMuted,
-          marginVertical: 20
-        }}>No products found.</Text> : products.map((product, i) => <ProductCard key={product.id} product={product} index={i} />)}
+        <View style={{ flex: 1 }}>
+          <FlashList
+            data={products}
+            numColumns={2}
+            {...({ estimatedItemSize: 250 } as any)}
+            contentContainerStyle={{ paddingBottom: 100 }}
+            showsVerticalScrollIndicator={false}
+            ListHeaderComponent={
+              <View>
+                <Suspense fallback={<View style={{ height: 180 }} />}>
+                  <AdvertisementCarousel type="ads" />
+                </Suspense>
+                <HeroBanner />
+                <Suspense fallback={<View style={{ height: 180 }} />}>
+                  <AdvertisementCarousel type="offers" />
+                </Suspense>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>Trending Now</Text>
+                  <Text style={styles.link}>See all</Text>
+                </View>
+                {isLoading && (
+                  <Text style={{ color: colors.textMuted, marginVertical: 20 }}>Loading products...</Text>
+                )}
+                {!isLoading && products.length === 0 && (
+                  <Text style={{ color: colors.textMuted, marginVertical: 20 }}>No products found.</Text>
+                )}
+              </View>
+            }
+            onEndReached={() => {
+              if (hasNextPage && !isFetchingNextPage) {
+                fetchNextPage();
+              }
+            }}
+            onEndReachedThreshold={0.5}
+            ListFooterComponent={
+              isFetchingNextPage ? (
+                <ActivityIndicator size="small" color={colors.accent} style={{ marginVertical: 20 }} />
+              ) : null
+            }
+            renderItem={renderProductItem}
+            keyExtractor={(item: any) => item.id}
+          />
         </View>
       </Screen>
-      
     </>;
 }
 const getStyles = (colors: any) => StyleSheet.create({

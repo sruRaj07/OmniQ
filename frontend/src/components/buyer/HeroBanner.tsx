@@ -5,11 +5,9 @@
 import { StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
 import { Button } from "@/components/ui/Button";
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors } from "@/store/useThemeStore";
 export function HeroBanner() {
-  const {
-    colors
-  } = useAppTheme();
+  const colors = useThemeColors();
   const styles = getStyles(colors);
   return <View style={styles.banner}>
       <View style={styles.badge60}>

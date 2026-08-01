@@ -3,7 +3,7 @@
  * Author: OmniQ Team
  */
 import { StyleSheet, TextInput, View, type TextInputProps } from "react-native";
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors } from "@/store/useThemeStore";
 import { typography } from "@/constants/typography";
 export interface InputProps extends TextInputProps {
   leftIcon?: React.ReactNode;
@@ -15,9 +15,7 @@ export function Input({
   style,
   ...props
 }: InputProps) {
-  const {
-    colors
-  } = useAppTheme();
+  const colors = useThemeColors();
   const styles = getStyles(colors);
   if (leftIcon || rightIcon) {
     return <View style={[styles.inputContainer, style as any]}>

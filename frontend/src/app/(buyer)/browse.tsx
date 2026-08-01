@@ -19,7 +19,7 @@ export default function BrowseScreen() {
   const { colors } = useAppTheme();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
-  const { products, isLoading } = useProducts();
+  const { products, isLoading, hasNextPage, isFetchingNextPage, fetchNextPage } = useProducts();
 
   // Dynamically derive categories from products, but explicitly ensure Kitchen is present
   const categories = useMemo(() => {
@@ -105,6 +105,17 @@ export default function BrowseScreen() {
                   <Text style={styles.categoryTitle}>{activeCategory} Products</Text>
                   <Text style={styles.productCount}>{displayProducts.length} items</Text>
                 </View>
+              }
+              onEndReached={() => {
+                if (hasNextPage && !isFetchingNextPage) {
+                  fetchNextPage();
+                }
+              }}
+              onEndReachedThreshold={0.5}
+              ListFooterComponent={
+                isFetchingNextPage ? (
+                  <ActivityIndicator size="small" color={colors.accent} style={{ marginVertical: 20 }} />
+                ) : null
               }
               renderItem={renderProductItem}
               keyExtractor={(item: any) => item.id}

@@ -1,9 +1,9 @@
 import React from "react";
 import Svg, { Path } from "react-native-svg";
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors } from "@/store/useThemeStore";
 
 export function ArrowLeftIcon({ color, size = 26 }: { color?: string; size?: number }) {
-  const { colors } = useAppTheme();
+  const colors = useThemeColors();
   return (
     <Svg 
       width={size} 

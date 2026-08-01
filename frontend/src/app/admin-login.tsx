@@ -11,13 +11,11 @@ import { ShieldIcon } from "@/components/ui/ShieldIcon";
 import { EyeIcon } from "@/components/ui/EyeIcon";
 import { EyeOffIcon } from "@/components/ui/EyeOffIcon";
 import { Screen } from "@/components/shared/Screen";
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors } from "@/store/useThemeStore";
 import { supabase } from "@/lib/supabase";
 import { apiClient } from "@/lib/apiClient";
 export default function AdminLoginScreen() {
-  const {
-    colors
-  } = useAppTheme();
+  const colors = useThemeColors();
   const styles = getStyles(colors);
   const router = useRouter();
   const [email, setEmail] = useState("");

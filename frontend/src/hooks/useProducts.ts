@@ -1,28 +1,48 @@
 /**
  * OmniQ mobile app - product data hook powered by TanStack React Query.
- * Provides instant display of cached inventory and silent background synchronization.
+ * Uses cursor-based infinite scrolling for lazy loading as the user scrolls.
  * Author: OmniQ Team
  */
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/apiClient";
 import type { Product } from "@/types/product.types";
 
+const PAGE_SIZE = 10;
+
 export function useProducts() {
-  const query = useQuery({
+  const query = useInfiniteQuery({
     queryKey: ["products", "all"],
-    queryFn: async (): Promise<Product[]> => {
-      const response = await apiClient.get("/products");
-      return response.data?.data || [];
+    queryFn: async ({ pageParam }): Promise<{
+      products: Product[];
+      nextCursor: string | null;
+    }> => {
+      const params: Record<string, string> = { limit: String(PAGE_SIZE) };
+      if (pageParam) {
+        params.cursor = pageParam;
+      }
+      const response = await apiClient.get("/products", { params });
+      const data = response.data;
+      // The API returns { success, data: Product[], meta: { nextCursor } }
+      const products = data?.data ?? data ?? [];
+      const nextCursor = data?.meta?.nextCursor ?? null;
+      return { products: Array.isArray(products) ? products : [], nextCursor };
     },
-    staleTime: 5 * 60 * 1000, // Considered fresh for 5 mins
-    gcTime: 30 * 60 * 1000,   // Retained in RAM for 30 minutes for instant navigation
-    placeholderData: (previousData: any) => previousData, // Maintain existing cards while silent revalidations run
+    initialPageParam: "" as string,
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
 
+  // Flatten all pages into a single products array
+  const products = query.data?.pages.flatMap((page) => page.products) ?? [];
+
   return {
-    products: query.data || [],
+    products,
     isLoading: query.isLoading,
     isFetching: query.isFetching,
+    isFetchingNextPage: query.isFetchingNextPage,
+    hasNextPage: query.hasNextPage ?? false,
+    fetchNextPage: query.fetchNextPage,
     refetch: query.refetch,
   };
 }
@@ -34,7 +54,7 @@ export function useSellerProducts() {
       const response = await apiClient.get("/products/seller");
       return response.data?.data || [];
     },
-    staleTime: 2 * 60 * 1000, // Shorter 2-minute stale time for active seller dashboard
+    staleTime: 2 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
     placeholderData: (previousData: any) => previousData,
   });

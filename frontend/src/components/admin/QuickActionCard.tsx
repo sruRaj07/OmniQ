@@ -1,42 +1,42 @@
+import React, { memo, useMemo } from "react";
 import { StyleSheet, Text, View, TouchableOpacity } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors } from "@/store/useThemeStore";
+
 type QuickActionCardProps = {
   title: string;
   icon: React.ReactNode;
   badgeCount?: number;
   onPress: () => void;
 };
-export function QuickActionCard({
+
+export const QuickActionCard = memo(function QuickActionCard({
   title,
   icon,
   badgeCount,
   onPress
 }: QuickActionCardProps) {
-  const {
-    colors
-  } = useAppTheme();
-  const styles = getStyles(colors);
-  return <TouchableOpacity onPress={onPress} style={styles.button}>
-      <LinearGradient colors={["rgba(30, 30, 45, 0.6)", "rgba(15, 15, 26, 0.8)"]} start={{
-      x: 0,
-      y: 0
-    }} end={{
-      x: 1,
-      y: 1
-    }} style={styles.card}>
+  const colors = useThemeColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
+  return (
+    <TouchableOpacity onPress={onPress} style={styles.button}>
+      <LinearGradient colors={["rgba(30, 30, 45, 0.6)", "rgba(15, 15, 26, 0.8)"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.card}>
         <View style={styles.iconContainer}>
           {icon}
-          {!!badgeCount && badgeCount > 0 && <View style={styles.badge}>
+          {!!badgeCount && badgeCount > 0 && (
+            <View style={styles.badge}>
               <Text style={styles.badgeText}>{badgeCount}</Text>
-            </View>}
+            </View>
+          )}
         </View>
         <Text style={styles.title} numberOfLines={2}>
           {title}
         </Text>
       </LinearGradient>
-    </TouchableOpacity>;
-}
+    </TouchableOpacity>
+  );
+});
+
 const getStyles = (colors: any) => StyleSheet.create({
   button: {
     marginRight: 12

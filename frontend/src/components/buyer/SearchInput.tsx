@@ -7,7 +7,7 @@ import { StyleSheet, Text, View, TouchableOpacity, type ViewStyle } from "react-
 import { useRouter } from "expo-router";
 import { SearchIcon } from "@/components/ui/SearchIcon";
 import { ListIcon } from "@/components/ui/ListIcon";
-import { useAppTheme } from "@/store/useThemeStore";
+import { useThemeColors } from "@/store/useThemeStore";
 
 export interface SearchInputProps {
   placeholder?: string;
@@ -16,7 +16,7 @@ export interface SearchInputProps {
 
 export function SearchInput({ placeholder = "Search OmniQ", style }: SearchInputProps) {
   const router = useRouter();
-  const { colors } = useAppTheme();
+  const colors = useThemeColors();
   const styles = getStyles(colors);
 
   return (
