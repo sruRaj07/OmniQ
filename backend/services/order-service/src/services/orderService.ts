@@ -50,8 +50,7 @@ export async function placeOrder(buyerId: string, input: unknown) {
     });
   }
 
-  const platformFee = 29;
-  const total = subtotal + platformFee;
+  const total = subtotal;
 
   // 3. Insert into orders table (with seller_id)
   const { data: order, error: orderError } = await supabase
@@ -60,7 +59,7 @@ export async function placeOrder(buyerId: string, input: unknown) {
       buyer_id: buyerId,
       seller_id: sellerId,
       subtotal,
-      platform_fee: platformFee,
+      platform_fee: 0,
       total,
       delivery_address: parsed.deliveryAddress,
       buyer_lat: parsed.buyerLat,

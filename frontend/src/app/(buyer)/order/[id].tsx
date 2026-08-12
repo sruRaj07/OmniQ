@@ -50,8 +50,8 @@ export default function OrderDetailsScreen() {
   const placedText = `Placed at ${dateText}, ${timeText}`;
   const displayId = order.id.length > 8 ? `#OMQ-${order.id.split("-")[0].toUpperCase()}` : order.id;
   const subtotal = order.subtotal || order.order_items?.reduce((sum: number, item: any) => sum + (Number(item.subtotal) || 0), 0) || 0;
-  const platformFee = order.platform_fee || 29;
-  const total = order.total || order.amount || subtotal + platformFee;
+  const platformFee = 0;
+  const total = order.total || order.amount || subtotal;
   return <Screen scroll={true}>
       <TouchableOpacity style={styles.backButton} onPress={() => router.canGoBack() ? router.back() : router.replace("/(buyer)/orders")}>
         <Text style={styles.backText}>← Back to Orders</Text>
@@ -135,8 +135,8 @@ export default function OrderDetailsScreen() {
           <Text style={styles.invoiceValue}>{formatCurrency(subtotal)}</Text>
         </View>
         <View style={styles.invoiceRow}>
-          <Text style={styles.invoiceLabel}>Platform Fee</Text>
-          <Text style={styles.invoiceValue}>{formatCurrency(platformFee)}</Text>
+          <Text style={styles.invoiceLabel}>Delivery</Text>
+          <Text style={[styles.invoiceValue, { color: '#16A34A', fontWeight: '700' }]}>FREE</Text>
         </View>
         <View style={[styles.invoiceRow, styles.invoiceTotalRow]}>
           <Text style={styles.invoiceTotalLabel}>Grand Total</Text>

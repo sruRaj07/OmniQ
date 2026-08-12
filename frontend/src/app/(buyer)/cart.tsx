@@ -218,7 +218,7 @@ export default function CartScreen() {
             ) : null}
 
             <View style={styles.modalActions}>
-              <Button style={styles.modalCancel} onPress={() => setShowAddressModal(false)}>
+              <Button variant="secondary" style={styles.modalCancel} onPress={() => setShowAddressModal(false)}>
                 Cancel
               </Button>
               <Pressable style={styles.modalConfirm} onPress={submitOrder} disabled={isPlacingOrder}>

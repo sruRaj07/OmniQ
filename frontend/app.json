@@ -7,6 +7,11 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "icon": "./assets/images/icon.png",
+    "splash": {
+      "image": "./assets/images/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFFFFF"
+    },
     "plugins": [
       [
         "expo-router",
@@ -33,7 +38,7 @@
       "package": "com.omniq.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#FCFCFA"
+        "backgroundColor": "#FFFFFF"
       },
       "versionCode": 7,
       "jsEngine": "hermes",

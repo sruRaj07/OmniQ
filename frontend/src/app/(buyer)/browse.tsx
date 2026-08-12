@@ -21,10 +21,15 @@ export default function BrowseScreen() {
 
   const { products, isLoading, hasNextPage, isFetchingNextPage, fetchNextPage } = useProducts();
 
+  // Normalize category to Title Case so "kitchen" and "Kitchen" merge
+  const normalizeCategory = (cat: string) =>
+    cat.trim().replace(/\b\w/g, (c) => c.toUpperCase());
+
   // Dynamically derive categories from products, but explicitly ensure Kitchen is present
   const categories = useMemo(() => {
     const dynamicCats = products.map(p => p.category).filter(Boolean) as string[];
-    const allCats = new Set(["Grocery", "Kitchen", ...dynamicCats]);
+    const normalized = dynamicCats.map(normalizeCategory);
+    const allCats = new Set(["Grocery", "Kitchen", ...normalized]);
     return ["All", ...Array.from(allCats)];
   }, [products]);
 
@@ -32,7 +37,9 @@ export default function BrowseScreen() {
 
   const displayProducts = useMemo(() => {
     if (activeCategory === "All") return products;
-    return products.filter(p => p.category === activeCategory);
+    return products.filter(p =>
+      p.category && normalizeCategory(p.category) === activeCategory
+    );
   }, [products, activeCategory]);
 
   const renderProductItem = useCallback(({ item, index }: { item: Product; index: number }) => (

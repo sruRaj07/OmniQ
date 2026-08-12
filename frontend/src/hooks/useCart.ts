@@ -20,7 +20,7 @@ export function useCart() {
     removeItem, 
     clearCart,
     subtotal, 
-    platformFee: 29, 
-    total: subtotal + 29 
+    platformFee: 0, 
+    total: subtotal 
   };
 }

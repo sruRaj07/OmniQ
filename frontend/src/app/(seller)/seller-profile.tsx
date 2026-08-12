@@ -232,32 +232,6 @@ export default function SellerProfileScreen() {
               </Card>
             </View>
 
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>App Settings</Text>
-              <View style={styles.themeToggleContainer}>
-                <Text style={styles.infoLabel}>Theme</Text>
-                <View style={styles.themeButtons}>
-                  <TouchableOpacity
-                    style={[styles.themeButton, mode === 'system' && styles.themeButtonActive]}
-                    onPress={() => setMode('system')}
-                  >
-                    <Text style={[styles.themeButtonText, mode === 'system' && styles.themeButtonTextActive]}>System</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.themeButton, mode === 'light' && styles.themeButtonActive]}
-                    onPress={() => setMode('light')}
-                  >
-                    <Text style={[styles.themeButtonText, mode === 'light' && styles.themeButtonTextActive]}>Light</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.themeButton, mode === 'dark' && styles.themeButtonActive]}
-                    onPress={() => setMode('dark')}
-                  >
-                    <Text style={[styles.themeButtonText, mode === 'dark' && styles.themeButtonTextActive]}>Dark</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
 
             <View style={styles.actionsContainer}>
               <Link href="/(buyer)" asChild>

@@ -271,6 +271,6 @@ export async function getCategoryTags(): Promise<string[]> {
   // Configured dynamic tag pills served to frontend product listing form.
   // Currently restricted to 'grocery' and 'kitchen' per current active business strategy.
   // In the future, this array (or database table) can be expanded to dynamically add new tags without any frontend app changes!
-  const activeTags = ["grocery", "kitchen"];
+  const activeTags = ["Grocery", "Kitchen"];
   return activeTags;
 }
