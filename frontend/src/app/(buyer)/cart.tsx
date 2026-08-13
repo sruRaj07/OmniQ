@@ -156,6 +156,18 @@ export default function CartScreen() {
         }} onPress={() => router.push("/(buyer)")}>Start Shopping</Button>
           </View> : <>
             {items.map(item => <CartItem key={item.product.id} item={item} onIncrement={() => updateQuantity(item.product.id, item.quantity + 1)} onDecrement={() => updateQuantity(item.product.id, item.quantity - 1)} onRemove={() => removeItem(item.product.id)} />)}
+            <Card style={[styles.summary, { padding: 12, marginBottom: 12, backgroundColor: 'rgba(0, 200, 83, 0.08)', borderColor: 'rgba(0, 200, 83, 0.2)', borderWidth: 1, flexDirection: 'row', alignItems: 'center' }]}>
+              <Text style={{ fontSize: 24, marginRight: 12 }}>🚚</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.textPrimary, fontWeight: '700', fontSize: 13, marginBottom: 2 }}>Expected Day of Delivery</Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 13, fontWeight: '500' }}>
+                  {new Date().getHours() < 12 
+                    ? "Today (12:00 PM – 7:00 PM)"
+                    : "Tomorrow (12:00 PM – 7:00 PM)"}
+                </Text>
+              </View>
+            </Card>
+
             <Card style={styles.summary}>
               <Text style={styles.summaryTitle}>Order Summary</Text>
               <View style={styles.row}><Text style={styles.label}>Subtotal ({items.reduce((sum, item) => sum + item.quantity, 0)} items)</Text><Text style={styles.value}>{formatCurrency(subtotal)}</Text></View>

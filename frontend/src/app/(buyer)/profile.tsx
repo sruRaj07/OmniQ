@@ -1,10 +1,6 @@
-/**
- * OmniQ mobile app - buyer profile screen.
- * Author: OmniQ Team
- */
 import { useState, useEffect } from "react";
 import { Link, useRouter } from "expo-router";
-import { StyleSheet, Text, View, Alert, TouchableOpacity, ScrollView, Modal } from "react-native";
+import { StyleSheet, Text, View, Alert, TouchableOpacity, ScrollView, Modal, TextInput } from "react-native";
 import { Image } from "expo-image";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
@@ -89,6 +85,8 @@ export default function ProfileScreen() {
   const [showPasswordResetModal, setShowPasswordResetModal] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteReason, setDeleteReason] = useState("");
   const {
     sellerProfile,
     isLoading: isSellerLoading
@@ -111,6 +109,44 @@ export default function ProfileScreen() {
     enabled: !!user
   });
   const profile = profileResponse?.data;
+
+  // Fetch user's existing requests
+  const { data: requestsResponse } = useQuery({
+    queryKey: ["userRequests", user?.id],
+    queryFn: async () => {
+      const res = await apiClient.get("/users/requests");
+      return res.data;
+    },
+    enabled: !!user
+  });
+  const userRequests = requestsResponse?.data || [];
+  const pendingDeletion = userRequests.find((r: any) => r.type === "account_deletion" && r.status === "pending");
+
+  // Mutation: create a user request
+  const requestMutation = useMutation({
+    mutationFn: async ({ type, reason }: { type: string; reason?: string }) => {
+      const res = await apiClient.post("/users/requests", { type, reason });
+      return res.data;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["userRequests"] });
+      const label = variables.type === "data_export" ? "Data Export" : "Account Deletion";
+      Alert.alert("Request Submitted", `Your ${label} request has been submitted. Our team will review it shortly.`);
+    },
+    onError: (error: any) => {
+      Alert.alert("Error", error?.response?.data?.message || error.message || "Failed to submit request.");
+    }
+  });
+
+  const handleDeleteAccountRequest = () => {
+    setShowDeleteModal(true);
+  };
+
+  const submitDeleteRequest = () => {
+    requestMutation.mutate({ type: "account_deletion", reason: deleteReason });
+    setShowDeleteModal(false);
+    setDeleteReason("");
+  };
 
   // Fallback to Supabase meta if backend profile isn't fully set up yet
   const displayFullName = profile?.full_name || user?.user_metadata?.full_name || "Buyer";
@@ -375,6 +411,32 @@ export default function ProfileScreen() {
           <LocationGate pincode={profile?.pincode} city={profile?.address} />
         </View>
 
+        {/* Data & Privacy Section */}
+        <View style={{ marginTop: 32 }}>
+          <Text style={styles.sectionTitle}>Data & Privacy</Text>
+          <Text style={[styles.meta, { textAlign: 'left', marginBottom: 16 }]}>
+            You have the right to request a copy of your data or delete your account. Requests are reviewed within 30 days.
+          </Text>
+
+          <View style={styles.privacyCard}>
+            <View style={[styles.privacyRow, { borderBottomWidth: 0, paddingBottom: 0, marginBottom: 0 }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.privacyLabel}>Delete Account</Text>
+                <Text style={styles.privacyDesc}>Permanently remove your account and all associated data.</Text>
+              </View>
+              {pendingDeletion ? (
+                <View style={[styles.pendingBadge, { backgroundColor: 'rgba(255,77,109,0.1)' }]}>
+                  <Text style={[styles.pendingBadgeText, { color: colors.danger }]}>Pending</Text>
+                </View>
+              ) : (
+                <Button variant="danger" onPress={handleDeleteAccountRequest} style={{ minWidth: 100 }}>
+                  Delete
+                </Button>
+              )}
+            </View>
+          </View>
+        </View>
+
         <Button variant="danger" onPress={handleSignOut} style={{
         marginTop: 24
       }}>
@@ -410,6 +472,51 @@ export default function ProfileScreen() {
             <Button variant="secondary" onPress={() => {
               setShowPasswordResetModal(false);
               setNewPassword("");
+            }}>
+              Cancel
+            </Button>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Delete Account Confirmation Modal */}
+      <Modal
+        visible={showDeleteModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowDeleteModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={[styles.modalTitle, { color: colors.danger }]}>⚠️ Delete Account</Text>
+            <Text style={[styles.meta, { textAlign: 'left', marginBottom: 8 }]}>
+              Please review the following before proceeding:
+            </Text>
+            <View style={{ marginBottom: 16 }}>
+              <Text style={styles.deleteTermItem}>• If approved, your account will be removed within 30 days</Text>
+              <Text style={styles.deleteTermItem}>• The request may be rejected for some reason (e.g., active orders)</Text>
+              <Text style={styles.deleteTermItem}>• If rejected, this request will be dismissed and you will be notified</Text>
+              <Text style={styles.deleteTermItem}>• Upon deletion, all personal data will be permanently removed</Text>
+              <Text style={styles.deleteTermItem}>• You will not be able to recover your account once deleted</Text>
+            </View>
+
+            <Text style={styles.label}>Reason (optional)</Text>
+            <TextInput
+              style={styles.deleteReasonInput}
+              placeholder="Tell us why you're leaving..."
+              placeholderTextColor={colors.textMuted}
+              value={deleteReason}
+              onChangeText={setDeleteReason}
+              multiline
+              numberOfLines={3}
+            />
+
+            <Button variant="danger" onPress={submitDeleteRequest} style={{ marginTop: 16, marginBottom: 12 }}>
+              {requestMutation.isPending ? "Submitting..." : "Confirm Delete Request"}
+            </Button>
+            <Button variant="secondary" onPress={() => {
+              setShowDeleteModal(false);
+              setDeleteReason("");
             }}>
               Cancel
             </Button>
@@ -635,5 +742,61 @@ const getStyles = (colors: any) => StyleSheet.create({
     fontWeight: '800',
     color: colors.textPrimary,
     marginBottom: 8,
+  },
+  privacyCard: {
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  privacyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    paddingBottom: 16,
+    marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  privacyLabel: {
+    color: colors.textPrimary,
+    fontWeight: '700',
+    fontSize: 15,
+    marginBottom: 4,
+  },
+  privacyDesc: {
+    color: colors.textMuted,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  pendingBadge: {
+    backgroundColor: 'rgba(255, 170, 0, 0.12)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  pendingBadgeText: {
+    color: colors.warning || '#FFAA00',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  deleteTermItem: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 22,
+  },
+  deleteReasonInput: {
+    backgroundColor: colors.card,
+    color: colors.textPrimary,
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    minHeight: 80,
+    textAlignVertical: 'top',
+    marginTop: 8,
   },
 });

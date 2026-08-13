@@ -7,7 +7,7 @@ import dotenv from "dotenv";
 import express from "express";
 import helmet from "helmet";
 import { ok } from "../../../shared/utils/responseFormatter";
-import { assignRoleController, meController, updateProfileController } from "./controllers/userController";
+import { assignRoleController, meController, updateProfileController, createUserRequestController, getUserRequestsController } from "./controllers/userController";
 import { signInController, signUpController, verifyOtpController } from "./controllers/authController";
 
 dotenv.config();
@@ -23,6 +23,8 @@ app.patch("/users/me", updateProfileController);
 app.patch("/me", updateProfileController);
 app.post("/users/role", assignRoleController);
 app.post("/role", assignRoleController);
+app.post("/users/requests", createUserRequestController);
+app.get("/users/requests", getUserRequestsController);
 
 // Auth Proxy Routes
 app.post("/auth/signup", signUpController);

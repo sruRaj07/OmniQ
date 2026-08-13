@@ -4,7 +4,7 @@
  */
 import type { Request, Response } from "express";
 import { fail, ok } from "../../../../shared/utils/responseFormatter";
-import { assignRole, getCurrentProfile, updateProfile } from "../services/userService";
+import { assignRole, getCurrentProfile, updateProfile, createUserRequest, getUserRequests } from "../services/userService";
 
 /**
  * Extracts the user ID from the JWT token passed by the API Gateway.
@@ -48,4 +48,23 @@ export async function assignRoleController(request: Request, response: Response)
   }
 }
 
+export async function createUserRequestController(request: Request, response: Response): Promise<void> {
+  try {
+    const payload = extractTokenPayload(request);
+    const { type, reason } = request.body;
+    const result = await createUserRequest(payload.sub, type, reason);
+    response.status(201).json(ok(result));
+  } catch (error: any) {
+    response.status(400).json(fail("REQUEST_FAILED", error.message));
+  }
+}
 
+export async function getUserRequestsController(request: Request, response: Response): Promise<void> {
+  try {
+    const payload = extractTokenPayload(request);
+    const requests = await getUserRequests(payload.sub);
+    response.json(ok(requests));
+  } catch (error: any) {
+    response.status(500).json(fail("FETCH_REQUESTS_FAILED", error.message));
+  }
+}

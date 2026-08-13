@@ -153,3 +153,66 @@ export async function listAllOrders() {
   if (error) throw new Error(`Failed to fetch orders: ${error.message}`);
   return data;
 }
+
+/**
+ * List all user requests (data export, account deletion) with user profile info.
+ */
+export async function listUserRequests(status?: string) {
+  let query = supabaseAdmin
+    .from("user_requests")
+    .select("*, profile:profiles!user_requests_user_id_fkey(full_name, email, phone_number)")
+    .order("created_at", { ascending: false });
+
+  if (status && status !== "all") {
+    query = query.eq("status", status);
+  }
+
+  const { data, error } = await query;
+  if (error) throw new Error(`Failed to fetch user requests: ${error.message}`);
+  return data || [];
+}
+
+/**
+ * Approve or reject a user request.
+ */
+export async function actionUserRequest(requestId: string, status: string, adminNotes?: string) {
+  if (!["approved", "rejected"].includes(status)) {
+    throw new Error("Status must be 'approved' or 'rejected'.");
+  }
+
+  if (status === "rejected") {
+    const { data, error } = await supabaseAdmin
+      .from("user_requests")
+      .delete()
+      .eq("id", requestId)
+      .select("*, profile:profiles!user_requests_user_id_fkey(full_name, email)")
+      .single();
+
+    if (error) throw new Error(`Failed to delete rejected request: ${error.message}`);
+    return data;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("user_requests")
+    .update({
+      status,
+      admin_notes: adminNotes || null,
+      updated_at: new Date().toISOString()
+    })
+    .eq("id", requestId)
+    .select("*, profile:profiles!user_requests_user_id_fkey(full_name, email)")
+    .single();
+
+  if (error) throw new Error(`Failed to update request: ${error.message}`);
+
+  // Perform actual deletion if approved
+  if (status === "approved" && data.type === "account_deletion") {
+    const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(data.user_id);
+    if (deleteError) {
+      console.error(`Failed to delete auth user ${data.user_id}:`, deleteError.message);
+      // We might not throw here so the status remains approved, but we log the error.
+    }
+  }
+
+  return data;
+}

@@ -7,7 +7,7 @@ import dotenv from "dotenv";
 import express from "express";
 import helmet from "helmet";
 import { ok } from "../../../shared/utils/responseFormatter";
-import { analyticsController, dashboardController, moderateProductController, zoneController, listZonesController, listAllOrdersController } from "./controllers/adminController";
+import { analyticsController, dashboardController, moderateProductController, zoneController, listZonesController, listAllOrdersController, listUserRequestsController, actionUserRequestController } from "./controllers/adminController";
 import { createAdvertisementController, deleteAdvertisementController, updateAdvertisementController } from "./controllers/advertisementController";
 import multer from "multer";
 
@@ -30,4 +30,6 @@ app.get("/admin/audit-log", (_request, response) => response.json(ok([])));
 app.post("/admin/advertisements", upload.single("image"), createAdvertisementController);
 app.patch("/admin/advertisements/:id", upload.single("image"), updateAdvertisementController);
 app.delete("/admin/advertisements/:id", deleteAdvertisementController);
+app.get("/admin/user-requests", listUserRequestsController);
+app.patch("/admin/user-requests/:id", actionUserRequestController);
 app.listen(port, "0.0.0.0", () => console.log(`OmniQ admin service running on ${port}`));

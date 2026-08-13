@@ -3,7 +3,7 @@
  * Author: OmniQ Team
  */
 import { profileUpdateSchema, roleAssignmentSchema } from "../validators/userValidator";
-import { supabase } from "../../../../shared/utils/supabaseClient";
+import { supabase, supabaseAdmin } from "../../../../shared/utils/supabaseClient";
 
 export async function getCurrentProfile(userId: string, jwtPayload?: any) {
   let { data, error } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
@@ -92,4 +92,50 @@ export async function assignRole(userId: string, input: unknown) {
 
   if (error) throw new Error(`Failed to assign role: ${error.message}`);
   return data;
+}
+
+/**
+ * Create a user request (data_export or account_deletion).
+ * Prevents duplicate pending requests of the same type.
+ */
+export async function createUserRequest(userId: string, type: string, reason?: string) {
+  if (!["data_export", "account_deletion"].includes(type)) {
+    throw new Error("Invalid request type. Must be 'data_export' or 'account_deletion'.");
+  }
+
+  // Check for existing pending request of the same type
+  const { data: existing } = await supabaseAdmin
+    .from("user_requests")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("type", type)
+    .eq("status", "pending")
+    .maybeSingle();
+
+  if (existing) {
+    throw new Error(`You already have a pending ${type.replace("_", " ")} request.`);
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("user_requests")
+    .insert({ user_id: userId, type, reason: reason || null })
+    .select()
+    .single();
+
+  if (error) throw new Error(`Failed to create request: ${error.message}`);
+  return data;
+}
+
+/**
+ * Get all requests for a specific user.
+ */
+export async function getUserRequests(userId: string) {
+  const { data, error } = await supabaseAdmin
+    .from("user_requests")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw new Error(`Failed to fetch requests: ${error.message}`);
+  return data || [];
 }

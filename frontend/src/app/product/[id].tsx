@@ -289,7 +289,8 @@ const getStyles = (colors: any) => StyleSheet.create({
     fontSize: 20,
     lineHeight: 26,
     fontWeight: "600",
-    marginTop: 16
+    marginTop: 16,
+    marginBottom: 20
   },
   rating: {
     flexDirection: "row",

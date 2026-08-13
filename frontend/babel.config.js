@@ -4,7 +4,7 @@ module.exports = function omniqBabel(api) {
   return {
     presets: ["babel-preset-expo"],
     plugins: [
-
+      "babel-plugin-react-compiler",
       "react-native-reanimated/plugin",
     ],
   };

@@ -4,7 +4,7 @@
  */
 import type { Request, Response } from "express";
 import { fail, ok } from "../../../../shared/utils/responseFormatter";
-import { getAnalytics, getDashboard, moderateProduct, upsertZone, listZones, listAllOrders } from "../services/adminService";
+import { getAnalytics, getDashboard, moderateProduct, upsertZone, listZones, listAllOrders, listUserRequests, actionUserRequest } from "../services/adminService";
 
 export async function dashboardController(_request: Request, response: Response): Promise<void> {
   try {
@@ -52,5 +52,26 @@ export async function listAllOrdersController(_request: Request, response: Respo
     response.json(ok(orders));
   } catch (error: any) {
     response.status(500).json(fail("FETCH_ALL_ORDERS_FAILED", error.message));
+  }
+}
+
+export async function listUserRequestsController(request: Request, response: Response): Promise<void> {
+  try {
+    const status = request.query.status as string | undefined;
+    const requests = await listUserRequests(status);
+    response.json(ok(requests));
+  } catch (error: any) {
+    response.status(500).json(fail("FETCH_USER_REQUESTS_FAILED", error.message));
+  }
+}
+
+export async function actionUserRequestController(request: Request, response: Response): Promise<void> {
+  try {
+    const { id } = request.params;
+    const { status, adminNotes } = request.body;
+    const result = await actionUserRequest(id, status, adminNotes);
+    response.json(ok(result));
+  } catch (error: any) {
+    response.status(400).json(fail("ACTION_REQUEST_FAILED", error.message));
   }
 }

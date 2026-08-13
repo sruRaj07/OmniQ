@@ -5,7 +5,7 @@
 import { StyleSheet, Text, View, ScrollView, ActivityIndicator, TouchableOpacity, Alert } from "react-native";
 import { useState } from "react";
 import { router } from "expo-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/authStore";
@@ -24,6 +24,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { MetricCard } from "@/components/admin/MetricCard";
 import { QuickActionCard } from "@/components/admin/QuickActionCard";
 import { TopSellerCard } from "@/components/admin/TopSellerCard";
+
 export default function AdminDashboardScreen() {
   const {
     colors,
@@ -43,6 +44,66 @@ export default function AdminDashboardScreen() {
       return res.data.data;
     }
   }, queryClient);
+
+  // Fetch pending user requests (Data Export, Account Deletion)
+  const { data: userRequestsResponse, isLoading: isLoadingRequests, error: requestsError } = useQuery({
+    queryKey: ["adminUserRequests"],
+    queryFn: async () => {
+      const res = await apiClient.get("/admin/user-requests?status=pending");
+      return res.data;
+    },
+    refetchOnMount: "always",
+    staleTime: 0
+  });
+  const pendingRequests = userRequestsResponse?.data || [];
+  
+  if (requestsError) {
+    console.log("Error fetching requests:", requestsError);
+  }
+
+  // Action mutation
+  const actionRequestMutation = useMutation({
+    mutationFn: async ({ id, status, adminNotes }: { id: string, status: string, adminNotes?: string }) => {
+      const res = await apiClient.patch(`/admin/user-requests/${id}`, { status, adminNotes });
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["adminUserRequests"] });
+      Alert.alert("Success", "Request actioned successfully");
+    },
+    onError: (err: any) => {
+      Alert.alert("Error", err?.response?.data?.message || err.message);
+    }
+  });
+
+  const handleActionRequest = (id: string, status: string, type: string) => {
+    if (status === 'rejected') {
+      actionRequestMutation.mutate({ id, status });
+      return;
+    }
+
+    const message = `Are you sure you want to approve this ${type.replace("_", " ")} request?\n\n⚠️ WARNING: This will permanently delete the user account.`;
+
+    if (Platform.OS === 'web') {
+      if (window.confirm(message)) {
+        actionRequestMutation.mutate({ id, status });
+      }
+    } else {
+      Alert.alert(
+        `Confirm Approval`,
+        message,
+        [
+          { text: "Cancel", style: "cancel" },
+          { 
+            text: "Confirm", 
+            style: "destructive",
+            onPress: () => actionRequestMutation.mutate({ id, status })
+          }
+        ]
+      );
+    }
+  };
+
   const handleLogout = async () => {
     setIsMenuOpen(false);
     await supabase.auth.signOut();
@@ -124,6 +185,57 @@ export default function AdminDashboardScreen() {
         </View>
       </View>
 
+      {/* CUSTOMER REQUESTS SECTION */}
+      <View style={{ marginTop: 24, paddingHorizontal: 20 }}>
+        <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginBottom: 12 }]}>CUSTOMER REQUESTS</Text>
+        
+        {isLoadingRequests ? (
+          <ActivityIndicator size="small" color={colors.primary} />
+        ) : pendingRequests.length === 0 ? (
+          <View style={styles.emptyRequests}>
+            <Text style={{ color: colors.textMuted }}>No pending requests.</Text>
+          </View>
+        ) : (
+          pendingRequests.map((req: any) => (
+            <View key={req.id} style={styles.requestCard}>
+              <View style={styles.requestHeader}>
+                <View>
+                  <Text style={styles.requestUser}>{req.profile?.full_name || req.profile?.email || 'Unknown User'}</Text>
+                  <Text style={styles.requestEmail}>{req.profile?.email || 'No email'}</Text>
+                </View>
+                <View style={[styles.requestBadge, req.type === 'account_deletion' ? styles.badgeDanger : styles.badgeInfo]}>
+                  <Text style={[styles.requestBadgeText, req.type === 'account_deletion' ? styles.badgeTextDanger : styles.badgeTextInfo]}>
+                    {req.type === 'account_deletion' ? 'Delete Account' : 'Data Export'}
+                  </Text>
+                </View>
+              </View>
+              
+              {req.reason ? (
+                <Text style={styles.requestReason}>Reason: {req.reason}</Text>
+              ) : null}
+              
+              <Text style={styles.requestDate}>
+                Requested on: {new Date(req.created_at).toLocaleDateString()}
+              </Text>
+              
+              <View style={styles.requestActions}>
+                <TouchableOpacity 
+                  style={[styles.requestBtn, styles.rejectBtn]} 
+                  onPress={() => handleActionRequest(req.id, 'rejected', req.type)}
+                >
+                  <Text style={styles.rejectBtnText}>Reject</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.requestBtn, styles.approveBtn]} 
+                  onPress={() => handleActionRequest(req.id, 'approved', req.type)}
+                >
+                  <Text style={styles.approveBtnText}>Approve</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))
+        )}
+      </View>
 
       {/* Bottom spacing for navbar */}
       <View style={{
@@ -328,5 +440,108 @@ const getStyles = (colors: any) => StyleSheet.create({
     fontSize: 22,
     fontWeight: "300",
     marginLeft: 12
+  },
+  // Customer Requests Styles
+  emptyRequests: {
+    padding: 24,
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  requestCard: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  requestHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  requestUser: {
+    color: colors.textPrimary,
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  requestEmail: {
+    color: colors.textSecondary,
+    fontSize: 13,
+  },
+  requestBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  badgeDanger: {
+    backgroundColor: 'rgba(255, 77, 109, 0.1)',
+  },
+  badgeInfo: {
+    backgroundColor: 'rgba(0, 122, 255, 0.1)',
+  },
+  badgeTextDanger: {
+    color: colors.danger,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  badgeTextInfo: {
+    color: '#007AFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  requestReason: {
+    color: colors.textPrimary,
+    fontSize: 14,
+    backgroundColor: colors.surface,
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+    fontStyle: 'italic',
+  },
+  requestDate: {
+    color: colors.textMuted,
+    fontSize: 12,
+    marginBottom: 16,
+  },
+  requestActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  requestBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rejectBtn: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  rejectBtnText: {
+    color: colors.textPrimary,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  approveBtn: {
+    backgroundColor: colors.danger,
+  },
+  approveBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
   }
 });
