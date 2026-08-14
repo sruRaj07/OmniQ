@@ -8,7 +8,9 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { queryClient } from "@/lib/queryClient";
 import { AuthProvider } from "@/components/shared/AuthProvider";
+import { OfflineBanner } from "@/components/shared/OfflineBanner";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Platform, LogBox } from "react-native";
 
@@ -39,15 +41,22 @@ export default function RootLayout() {
   }), [colors]);
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <StatusBar style="dark" />
-      <ErrorBoundary>
-        <QueryClientProvider client={queryClient}>
-          <AuthProvider>
-            <Stack screenOptions={screenOptions} />
-          </AuthProvider>
-        </QueryClientProvider>
-      </ErrorBoundary>
-    </GestureHandlerRootView>
+    // SafeAreaProvider is required by OfflineBanner's useSafeAreaInsets. v5 seeds
+    // insets from a native constant, so children still render on the first frame.
+    <SafeAreaProvider>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <StatusBar style="dark" />
+        <ErrorBoundary>
+          <QueryClientProvider client={queryClient}>
+            <AuthProvider>
+              <Stack screenOptions={screenOptions} />
+            </AuthProvider>
+          </QueryClientProvider>
+        </ErrorBoundary>
+        {/* Last sibling + zIndex 999 so it floats over every route. Kept outside
+            ErrorBoundary so connectivity is still reported on a crash screen. */}
+        <OfflineBanner />
+      </GestureHandlerRootView>
+    </SafeAreaProvider>
   );
 }

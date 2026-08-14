@@ -22,7 +22,14 @@
           }
         }
       ],
-      "expo-image"
+      [
+        "expo-image",
+        {
+          "maxMemoryCacheSize": 50,
+          "maxDiskCacheSize": 200
+        }
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true
@@ -30,6 +37,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.omniq.app",
+      "jsEngine": "hermes",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }

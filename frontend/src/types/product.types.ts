@@ -10,6 +10,10 @@ export type Product = {
   price: number;
   compare_price?: number;
   images: string[];
+  /** Compressed ~400px WebP served instead of `images[0]` on 2G/3G. */
+  thumbnail_url?: string | null;
+  /** Base64 micro-thumbnail data URI used as an expo-image placeholder. */
+  blurhash?: string | null;
   category: string;
   stock_quantity: number;
   // UI only fallback fields (we can add these on the frontend side for UI purposes)

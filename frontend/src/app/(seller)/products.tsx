@@ -9,8 +9,9 @@ import { Screen } from "@/components/shared/Screen";
 import { useAppTheme } from "@/store/useThemeStore";
 import { useSellerProducts } from "@/hooks/useProducts";
 import { formatCurrency } from "@/utils/formatCurrency";
+import { describeOptimization } from "@/utils/imageCompressor";
 import { ActivityIndicator, TouchableOpacity } from "react-native";
-import { Image } from "expo-image";
+import { NetworkAwareImage } from "@/components/shared/NetworkAwareImage";
 import { HomeIcon } from "@/components/ui/HomeIcon";
 import { ListIcon } from "@/components/ui/ListIcon";
 import { BoxIcon } from "@/components/ui/BoxIcon";
@@ -40,6 +41,9 @@ const SellerProductItem = React.memo(function SellerProductItem({
   colors: any;
   onSelect: (p: any) => void;
 }) {
+  // Tells the seller at a glance which listings still carry a heavy original.
+  const optimization = describeOptimization(product.thumbnail_url || product.images?.[0]);
+
   const getStatusBadge = () => {
     if (product.is_approved) {
       return (
@@ -66,7 +70,14 @@ const SellerProductItem = React.memo(function SellerProductItem({
     <TouchableOpacity onPress={() => onSelect(product)} activeOpacity={0.85}>
       <Card style={[styles.product, { backgroundColor: colors.card, borderColor: colors.border }]}>
         {product.images && product.images.length > 0 ? (
-          <Image source={product.images[0]} style={styles.image} contentFit="contain" transition={150} />
+          <NetworkAwareImage
+            source={product.images[0]}
+            thumbnailSource={product.thumbnail_url}
+            placeholder={product.blurhash}
+            style={styles.image}
+            contentFit="contain"
+            transition={150}
+          />
         ) : (
           <View style={[styles.image, styles.imagePlaceholder]}>
             <Text style={{ color: colors.textMuted, fontSize: 10, fontWeight: "600" }}>No Image</Text>
@@ -85,6 +96,13 @@ const SellerProductItem = React.memo(function SellerProductItem({
               </View>
             ) : null}
             {getStatusBadge()}
+            {optimization ? (
+              <View style={[styles.categoryBadge, { borderColor: optimization.isOptimized ? colors.success : colors.warning }]}>
+                <Text style={[styles.categoryBadgeText, { color: optimization.isOptimized ? colors.success : colors.warning }]}>
+                  {optimization.label}
+                </Text>
+              </View>
+            ) : null}
           </View>
         </View>
         <View style={styles.priceContainer}>

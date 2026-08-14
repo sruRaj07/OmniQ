@@ -4,8 +4,8 @@
  */
 import React, { memo, useMemo } from "react";
 import { StyleSheet, Text, View, Pressable } from "react-native";
-import { Image } from "expo-image";
 import { Link } from "expo-router";
+import { NetworkAwareImage } from "@/components/shared/NetworkAwareImage";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { useThemeColors } from "@/store/useThemeStore";
@@ -34,7 +34,14 @@ export const CartItem = memo(function CartItem({
         <Pressable style={styles.topRow}>
           {imageUrl ? (
             <View style={styles.imageContainer}>
-              <Image source={imageUrl} style={styles.image} contentFit="contain" transition={150} />
+              <NetworkAwareImage
+                source={imageUrl}
+                thumbnailSource={item.product.thumbnail_url}
+                placeholder={item.product.blurhash}
+                style={styles.image}
+                contentFit="contain"
+                transition={150}
+              />
             </View>
           ) : (
             <Text style={styles.placeholderImage}>📦</Text>

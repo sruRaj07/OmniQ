@@ -12,11 +12,31 @@ import { useThemeColors } from "@/store/useThemeStore";
 import { apiClient } from "@/lib/apiClient";
 import { useQueryClient } from "@tanstack/react-query";
 import { CategorySvgIcon } from "@/components/ui/CategorySvgIcon";
+import {
+  compressProductImage,
+  formatBytes,
+  savingsPercent,
+} from "@/utils/imageCompressor";
 
 export type ProductFormProps = {
   initialData?: any;
   onCloseEdit?: () => void;
 };
+
+/**
+ * One slot in the image strip. `originalSize`/`compressedSize` are 0 for images
+ * that came back from the server (already compressed, nothing to report).
+ */
+type PickedImage = {
+  uri: string;
+  blurhash: string | null;
+  originalSize: number;
+  compressedSize: number;
+};
+
+function existingImage(uri: string): PickedImage {
+  return { uri, blurhash: null, originalSize: 0, compressedSize: 0 };
+}
 
 export function ProductForm({ initialData, onCloseEdit }: ProductFormProps) {
   const colors = useThemeColors();
@@ -29,7 +49,8 @@ export function ProductForm({ initialData, onCloseEdit }: ProductFormProps) {
   const [stock, setStock] = useState("");
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
-  const [images, setImages] = useState<string[]>([]);
+  const [images, setImages] = useState<PickedImage[]>([]);
+  const [isCompressing, setIsCompressing] = useState(false);
   const [availableTags, setAvailableTags] = useState<string[]>(["grocery", "kitchen"]);
 
   useEffect(() => {
@@ -55,7 +76,7 @@ export function ProductForm({ initialData, onCloseEdit }: ProductFormProps) {
       setStock(initialData.stock?.toString() || "");
       setCategory(initialData.category || "");
       setDescription(initialData.description || "");
-      setImages(initialData.images || []);
+      setImages((initialData.images || []).map(existingImage));
     } else {
       setTitle("");
       setPrice("");
@@ -78,10 +99,32 @@ export function ProductForm({ initialData, onCloseEdit }: ProductFormProps) {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 0.8
+      // Left at source quality — imageCompressor does the resize and encode, so
+      // compressing twice would only add artefacts.
+      quality: 1
     });
-    if (!result.canceled && result.assets[0].uri) {
-      setImages([...images, result.assets[0].uri]);
+    if (result.canceled || !result.assets[0]?.uri) return;
+
+    const picked = result.assets[0];
+    setIsCompressing(true);
+    try {
+      const compressed = await compressProductImage(picked.uri);
+      setImages(current => [
+        ...current,
+        {
+          uri: compressed.uri,
+          blurhash: compressed.blurhash,
+          // fileSize from the picker is the seller's original; ours is the result.
+          originalSize: picked.fileSize ?? 0,
+          compressedSize: compressed.fileSize
+        }
+      ]);
+    } catch (err) {
+      // Compression is an optimisation, never a gate on listing a product.
+      console.log("Compression failed, uploading original:", err);
+      setImages(current => [...current, existingImage(picked.uri)]);
+    } finally {
+      setIsCompressing(false);
     }
   };
   const removeImage = (index: number) => {
@@ -129,7 +172,7 @@ export function ProductForm({ initialData, onCloseEdit }: ProductFormProps) {
 
       // Process images sequentially because of await
       for (let index = 0; index < images.length; index++) {
-        const uri = images[index];
+        const uri = images[index].uri;
         if (uri.startsWith("http")) {
           // It's an already uploaded image, just pass the URL back as a separate field
           formData.append("existing_images", uri);
@@ -171,6 +214,18 @@ export function ProductForm({ initialData, onCloseEdit }: ProductFormProps) {
       setIsLoading(false);
     }
   };
+  // "Compressed from 3.2MB to 180KB (94% saved)" across every freshly picked
+  // image. Images loaded from the server carry no original size, so they are
+  // skipped rather than dragging the percentage down.
+  const compressionSummary = React.useMemo(() => {
+    const measured = images.filter(image => image.originalSize > 0 && image.compressedSize > 0);
+    if (measured.length === 0) return null;
+
+    const before = measured.reduce((sum, image) => sum + image.originalSize, 0);
+    const after = measured.reduce((sum, image) => sum + image.compressedSize, 0);
+    return `Compressed from ${formatBytes(before)} to ${formatBytes(after)} (${savingsPercent(before, after)}% saved)`;
+  }, [images]);
+
   const handleCloseSuccess = () => {
     setShowSuccessModal(false);
     if (onCloseEdit) {
@@ -230,16 +285,27 @@ export function ProductForm({ initialData, onCloseEdit }: ProductFormProps) {
       <View style={styles.imageSection}>
         <Text style={styles.imageTitle}>Product Images ({images.length}/5)</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.imageScroll}>
-          {images.map((uri, index) => <TouchableOpacity key={index} onPress={() => removeImage(index)} style={styles.imageBoxSelected}>
-              <Image source={uri} style={styles.imagePreview} contentFit="cover" transition={150} />
+          {images.map((image, index) => <TouchableOpacity key={index} onPress={() => removeImage(index)} style={styles.imageBoxSelected}>
+              <Image
+                source={image.uri}
+                placeholder={image.blurhash ?? undefined}
+                style={styles.imagePreview}
+                contentFit="cover"
+                transition={150}
+              />
               <View style={styles.removeOverlay}>
                 <Text style={styles.removeText}>✕</Text>
               </View>
             </TouchableOpacity>)}
-          {images.length < 5 && <TouchableOpacity onPress={handlePickImage} style={styles.imageBox}>
+          {isCompressing && <View style={[styles.imageBox, styles.imageBoxBusy]}>
+              <ActivityIndicator size="small" color={colors.accent} />
+              <Text style={styles.compressingText}>Optimising…</Text>
+            </View>}
+          {images.length < 5 && !isCompressing && <TouchableOpacity onPress={handlePickImage} style={styles.imageBox}>
               <Text style={styles.plusIcon}>+</Text>
             </TouchableOpacity>}
         </ScrollView>
+        {compressionSummary && <Text style={styles.compressionStats}>{compressionSummary}</Text>}
       </View>
 
       {isEditing && (
@@ -311,6 +377,22 @@ const getStyles = (colors: any) => StyleSheet.create({
     borderStyle: "dashed",
     alignItems: "center",
     justifyContent: "center"
+  },
+  imageBoxBusy: {
+    borderStyle: "solid",
+    gap: 6
+  },
+  compressingText: {
+    color: colors.textMuted,
+    fontSize: 10,
+    fontWeight: "600"
+  },
+  compressionStats: {
+    color: colors.success || "#2ecc71",
+    fontSize: 12,
+    fontWeight: "700",
+    marginTop: 10,
+    marginLeft: 4
   },
   imageBoxSelected: {
     width: 80,

@@ -18,7 +18,7 @@ import { apiClient } from "@/lib/apiClient";
 import type { Product } from "@/types/product.types";
 import { ProductCard } from "@/components/buyer/ProductCard";
 import { ImageZoomViewer } from "@/components/shared/ImageZoomViewer";
-import { Image } from "expo-image";
+import { NetworkAwareImage } from "@/components/shared/NetworkAwareImage";
 export default function ProductDetailScreen() {
   const colors = useThemeColors();
   const styles = getStyles(colors);
@@ -156,7 +156,18 @@ export default function ProductDetailScreen() {
               }}
               style={{ width: width, height: "100%", alignItems: "center", justifyContent: "center" }}
             >
-              <Image source={{ uri }} style={styles.productImage} contentFit="contain" priority="high" transition={150} />
+              {/* Only the first image has a generated thumbnail/placeholder, and it
+                  is already in the disk cache from the grid — so slide 0 paints
+                  instantly on 2G. Tap opens the full-resolution zoom viewer. */}
+              <NetworkAwareImage
+                source={uri}
+                thumbnailSource={i === 0 ? product.thumbnail_url : null}
+                placeholder={i === 0 ? product.blurhash : null}
+                style={styles.productImage}
+                contentFit="contain"
+                priority="high"
+                transition={150}
+              />
             </TouchableOpacity>
           ))}
         </ScrollView>

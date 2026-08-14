@@ -72,6 +72,7 @@ export default function ExploreScreen() {
               data={products}
               numColumns={2}
               {...({ estimatedItemSize: 250 } as any)}
+              scrollEventThrottle={16}
               contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
               showsVerticalScrollIndicator={false}
               ListHeaderComponent={

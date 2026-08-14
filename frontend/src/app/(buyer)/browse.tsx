@@ -105,6 +105,7 @@ export default function BrowseScreen() {
               data={displayProducts}
               numColumns={2}
               {...({ estimatedItemSize: 250 } as any)}
+              scrollEventThrottle={16}
               contentContainerStyle={styles.contentScroll}
               showsVerticalScrollIndicator={false}
               ListHeaderComponent={

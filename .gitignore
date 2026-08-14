@@ -22,3 +22,13 @@ web-storefront/app/routeTree.gen.ts
 
 # frontend
 frontend/index.js
+
+# local overrides
+*.local
+
+# scratch / one-off scripts (not part of the build)
+scratch_test.js
+query.ts
+query2.ts
+query3.ts
+create_admin.js

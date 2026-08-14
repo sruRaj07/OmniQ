@@ -1,4 +1,7 @@
-// Learn more https://docs.expo.io/guides/customizing-metro
+/**
+ * OmniQ mobile app - Metro bundler configuration.
+ * Learn more https://docs.expo.io/guides/customizing-metro
+ */
 const { getDefaultConfig } = require("expo/metro-config");
 const path = require("path");
 
@@ -17,9 +20,19 @@ config.resolver.nodeModulesPaths = [
   path.resolve(monorepoRoot, "node_modules"),
 ];
 
+// Asset formats. `webp` (plus heic/avif) is already in Expo's default assetExts —
+// listed explicitly so a future assetExts override can't silently drop WebP support.
+config.resolver.assetExts = Array.from(
+  new Set([...config.resolver.assetExts, "webp"])
+);
+
 // ⚡ PRODUCTION OPTIMIZATIONS: Configure aggressive minification & dead-code elimination
 config.transformer = {
   ...config.transformer,
+  // Shrinks the PNG/JPEG/WebP copies Metro emits into the bundle.
+  // Does not affect ./assets/images/icon.png or splash.png — those are consumed
+  // by the native build, not by Metro.
+  assetPlugins: [...(config.transformer.assetPlugins || [])],
   minifierConfig: {
     compress: {
       // Automatically remove all verbose console logs and debug statements in production builds

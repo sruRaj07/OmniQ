@@ -6,16 +6,12 @@
  */
 import React, { useMemo } from "react";
 import { StyleSheet, Text, View, Pressable, Platform } from "react-native";
-import { Image } from "expo-image";
 import type { StyleProp, ViewStyle } from "react-native";
 import { Link } from "expo-router";
+import { NetworkAwareImage } from "@/components/shared/NetworkAwareImage";
 import { useThemeColors } from "@/store/useThemeStore";
 import type { Product } from "@/types/product.types";
 import { formatCurrency } from "@/utils/formatCurrency";
-
-// A generic fast-loading placeholder blurhash
-const blurhash =
-  "|rF?hV%2WCj[ayj[a|j[az_NaeWBj@ayfRayfQfQM{M|azj[azf6fQfQfQIpWXofj[ayj[j[fQayWCoeoeaya}j[ayfQa{oLj?j[WVj[ayayj[fQoff7azayj[ayj[j[ayofayayayj[fQj[ayayj[ayfjj[j[ayjuayj[";
 
 type ProductCardProps = {
   product: Product;
@@ -37,11 +33,12 @@ export const ProductCard = React.memo(function ProductCard({ product, index = 0,
             {/* Image */}
             <View style={styles.imageContainer}>
               {imageUrl ? (
-                <Image 
-                  source={{ uri: imageUrl }} 
-                  style={styles.image} 
+                <NetworkAwareImage
+                  source={imageUrl}
+                  thumbnailSource={product.thumbnail_url}
+                  placeholder={product.blurhash}
+                  style={styles.image}
                   contentFit="contain"
-                  placeholder={blurhash}
                   priority={index < 4 ? "high" : "normal"}
                   transition={Platform.OS === 'web' ? 0 : 200}
                 />

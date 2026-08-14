@@ -71,6 +71,7 @@ export default function BuyerHomeScreen() {
             data={products}
             numColumns={2}
             {...({ estimatedItemSize: 250 } as any)}
+            scrollEventThrottle={16}
             contentContainerStyle={{ paddingBottom: 100 }}
             showsVerticalScrollIndicator={false}
             ListHeaderComponent={

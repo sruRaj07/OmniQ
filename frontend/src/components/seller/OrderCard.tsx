@@ -4,7 +4,7 @@
  */
 import React, { memo, useMemo } from "react";
 import { StyleSheet, Text, View, TouchableOpacity } from "react-native";
-import { Image } from "expo-image";
+import { NetworkAwareImage } from "@/components/shared/NetworkAwareImage";
 import { Card } from "@/components/ui/Card";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useThemeColors } from "@/store/useThemeStore";
@@ -41,7 +41,14 @@ export const OrderCard = memo(function OrderCard({ order, isSeller, onPress }: O
   const cardContent = (
     <Card style={styles.card}>
       {imageUrl ? (
-        <Image source={imageUrl} style={styles.image} contentFit="cover" transition={150} />
+        <NetworkAwareImage
+          source={imageUrl}
+          thumbnailSource={product?.thumbnail_url}
+          placeholder={product?.blurhash}
+          style={styles.image}
+          contentFit="cover"
+          transition={150}
+        />
       ) : (
         <View style={styles.placeholderIcon} />
       )}
