@@ -7,7 +7,7 @@ import dotenv from "dotenv";
 import express from "express";
 import helmet from "helmet";
 import { ok } from "../../../shared/utils/responseFormatter";
-import { placeOrderController, updateOrderStatusController, listOrdersController, listSellerOrdersController, getCartController, addToCartController, removeFromCartController, clearCartController, updateCartItemController } from "./controllers/orderController";
+import { placeOrderController, updateOrderStatusController, listOrdersController, listSellerOrdersController, getCartController, addToCartController, removeFromCartController, clearCartController, updateCartItemController, cancelOrderController } from "./controllers/orderController";
 
 dotenv.config();
 const app = express();
@@ -20,6 +20,7 @@ app.post("/orders", placeOrderController);
 app.get("/orders", listOrdersController);
 app.get("/orders/seller", listSellerOrdersController);
 app.patch("/orders/:id/status", updateOrderStatusController);
+app.post("/orders/:id/cancel", cancelOrderController);
 app.get("/orders/export", (_request, response) => response.type("text/csv").send("id,status,total\nOMQ-2847,pending,1999\n"));
 
 // Cart routes

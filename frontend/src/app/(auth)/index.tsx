@@ -35,9 +35,6 @@ export default function SignInScreen() {
   }>();
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [resetEmail, setResetEmail] = useState("");
-  const [isResetting, setIsResetting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   const {
@@ -107,28 +104,6 @@ export default function SignInScreen() {
     setGoogleLoading(false);
   };
 
-  const handleForgotPassword = async () => {
-    if (!resetEmail || !resetEmail.includes("@")) {
-      Alert.alert("Error", "Please enter a valid email address.");
-      return;
-    }
-    setIsResetting(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(resetEmail);
-    setIsResetting(false);
-    
-    if (error) {
-      Alert.alert("Error", error.message);
-    } else {
-      setShowForgotPassword(false);
-      // Route to OTP verify screen with the email so we know what account we're verifying
-      router.push({
-        pathname: "/otp-reset",
-        params: { email: resetEmail }
-      });
-      setResetEmail("");
-    }
-  };
-
   return <Screen scroll={true}>
     <KeyboardAvoidingView 
       style={{ flex: 1, width: '100%' }} 
@@ -182,10 +157,6 @@ export default function SignInScreen() {
             {errors.password && <Text style={styles.error}>{errors.password.message}</Text>}
           </View>} />
 
-        <TouchableOpacity onPress={() => setShowForgotPassword(true)} style={styles.forgotPasswordContainer}>
-          <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-        </TouchableOpacity>
-
         <Button onPress={handleSubmit(onSubmit)} style={styles.submitButton}>
           {loading ? "Signing in..." : "Sign In"}
         </Button>
@@ -205,41 +176,6 @@ export default function SignInScreen() {
       <Link href={"/admin-login" as any} style={styles.admin}>Admin portal</Link>
     </View>
     </KeyboardAvoidingView>
-
-    {/* Forgot Password Modal */}
-    <Modal
-      visible={showForgotPassword}
-      animationType="fade"
-      transparent={true}
-      onRequestClose={() => setShowForgotPassword(false)}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>Reset Password</Text>
-          <Text style={styles.meta}>Enter your email address to receive a password reset link.</Text>
-
-          <View style={{ marginTop: 24, marginBottom: 24 }}>
-            <Input
-              placeholder="Email Address"
-              value={resetEmail}
-              onChangeText={setResetEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-          </View>
-
-          <Button onPress={handleForgotPassword} style={{ marginBottom: 12 }}>
-            {isResetting ? "Sending..." : "Send Reset Link"}
-          </Button>
-          <Button variant="secondary" onPress={() => {
-            setShowForgotPassword(false);
-            setResetEmail("");
-          }}>
-            Cancel
-          </Button>
-        </View>
-      </View>
-    </Modal>
   </Screen>;
 }
 const getStyles = (colors: any) => StyleSheet.create({
@@ -330,39 +266,5 @@ const getStyles = (colors: any) => StyleSheet.create({
     marginTop: 16,
     fontSize: 13,
     fontWeight: "700"
-  },
-  forgotPasswordContainer: {
-    alignSelf: 'flex-end',
-    marginBottom: 20,
-    marginTop: -8,
-  },
-  forgotPasswordText: {
-    color: colors.accent,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  modalContent: {
-    backgroundColor: colors.bgPrimary,
-    borderRadius: 20,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: colors.textPrimary,
-    marginBottom: 8,
-  },
-  meta: {
-    color: colors.textMuted,
-    fontSize: 13,
-    lineHeight: 20,
   }
 });

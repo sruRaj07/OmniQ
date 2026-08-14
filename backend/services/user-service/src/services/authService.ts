@@ -5,6 +5,12 @@ import { generateAndStoreOtp, sendOtpEmail, verifyAndRetrieveSession } from "../
 export async function signUpWithEmail(input: unknown) {
   const validated = signUpSchema.parse(input);
 
+  // Check if user already exists
+  const { data: existingProfile } = await supabaseAdmin.from("profiles").select("id").eq("email", validated.email).single();
+  if (existingProfile) {
+    throw new Error("User already registered");
+  }
+
   const { data, error } = await supabase.auth.signUp({
     email: validated.email,
     password: validated.password,
@@ -29,7 +35,6 @@ export async function signUpWithEmail(input: unknown) {
       email: validated.email,
       full_name: validated.fullName || "",
       role: validated.role,
-      accepted_terms: validated.acceptedTerms,
       terms_accepted_at: new Date().toISOString(),
       terms_version: "1.0",
       privacy_policy_accepted_at: new Date().toISOString(),

@@ -4,7 +4,7 @@
  */
 import { z } from "zod";
 import { emitOrderStatusChanged } from "../events/orderEventEmitter";
-import { supabase } from "../../../../shared/utils/supabaseClient";
+import { supabase, supabaseAdmin } from "../../../../shared/utils/supabaseClient";
 
 export const orderCreateSchema = z.object({
   items: z.array(z.object({ productId: z.string(), quantity: z.number().int().positive() })).min(1),
@@ -112,6 +112,64 @@ export async function updateOrderStatus(orderId: string, status: string) {
   
   emitOrderStatusChanged(orderId, status);
   return data;
+}
+
+export async function cancelOrder(buyerId: string, orderId: string) {
+  // 1. Fetch order and verify ownership/status
+  const { data: order, error: orderError } = await supabaseAdmin
+    .from("orders")
+    .select("*, order_items(*)")
+    .eq("id", orderId)
+    .single();
+
+  if (orderError || !order) throw new Error("Order not found");
+  if (order.buyer_id !== buyerId) throw new Error("Unauthorized");
+  if (order.status !== "pending") throw new Error("Only pending orders can be cancelled");
+
+  // 2. Check 12-hour cutoff rule
+  const createdAt = new Date(order.created_at);
+  const hour = createdAt.getHours();
+  const deliveryStart = new Date(createdAt);
+  deliveryStart.setHours(12, 0, 0, 0);
+  if (hour >= 12) {
+    deliveryStart.setDate(deliveryStart.getDate() + 1);
+  }
+  
+  const cutoffTime = new Date(deliveryStart.getTime() - 12 * 60 * 60 * 1000);
+  
+  if (new Date() >= cutoffTime) {
+    throw new Error("Order can no longer be cancelled (past 12-hour cutoff)");
+  }
+
+  // 3. Refund stock
+  for (const item of order.order_items) {
+    const { data: product } = await supabaseAdmin
+      .from("products")
+      .select("stock")
+      .eq("id", item.product_id)
+      .single();
+    
+    if (product) {
+      await supabaseAdmin
+        .from("products")
+        .update({ stock: product.stock + item.quantity })
+        .eq("id", item.product_id);
+    }
+  }
+
+  // 4. Delete order items explicitly (in case CASCADE is not set)
+  await supabaseAdmin.from("order_items").delete().eq("order_id", orderId);
+
+  // 5. Delete the order from the database entirely
+  const { error: deleteError } = await supabaseAdmin
+    .from("orders")
+    .delete()
+    .eq("id", orderId);
+
+  if (deleteError) throw new Error(`Failed to delete order: ${deleteError.message}`);
+
+  emitOrderStatusChanged(orderId, "cancelled");
+  return { id: orderId, status: "cancelled", deleted: true };
 }
 
 export async function listOrders(buyerId: string) {

@@ -4,7 +4,7 @@
  */
 import type { Request, Response } from "express";
 import { fail, ok } from "../../../../shared/utils/responseFormatter";
-import { placeOrder, updateOrderStatus, listOrders, listSellerOrders, getCart, addToCart, removeFromCart, clearCart, updateCartItemQuantity } from "../services/orderService";
+import { placeOrder, updateOrderStatus, listOrders, listSellerOrders, getCart, addToCart, removeFromCart, clearCart, updateCartItemQuantity, cancelOrder } from "../services/orderService";
 
 function extractTokenPayload(request: Request): any {
   const token = request.headers.authorization?.split(" ")[1];
@@ -36,6 +36,17 @@ export async function updateOrderStatusController(request: Request, response: Re
     response.json(ok(order));
   } catch (error: any) {
     response.status(400).json(fail("ORDER_UPDATE_FAILED", error.message));
+  }
+}
+
+export async function cancelOrderController(request: Request, response: Response): Promise<void> {
+  try {
+    const payload = extractTokenPayload(request);
+    const buyerId = payload?.sub || DEFAULT_BUYER_ID;
+    const order = await cancelOrder(buyerId, request.params.id);
+    response.json(ok(order));
+  } catch (error: any) {
+    response.status(400).json(fail("CANCEL_ORDER_FAILED", error.message));
   }
 }
 

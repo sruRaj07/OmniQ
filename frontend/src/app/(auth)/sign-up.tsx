@@ -19,7 +19,7 @@ import { apiClient } from "@/lib/apiClient";
 WebBrowser.maybeCompleteAuthSession();
 const signUpSchema = z.object({
   fullName: z.string().min(2, "Full name must be at least 2 characters"),
-  email: z.string().email("Invalid email address"),
+  email: z.string().email("Invalid email address").endsWith("@gmail.com", "You must use a @gmail.com email to sign up"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   role: z.enum(["buyer", "seller"]).default("buyer"),
   acceptedTerms: z.literal(true, {
@@ -74,7 +74,12 @@ export default function SignUpScreen() {
         throw new Error("Invalid response from server");
       }
     } catch (err: any) {
-      Alert.alert("Sign up failed", err?.response?.data?.message || err.message);
+      const errorMessage = err?.response?.data?.error?.message || err.message || "";
+      if (errorMessage.toLowerCase().includes("already registered") || errorMessage.toLowerCase().includes("already exists")) {
+        Alert.alert("User already exists", "This email is already registered. Please use a different email to sign up.");
+      } else {
+        Alert.alert("Sign up failed", errorMessage);
+      }
     } finally {
       setLoading(false);
     }

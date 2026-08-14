@@ -45,6 +45,16 @@ export function useOrders() {
     },
   });
 
+  const cancelOrderMutation = useMutation({
+    mutationFn: async (orderId: string) => {
+      const { data } = await apiClient.post(`/orders/${orderId}/cancel`);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["buyer-orders"] });
+    },
+  });
+
   return {
     buyerOrders: buyerQuery.data || [],
     sellerOrders: sellerQuery.data || [],
@@ -52,5 +62,7 @@ export function useOrders() {
     isFetching: buyerQuery.isFetching || sellerQuery.isFetching,
     updateOrderStatus: updateStatusMutation.mutate,
     isUpdatingStatus: updateStatusMutation.isPending,
+    cancelOrder: cancelOrderMutation.mutateAsync,
+    isCancelling: cancelOrderMutation.isPending,
   };
 }
