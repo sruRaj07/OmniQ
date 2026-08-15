@@ -4,112 +4,238 @@
  */
 import { z } from "zod";
 import { emitOrderStatusChanged } from "../events/orderEventEmitter";
-import { supabase, supabaseAdmin } from "../../../../shared/utils/supabaseClient";
+import { supabaseAdmin } from "../../../../shared/utils/supabaseClient";
 
 export const orderCreateSchema = z.object({
-  items: z.array(z.object({ productId: z.string(), quantity: z.number().int().positive() })).min(1),
+  items: z.array(z.object({ productId: z.string(), quantity: z.number().int().positive().max(100) })).min(1).max(50),
   deliveryAddress: z.record(z.string(), z.string()),
   buyerLat: z.number(),
   buyerLng: z.number()
 });
 
-export async function placeOrder(buyerId: string, input: unknown) {
+export const ORDER_STATUSES = ["pending", "packed", "dispatched", "delivered", "cancelled"] as const;
+export type OrderStatus = (typeof ORDER_STATUSES)[number];
+
+/**
+ * Returns the order previously created under this idempotency key, or null if the key is new.
+ * Claims the key atomically so concurrent replays cannot both proceed to create an order.
+ */
+async function claimIdempotencyKey(key: string, buyerId: string): Promise<{ replayed: any | null }> {
+  const { error } = await supabaseAdmin.from("order_idempotency").insert({ key, buyer_id: buyerId });
+
+  if (!error) return { replayed: null }; // Key is ours; proceed with creation.
+
+  // 23505 = unique_violation: another request already claimed this key.
+  if (error.code === "23505") {
+    // SECURITY: scoped to buyer_id as well as key. The key is client-supplied, so without this a
+    // caller who guessed or reused another customer's key would be handed that customer's order
+    // row - delivery address, phone and totals included. A key belonging to someone else simply
+    // does not match, and the request is rejected as in-progress rather than replayed.
+    const { data: existing } = await supabaseAdmin
+      .from("order_idempotency")
+      .select("order_id")
+      .eq("key", key)
+      .eq("buyer_id", buyerId)
+      .maybeSingle();
+
+    if (existing?.order_id) {
+      const { data: order } = await supabaseAdmin.from("orders").select("*").eq("id", existing.order_id).maybeSingle();
+      if (order) return { replayed: order };
+    }
+    // Key claimed but the original attempt has not finished (or failed before linking an order).
+    throw new Error("A checkout with this key is already in progress. Please retry in a moment.");
+  }
+
+  if (error.code === "42P01") {
+    // Table missing - migration 004_order_idempotency.sql has not been applied.
+    console.error("[order] order_idempotency table is missing; duplicate-order protection is INACTIVE.");
+    return { replayed: null };
+  }
+
+  throw new Error(`Failed to record idempotency key: ${error.message}`);
+}
+
+export async function placeOrder(buyerId: string, input: unknown, idempotencyKey?: string) {
   const parsed = orderCreateSchema.parse(input);
-  
-  // 1. Fetch details for the products
-  const productIds = parsed.items.map(item => item.productId);
-  const { data: products, error: productsError } = await supabase
+
+  if (idempotencyKey) {
+    const { replayed } = await claimIdempotencyKey(idempotencyKey, buyerId);
+    if (replayed) return replayed;
+  }
+
+  // 1. Fetch details for the products. Only approved, in-stock products may be ordered - a client
+  //    could otherwise order an unapproved or flagged listing by passing its id directly.
+  const productIds = [...new Set(parsed.items.map((item) => item.productId))];
+  if (productIds.length !== parsed.items.length) {
+    throw new Error("Duplicate products in order. Combine them into a single line item.");
+  }
+
+  const { data: products, error: productsError } = await supabaseAdmin
     .from("products")
-    .select("id, price, seller_id, stock")
+    .select("id, price, seller_id, stock, is_approved")
     .in("id", productIds);
 
   if (productsError) throw new Error(`Failed to verify products: ${productsError.message}`);
-  if (!products || products.length === 0) throw new Error("No valid products found for the order.");
+  if (!products || products.length !== productIds.length) {
+    throw new Error("One or more products in your cart are no longer available.");
+  }
 
-  // 2. Validate stock, calculate prices, and build order items
+  // 2. Validate stock and compute prices. Prices come from the database, never from the client.
   let subtotal = 0;
-  const resolvedItems: any[] = [];
-  const sellerId = products[0].seller_id; // Order is placed with the seller of the first product
+  const resolvedItems: Array<{ product_id: string; quantity: number; unit_price: number; subtotal: number }> = [];
 
   for (const item of parsed.items) {
-    const product = products.find(p => p.id === item.productId);
+    const product = products.find((p) => p.id === item.productId);
     if (!product) throw new Error(`Product ${item.productId} not found.`);
+    if (product.is_approved === false) throw new Error("One or more products in your cart are no longer available.");
     if (product.stock < item.quantity) {
       throw new Error(`Insufficient stock for product ${product.id}. Available: ${product.stock}, Requested: ${item.quantity}`);
     }
-    
+
     const itemSubtotal = Number(product.price) * item.quantity;
     subtotal += itemSubtotal;
-    
+
     resolvedItems.push({
       product_id: product.id,
       quantity: item.quantity,
       unit_price: product.price,
-      subtotal: itemSubtotal,
-      newStock: product.stock - item.quantity
+      subtotal: itemSubtotal
     });
   }
 
+  // A single order row carries exactly one seller_id. Previously the seller of the first product
+  // was applied to the whole order, so items from other sellers were silently attributed to - and
+  // fulfilled by - the wrong merchant. Reject rather than misattribute; splitting a cart into one
+  // order per seller is a schema and UI change tracked separately.
+  const sellerIds = [...new Set(products.map((p) => p.seller_id))];
+  if (sellerIds.length > 1) {
+    throw new Error("Your cart contains items from multiple sellers. Please check out one seller at a time.");
+  }
+  const sellerId = sellerIds[0];
+
   const total = subtotal;
 
-  // 3. Insert into orders table (with seller_id)
-  const { data: order, error: orderError } = await supabase
-    .from("orders")
-    .insert({
-      buyer_id: buyerId,
-      seller_id: sellerId,
-      subtotal,
-      platform_fee: 0,
-      total,
-      delivery_address: parsed.deliveryAddress,
-      buyer_lat: parsed.buyerLat,
-      buyer_lng: parsed.buyerLng,
-      status: "pending"
-    })
-    .select()
-    .single();
+  // 3. Reserve stock BEFORE creating the order, using a conditional update per item.
+  //    `.gte("stock", quantity)` makes this compare-and-set: if a concurrent order consumed the
+  //    stock between our read and this write, zero rows match and we know we lost the race. The
+  //    previous read-then-write with a precomputed newStock allowed overselling under concurrency.
+  const reserved: Array<{ product_id: string; quantity: number }> = [];
+  try {
+    for (const item of resolvedItems) {
+      const { data: updated, error: stockError } = await supabaseAdmin
+        .from("products")
+        .update({ stock: (products.find((p) => p.id === item.product_id)!.stock as number) - item.quantity })
+        .eq("id", item.product_id)
+        .gte("stock", item.quantity)
+        .select("id")
+        .maybeSingle();
 
-  if (orderError) throw new Error(`Failed to create order: ${orderError.message}`);
+      if (stockError) throw new Error(`Failed to reserve stock: ${stockError.message}`);
+      if (!updated) throw new Error(`Insufficient stock for product ${item.product_id}. Please review your cart.`);
+      reserved.push({ product_id: item.product_id, quantity: item.quantity });
+    }
 
-  // 4. Insert into order_items table (with unit_price & subtotal)
-  const orderItems = resolvedItems.map(item => ({
-    order_id: order.id,
-    product_id: item.product_id,
-    quantity: item.quantity,
-    unit_price: item.unit_price,
-    subtotal: item.subtotal
-  }));
+    // 4. Create the order.
+    const { data: order, error: orderError } = await supabaseAdmin
+      .from("orders")
+      .insert({
+        buyer_id: buyerId,
+        seller_id: sellerId,
+        subtotal,
+        platform_fee: 0,
+        total,
+        delivery_address: parsed.deliveryAddress,
+        buyer_lat: parsed.buyerLat,
+        buyer_lng: parsed.buyerLng,
+        status: "pending"
+      })
+      .select()
+      .single();
 
-  const { error: itemsError } = await supabase
-    .from("order_items")
-    .insert(orderItems);
+    if (orderError) throw new Error(`Failed to create order: ${orderError.message}`);
 
-  if (itemsError) {
-    // Note: In production we would delete the order or use database transactions to rollback
-    throw new Error(`Failed to create order items: ${itemsError.message}`);
+    // 5. Create the line items.
+    const { error: itemsError } = await supabaseAdmin.from("order_items").insert(
+      resolvedItems.map((item) => ({
+        order_id: order.id,
+        product_id: item.product_id,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        subtotal: item.subtotal
+      }))
+    );
+
+    if (itemsError) {
+      // Roll the order back so a half-written order never reaches the seller.
+      await supabaseAdmin.from("orders").delete().eq("id", order.id);
+      throw new Error(`Failed to create order items: ${itemsError.message}`);
+    }
+
+    // 6. Link the idempotency key to the finished order so replays return it.
+    if (idempotencyKey) {
+      await supabaseAdmin.from("order_idempotency").update({ order_id: order.id }).eq("key", idempotencyKey);
+    }
+
+    return order;
+  } catch (error) {
+    // Compensate: release any stock reserved before the failure.
+    for (const item of reserved) {
+      const { data: current } = await supabaseAdmin.from("products").select("stock").eq("id", item.product_id).maybeSingle();
+      if (current) {
+        await supabaseAdmin
+          .from("products")
+          .update({ stock: Number(current.stock) + item.quantity })
+          .eq("id", item.product_id);
+      }
+    }
+    // Release the key so the customer can retry checkout rather than being locked out.
+    if (idempotencyKey) {
+      await supabaseAdmin.from("order_idempotency").delete().eq("key", idempotencyKey);
+    }
+    throw error;
   }
-
-  // 5. Decrement stock for purchased products
-  for (const item of resolvedItems) {
-    await supabase
-      .from("products")
-      .update({ stock: item.newStock })
-      .eq("id", item.product_id);
-  }
-
-  return order;
 }
 
-export async function updateOrderStatus(orderId: string, status: string) {
-  const { data, error } = await supabase
+/**
+ * Updates an order's status. `actor` must be the seller who owns the order, or an admin.
+ * This previously took only an orderId and applied any status to any order for any caller, so a
+ * buyer could mark their own order delivered, or tamper with another customer's order entirely.
+ */
+export async function updateOrderStatus(orderId: string, status: string, actor: { id: string; role: string }) {
+  if (!ORDER_STATUSES.includes(status as OrderStatus)) {
+    throw new Error(`Invalid status. Expected one of: ${ORDER_STATUSES.join(", ")}`);
+  }
+
+  const { data: order, error: fetchError } = await supabaseAdmin
     .from("orders")
-    .update({ status })
+    .select("id, seller_id, status")
+    .eq("id", orderId)
+    .maybeSingle();
+
+  if (fetchError) throw new Error(`Failed to load order: ${fetchError.message}`);
+  if (!order) throw new Error("Order not found");
+
+  if (actor.role !== "admin") {
+    const { data: seller } = await supabaseAdmin
+      .from("sellers")
+      .select("id")
+      .eq("owner_id", actor.id)
+      .maybeSingle();
+
+    if (!seller || seller.id !== order.seller_id) {
+      throw new Error("You do not have permission to update this order.");
+    }
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("orders")
+    .update({ status, updated_at: new Date().toISOString() })
     .eq("id", orderId)
     .select()
     .single();
 
   if (error) throw new Error(`Failed to update order status: ${error.message}`);
-  
+
   emitOrderStatusChanged(orderId, status);
   return data;
 }
@@ -148,7 +274,7 @@ export async function cancelOrder(buyerId: string, orderId: string) {
       .select("stock")
       .eq("id", item.product_id)
       .single();
-    
+
     if (product) {
       await supabaseAdmin
         .from("products")
@@ -157,23 +283,28 @@ export async function cancelOrder(buyerId: string, orderId: string) {
     }
   }
 
-  // 4. Delete order items explicitly (in case CASCADE is not set)
-  await supabaseAdmin.from("order_items").delete().eq("order_id", orderId);
-
-  // 5. Delete the order from the database entirely
-  const { error: deleteError } = await supabaseAdmin
+  // 4. Mark the order cancelled rather than deleting it.
+  //    Cancellation previously hard-deleted the order and its line items. That destroys a
+  //    transactional record the business is expected to be able to produce (tax, dispute and
+  //    accounting purposes), leaves the customer with no cancellation history, and makes the
+  //    stock refund above unauditable. The schema already models this state: status 'cancelled'.
+  const { data: cancelled, error: cancelError } = await supabaseAdmin
     .from("orders")
-    .delete()
-    .eq("id", orderId);
+    .update({ status: "cancelled", updated_at: new Date().toISOString() })
+    .eq("id", orderId)
+    .eq("status", "pending") // Re-check under write: the seller may have just packed it.
+    .select()
+    .maybeSingle();
 
-  if (deleteError) throw new Error(`Failed to delete order: ${deleteError.message}`);
+  if (cancelError) throw new Error(`Failed to cancel order: ${cancelError.message}`);
+  if (!cancelled) throw new Error("Only pending orders can be cancelled");
 
   emitOrderStatusChanged(orderId, "cancelled");
-  return { id: orderId, status: "cancelled", deleted: true };
+  return cancelled;
 }
 
 export async function listOrders(buyerId: string) {
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("orders")
     .select("*, order_items(*, product:products(*))")
     .eq("buyer_id", buyerId)
@@ -184,7 +315,7 @@ export async function listOrders(buyerId: string) {
 }
 
 export async function listSellerOrders(ownerId: string) {
-  const { data: seller, error: sellerError } = await supabase
+  const { data: seller, error: sellerError } = await supabaseAdmin
     .from("sellers")
     .select("id")
     .eq("owner_id", ownerId)
@@ -193,7 +324,7 @@ export async function listSellerOrders(ownerId: string) {
   if (sellerError) throw new Error(`Failed to verify seller profile: ${sellerError.message}`);
   if (!seller) return []; // If no seller profile, they have no orders
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("orders")
     .select("*, order_items(*, product:products(*))")
     .eq("seller_id", seller.id)
@@ -211,7 +342,7 @@ export const cartItemSchema = z.object({
 });
 
 export async function getCart(buyerId: string) {
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("cart_items")
     .select("*, product:products(*)")
     .eq("buyer_id", buyerId);
@@ -224,7 +355,7 @@ export async function addToCart(buyerId: string, input: unknown) {
   const parsed = cartItemSchema.parse(input);
 
   // Check if item already exists in cart
-  const { data: existing } = await supabase
+  const { data: existing } = await supabaseAdmin
     .from("cart_items")
     .select("*")
     .eq("buyer_id", buyerId)
@@ -233,7 +364,7 @@ export async function addToCart(buyerId: string, input: unknown) {
 
   if (existing) {
     // Update quantity
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from("cart_items")
       .update({ quantity: existing.quantity + parsed.quantity })
       .eq("id", existing.id)
@@ -243,7 +374,7 @@ export async function addToCart(buyerId: string, input: unknown) {
     return data;
   } else {
     // Insert new item
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from("cart_items")
       .insert({
         buyer_id: buyerId,
@@ -258,7 +389,7 @@ export async function addToCart(buyerId: string, input: unknown) {
 }
 
 export async function removeFromCart(buyerId: string, productId: string) {
-  const { error } = await supabase
+  const { error } = await supabaseAdmin
     .from("cart_items")
     .delete()
     .eq("buyer_id", buyerId)
@@ -269,7 +400,7 @@ export async function removeFromCart(buyerId: string, productId: string) {
 }
 
 export async function updateCartItemQuantity(buyerId: string, productId: string, quantity: number) {
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("cart_items")
     .update({ quantity: Math.max(1, quantity) })
     .eq("buyer_id", buyerId)
@@ -282,7 +413,7 @@ export async function updateCartItemQuantity(buyerId: string, productId: string,
 }
 
 export async function clearCart(buyerId: string) {
-  const { error } = await supabase
+  const { error } = await supabaseAdmin
     .from("cart_items")
     .delete()
     .eq("buyer_id", buyerId);

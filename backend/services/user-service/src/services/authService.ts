@@ -16,7 +16,7 @@ export async function signUpWithEmail(input: unknown) {
     password: validated.password,
     options: {
       data: {
-        role: validated.role,
+        full_name: validated.fullName || ""
       }
     }
   });
@@ -25,10 +25,19 @@ export async function signUpWithEmail(input: unknown) {
     throw new Error(error.message);
   }
 
-  // Auto-confirm the user email so they can log in immediately
   if (data.user) {
-    await supabaseAdmin.auth.admin.updateUserById(data.user.id, { email_confirm: true });
-    
+    // SECURITY: the role is written to app_metadata, not user_metadata. user_metadata is writable
+    // by the signed-in client via supabase.auth.updateUser({ data: ... }), so a role stored there
+    // is a role the user can grant themselves. app_metadata is only writable with the service key.
+    // This must happen BEFORE the sign-in below, or the issued JWT will not carry the claim.
+    //
+    // Auto-confirm the email in the same call so the user can log in immediately.
+    const { error: adminError } = await supabaseAdmin.auth.admin.updateUserById(data.user.id, {
+      email_confirm: true,
+      app_metadata: { role: validated.role }
+    });
+    if (adminError) throw new Error(`Failed to initialise account: ${adminError.message}`);
+
     // Explicitly create the user profile right away
     const { error: profileError } = await supabaseAdmin.from("profiles").upsert({
       id: data.user.id,

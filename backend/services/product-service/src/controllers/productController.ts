@@ -4,6 +4,8 @@
  */
 import type { Request, Response } from "express";
 import { fail, ok } from "../../../../shared/utils/responseFormatter";
+import { requireUserId } from "../../../../shared/utils/gatewayIdentity";
+import { supabaseAdmin } from "../../../../shared/utils/supabaseClient";
 import { createProduct, getProduct, listProducts, listSellerProducts, searchProducts, getCategoryTags, updateProduct } from "../services/productService";
 
 export async function listProductsController(request: Request, response: Response): Promise<void> {
@@ -22,12 +24,7 @@ export async function listProductsController(request: Request, response: Respons
 
 export async function listSellerProductsController(request: Request, response: Response): Promise<void> {
   try {
-    const payload = extractTokenPayload(request);
-    const ownerId = payload?.sub;
-    if (!ownerId) {
-      response.status(401).json(fail("UNAUTHORIZED", "Missing token"));
-      return;
-    }
+    const ownerId = requireUserId(request);
     const products = await listSellerProducts(ownerId);
     response.json(ok(products, { page: 1, limit: products.length, total: products.length }));
   } catch (error: any) {
@@ -45,19 +42,6 @@ export async function getProductController(request: Request, response: Response)
     response.json(ok(product));
   } catch (error: any) {
     response.status(500).json(fail("SERVER_ERROR", error.message));
-  }
-}
-
-import { supabase, supabaseAdmin } from "../../../../shared/utils/supabaseClient";
-
-function extractTokenPayload(request: Request): any {
-  const token = request.headers.authorization?.split(" ")[1];
-  if (!token) return null;
-  try {
-    const payload = JSON.parse(Buffer.from(token.split(".")[1], "base64").toString());
-    return payload;
-  } catch {
-    return null;
   }
 }
 
@@ -97,10 +81,13 @@ export async function createProductController(request: Request, response: Respon
     }
     request.body.images = [...existingImages, ...imageUrls];
 
-    const payload = extractTokenPayload(request);
-    const authUserId = payload?.sub;
+    // SECURITY: the seller is always resolved from the verified caller. `sellerId` in the body is
+    // dropped - it previously took precedence, letting a seller publish products under another
+    // seller's account.
+    delete request.body.sellerId;
+    delete request.body.seller_id;
 
-    const product = await createProduct(request.body, authUserId);
+    const product = await createProduct(request.body, requireUserId(request));
     response.status(201).json(ok(product));
   } catch (error: any) {
     console.error("PRODUCT SAVE ERROR:", error);
@@ -149,14 +136,7 @@ export async function updateProductController(request: Request, response: Respon
     }
     request.body.images = [...existingImages, ...imageUrls];
 
-    const payload = extractTokenPayload(request);
-    const authUserId = payload?.sub;
-    if (!authUserId) {
-      response.status(401).json(fail("UNAUTHORIZED", "Missing token"));
-      return;
-    }
-
-    const product = await updateProduct(id, request.body, authUserId);
+    const product = await updateProduct(id, request.body, requireUserId(request));
     response.status(200).json(ok(product));
   } catch (error: any) {
     console.error("PRODUCT UPDATE ERROR:", error);

@@ -3,7 +3,7 @@
  * Author: OmniQ Team
  */
 import { productCreateSchema, productUpdateSchema } from "../validators/productValidator";
-import { supabase } from "../../../../shared/utils/supabaseClient";
+import { supabaseAdmin } from "../../../../shared/utils/supabaseClient";
 import { redis } from "./redisClient";
 
 async function invalidateProductCaches(sellerId: string) {
@@ -39,7 +39,7 @@ export async function listProducts(sellerId?: string, cursor?: string, limit: nu
     }
   }
 
-  let query = supabase.from("products").select("id, title, price, compare_price, images, seller_id, stock, category, created_at, is_approved, is_flagged");
+  let query = supabaseAdmin.from("products").select("id, title, price, compare_price, images, seller_id, stock, category, created_at, is_approved, is_flagged");
   
   if (sellerId) {
     query = query.eq("seller_id", sellerId);
@@ -77,7 +77,7 @@ export async function listSellerProducts(ownerId: string): Promise<ProductDto[]>
     return JSON.parse(cached);
   }
 
-  const { data: seller, error: sellerError } = await supabase
+  const { data: seller, error: sellerError } = await supabaseAdmin
     .from("sellers")
     .select("id")
     .eq("owner_id", ownerId)
@@ -86,7 +86,7 @@ export async function listSellerProducts(ownerId: string): Promise<ProductDto[]>
   if (sellerError) throw new Error(`Failed to verify seller profile: ${sellerError.message}`);
   if (!seller) return []; // If no seller profile, they have no products
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("products")
     .select("*")
     .eq("seller_id", seller.id)
@@ -99,7 +99,7 @@ export async function listSellerProducts(ownerId: string): Promise<ProductDto[]>
 }
 
 export async function getProduct(id: string): Promise<ProductDto | undefined> {
-  const { data, error } = await supabase.from("products").select("*").eq("id", id).single();
+  const { data, error } = await supabaseAdmin.from("products").select("*").eq("id", id).single();
   if (error) {
     if (error.code === "PGRST116") return undefined; // Not found
     throw new Error(`Failed to fetch product: ${error.message}`);
@@ -107,26 +107,21 @@ export async function getProduct(id: string): Promise<ProductDto | undefined> {
   return data;
 }
 
-export async function createProduct(input: unknown, authUserId?: string): Promise<ProductDto> {
+export async function createProduct(input: unknown, authUserId: string): Promise<ProductDto> {
   const parsed = productCreateSchema.parse(input);
-  
-  let sellerId = parsed.sellerId;
-  
-  if (!sellerId && authUserId) {
-    const { data: seller, error: sellerError } = await supabase
-      .from("sellers")
-      .select("id")
-      .eq("owner_id", authUserId)
-      .maybeSingle();
-      
-    if (sellerError) throw new Error(`Failed to verify seller profile: ${sellerError.message}`);
-    if (!seller) throw new Error("Authenticated user does not have a registered seller profile.");
-    sellerId = seller.id;
-  }
-  
-  if (!sellerId) {
-    throw new Error("A seller ID must be provided or resolved from authorization context.");
-  }
+
+  // SECURITY: the seller is resolved from the authenticated caller only. `parsed.sellerId` used to
+  // win when supplied, so a request could attribute a product to any seller id.
+  const { data: seller, error: sellerError } = await supabaseAdmin
+    .from("sellers")
+    .select("id, status")
+    .eq("owner_id", authUserId)
+    .maybeSingle();
+
+  if (sellerError) throw new Error(`Failed to verify seller profile: ${sellerError.message}`);
+  if (!seller) throw new Error("Authenticated user does not have a registered seller profile.");
+  if (seller.status !== "approved") throw new Error("Your seller account is not approved yet.");
+  const sellerId = seller.id;
 
   const product = { 
     id: parsed.sku.toLowerCase(), 
@@ -141,7 +136,7 @@ export async function createProduct(input: unknown, authUserId?: string): Promis
     is_approved: false
   };
   
-  const { data, error } = await supabase.from("products").insert([product]).select().single();
+  const { data, error } = await supabaseAdmin.from("products").insert([product]).select().single();
   if (error) throw new Error(`Failed to create product: ${error.message}`);
   
   await invalidateProductCaches(sellerId);
@@ -152,7 +147,7 @@ export async function updateProduct(id: string, input: unknown, authUserId: stri
   const parsed = productUpdateSchema.parse(input);
   
   // Verify ownership
-  const { data: seller, error: sellerError } = await supabase
+  const { data: seller, error: sellerError } = await supabaseAdmin
     .from("sellers")
     .select("id")
     .eq("owner_id", authUserId)
@@ -161,7 +156,7 @@ export async function updateProduct(id: string, input: unknown, authUserId: stri
   if (sellerError || !seller) throw new Error("Authenticated user does not have a registered seller profile.");
   
   // Verify product belongs to seller
-  const { data: existing, error: existingError } = await supabase.from("products").select("seller_id").eq("id", id).single();
+  const { data: existing, error: existingError } = await supabaseAdmin.from("products").select("seller_id").eq("id", id).single();
   if (existingError || !existing) throw new Error("Product not found");
   if (existing.seller_id !== seller.id) throw new Error("Unauthorized to edit this product");
 
@@ -179,7 +174,7 @@ export async function updateProduct(id: string, input: unknown, authUserId: stri
   if (parsed.stock !== undefined) updates.stock = parsed.stock;
   if (parsed.images !== undefined) updates.images = parsed.images;
 
-  const { data, error } = await supabase.from("products").update(updates).eq("id", id).select().single();
+  const { data, error } = await supabaseAdmin.from("products").update(updates).eq("id", id).select().single();
   if (error) throw new Error(`Failed to update product: ${error.message}`);
   
   await invalidateProductCaches(seller.id);
@@ -201,7 +196,7 @@ export async function searchProducts(params: SearchParams): Promise<{ products: 
   const { q, category, minPrice, maxPrice, sort = "relevance", limit = 20, offset = 0, suggestions = false } = params;
 
   // Build the query — only return approved products
-  let query = supabase.from("products").select("*", { count: "exact" }).eq("is_approved", true);
+  let query = supabaseAdmin.from("products").select("*", { count: "exact" }).eq("is_approved", true);
 
   // Full-text search on title, description, and category using ilike (sanitized for PostgREST reserved chars)
   if (q && q.trim().length > 0) {

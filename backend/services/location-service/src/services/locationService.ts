@@ -3,7 +3,7 @@
  * Author: OmniQ Team
  */
 import { zoneCheckSchema } from "../validators/locationValidator";
-import { supabase } from "../../../../shared/utils/supabaseClient";
+import { supabaseAdmin } from "../../../../shared/utils/supabaseClient";
 
 function distanceKm(point: { lat: number; lng: number }, centre: { lat: number; lng: number }): number {
   const toRad = (value: number): number => (value * Math.PI) / 180;
@@ -20,7 +20,7 @@ export async function checkZone(input: unknown) {
   const parsed = zoneCheckSchema.parse(input);
   
   // Fetch all active delivery zones from Supabase
-  const { data: zones, error } = await supabase
+  const { data: zones, error } = await supabaseAdmin
     .from("delivery_zones")
     .select("*")
     .eq("active", true);

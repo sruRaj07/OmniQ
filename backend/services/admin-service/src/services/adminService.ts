@@ -3,7 +3,7 @@
  * Author: OmniQ Team
  */
 import { moderationSchema, zoneSchema } from "../validators/adminValidator";
-import { supabase, supabaseAdmin } from "../../../../shared/utils/supabaseClient";
+import { supabaseAdmin } from "../../../../shared/utils/supabaseClient";
 
 export async function getDashboard() {
   // ⚡ PERFORMANCE: Fire ALL independent queries in parallel instead of sequentially.
@@ -16,12 +16,12 @@ export async function getDashboard() {
     { data: usersData },
     { data: sellers },
   ] = await Promise.all([
-    supabase.from('orders').select('*', { count: 'exact', head: true }),
-    supabase.from('orders').select('total, seller_id'),
-    supabase.from('sellers').select('*', { count: 'exact', head: true }).eq('status', 'approved'),
-    supabase.from('sellers').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+    supabaseAdmin.from('orders').select('*', { count: 'exact', head: true }),
+    supabaseAdmin.from('orders').select('total, seller_id'),
+    supabaseAdmin.from('sellers').select('*', { count: 'exact', head: true }).eq('status', 'approved'),
+    supabaseAdmin.from('sellers').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
     supabaseAdmin.auth.admin.listUsers(),
-    supabase.from('sellers').select('id, business_name, status, created_at'),
+    supabaseAdmin.from('sellers').select('id, business_name, status, created_at'),
   ]);
 
   const gmv = (orders || []).reduce((sum, order) => sum + Number(order.total || 0), 0);
@@ -107,7 +107,7 @@ export async function upsertZone(input: unknown) {
   const parsed = zoneSchema.parse(input);
   
   if (parsed.id) {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from("delivery_zones")
       .update({
         name: parsed.name,
@@ -122,7 +122,7 @@ export async function upsertZone(input: unknown) {
     if (error) throw new Error(`Failed to update zone: ${error.message}`);
     return data;
   } else {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from("delivery_zones")
       .insert({
         name: parsed.name,
@@ -139,7 +139,7 @@ export async function upsertZone(input: unknown) {
 }
 
 export async function listZones() {
-  const { data, error } = await supabase.from("delivery_zones").select("*");
+  const { data, error } = await supabaseAdmin.from("delivery_zones").select("*");
   if (error) throw new Error(`Failed to fetch zones: ${error.message}`);
   return data;
 }

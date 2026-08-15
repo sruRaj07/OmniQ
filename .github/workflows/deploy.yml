@@ -17,31 +17,68 @@ env:
   ACR_NAME: omniqregistry
   RESOURCE_GROUP: OmniQ-Backend
   CONTAINER_APP_ENV: omniq-env
+  # Internal DNS suffix of the Container Apps environment. Only api-gateway is reachable from the
+  # public internet; the six backend services resolve on this name from inside the environment.
+  INTERNAL_SUFFIX: internal.redbay-317d5a3d.eastus.azurecontainerapps.io
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     strategy:
+      # Deploy one service at a time. With the default parallel matrix, seven concurrent
+      # `containerapp update` calls against the same environment race on revision creation.
+      max-parallel: 1
       matrix:
         include:
+          # SECURITY: `ingress` is per service. This workflow previously hardcoded
+          # `ingress: external` for all seven, which published every backend service directly to
+          # the internet - admin-service among them, which serves every customer's name, address,
+          # phone number and GPS coordinates. Only api-gateway may be external.
           - service: api-gateway
             port: 4000
+            ingress: external
           - service: product-service
             port: 4001
+            ingress: internal
           - service: admin-service
             port: 4006
+            ingress: internal
           - service: location-service
             port: 4005
+            ingress: internal
           - service: order-service
             port: 4002
+            ingress: internal
           - service: seller-service
             port: 4003
+            ingress: internal
           - service: user-service
             port: 4004
-    
+            ingress: internal
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      # Fail before touching anything if a required secret is missing or empty. Without this, an
+      # absent repository secret expands to "" and the deploy would cheerfully overwrite the live
+      # Supabase key with an empty string, taking production down.
+      - name: Preflight - required secrets present
+        run: |
+          missing=""
+          for pair in \
+            "SUPABASE_URL:${{ secrets.SUPABASE_URL }}" \
+            "SUPABASE_ANON_KEY:${{ secrets.SUPABASE_ANON_KEY }}" \
+            "SUPABASE_SERVICE_ROLE_KEY:${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            "REDIS_URL:${{ secrets.REDIS_URL }}" ; do
+            name="${pair%%:*}"; value="${pair#*:}"
+            [ -n "$value" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Missing or empty repository secret(s):$missing"
+            exit 1
+          fi
+          echo "All required secrets are present."
 
       - name: Log in to Azure
         uses: azure/login@v2
@@ -60,33 +97,66 @@ jobs:
           IMAGE_TAG=${{ env.ACR_NAME }}.azurecr.io/${{ matrix.service }}:${{ github.sha }}
           docker build --build-arg SERVICE_NAME=${{ matrix.service }} -t $IMAGE_TAG .
           docker push $IMAGE_TAG
-          
+
           # Also tag and push as latest
           LATEST_TAG=${{ env.ACR_NAME }}.azurecr.io/${{ matrix.service }}:latest
           docker tag $IMAGE_TAG $LATEST_TAG
           docker push $LATEST_TAG
 
+      # Secrets are stored as Container App secrets and referenced with `secretref:`, so their
+      # values are not visible in `az containerapp show`, in the revision spec, or in the portal's
+      # environment-variable list. They were previously passed as plaintext env vars, which meant
+      # anyone with Reader on the resource group could read the Supabase service-role key.
+      #
+      # INTERNAL_GATEWAY_KEY is deliberately absent from this step: it is provisioned out of band
+      # and rotated independently, and `secret set` here would only overwrite it with a stale value.
+      - name: Sync secrets
+        run: |
+          az containerapp secret set \
+            -n ${{ matrix.service }} -g ${{ env.RESOURCE_GROUP }} \
+            --secrets \
+              supabase-service-role-key="${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+              supabase-anon-key="${{ secrets.SUPABASE_ANON_KEY }}" \
+              redis-url="${{ secrets.REDIS_URL }}" \
+            -o none
+
       - name: Deploy to Azure Container Apps
-        uses: azure/container-apps-deploy-action@v1
-        with:
-          registryUrl: ${{ env.ACR_NAME }}.azurecr.io
-          registryUsername: ${{ secrets.ACR_USERNAME }}
-          registryPassword: ${{ secrets.ACR_PASSWORD }}
-          resourceGroup: ${{ env.RESOURCE_GROUP }}
-          containerAppEnvironment: ${{ env.CONTAINER_APP_ENV }}
-          containerAppName: ${{ matrix.service }}
-          imageToDeploy: ${{ env.ACR_NAME }}.azurecr.io/${{ matrix.service }}:${{ github.sha }}
-          ingress: external
-          targetPort: ${{ matrix.port }}
-          environmentVariables: >-
-            REDIS_URL=${{ secrets.REDIS_URL }}
-            EXPO_PUBLIC_SUPABASE_URL=${{ secrets.SUPABASE_URL }}
-            EXPO_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
-            SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-            PORT=${{ matrix.port }}
-            PRODUCT_SERVICE_URL=https://product-service.redbay-317d5a3d.eastus.azurecontainerapps.io
-            ORDER_SERVICE_URL=https://order-service.redbay-317d5a3d.eastus.azurecontainerapps.io
-            LOCATION_SERVICE_URL=https://location-service.redbay-317d5a3d.eastus.azurecontainerapps.io
-            SELLER_SERVICE_URL=https://seller-service.redbay-317d5a3d.eastus.azurecontainerapps.io
-            ADMIN_SERVICE_URL=https://admin-service.redbay-317d5a3d.eastus.azurecontainerapps.io
-            USER_SERVICE_URL=https://user-service.redbay-317d5a3d.eastus.azurecontainerapps.io
+        run: |
+          APP=${{ matrix.service }}
+          RG=${{ env.RESOURCE_GROUP }}
+          IMAGE=${{ env.ACR_NAME }}.azurecr.io/$APP:${{ github.sha }}
+
+          # `--set-env-vars` merges rather than replacing, so out-of-band settings such as
+          # INTERNAL_GATEWAY_KEY and FRONTEND_URL survive a deploy.
+          az containerapp update -n "$APP" -g "$RG" --image "$IMAGE" \
+            --set-env-vars \
+              NODE_ENV=production \
+              PORT=${{ matrix.port }} \
+              EXPO_PUBLIC_SUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
+              EXPO_PUBLIC_SUPABASE_ANON_KEY=secretref:supabase-anon-key \
+              SUPABASE_SERVICE_ROLE_KEY=secretref:supabase-service-role-key \
+              REDIS_URL=secretref:redis-url \
+              PRODUCT_SERVICE_URL=https://product-service.${{ env.INTERNAL_SUFFIX }} \
+              ORDER_SERVICE_URL=https://order-service.${{ env.INTERNAL_SUFFIX }} \
+              LOCATION_SERVICE_URL=https://location-service.${{ env.INTERNAL_SUFFIX }} \
+              SELLER_SERVICE_URL=https://seller-service.${{ env.INTERNAL_SUFFIX }} \
+              ADMIN_SERVICE_URL=https://admin-service.${{ env.INTERNAL_SUFFIX }} \
+              USER_SERVICE_URL=https://user-service.${{ env.INTERNAL_SUFFIX }} \
+            -o none
+
+          # Re-assert ingress every deploy so a manual portal change cannot silently republish a
+          # backend service to the internet.
+          az containerapp ingress enable -n "$APP" -g "$RG" \
+            --type ${{ matrix.ingress }} --target-port ${{ matrix.port }} \
+            --transport auto -o none
+
+      - name: Verify ingress
+        run: |
+          ACTUAL=$(az containerapp show -n ${{ matrix.service }} -g ${{ env.RESOURCE_GROUP }} \
+            --query "properties.configuration.ingress.external" -o tsv)
+          EXPECTED=$([ "${{ matrix.ingress }}" = "external" ] && echo true || echo false)
+          echo "${{ matrix.service }}: external=$ACTUAL (expected $EXPECTED)"
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "::error::${{ matrix.service }} ingress is external=$ACTUAL, expected $EXPECTED"
+            exit 1
+          fi

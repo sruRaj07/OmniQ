@@ -2,7 +2,8 @@
  * OmniQ mobile app - buyer cart screen.
  * Author: OmniQ Team
  */
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useRouter } from "expo-router";
 import { StyleSheet, Text, View, Alert, ActivityIndicator, Modal, Pressable, TextInput } from "react-native";
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, runOnJS } from "react-native-reanimated";
@@ -38,14 +39,33 @@ export default function CartScreen() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [address, setAddress] = useState({
-    line1: "Flat 402, Royal Residency",
-    line2: "Koramangala 3rd Block",
-    city: "Bengaluru",
-    state: "Karnataka",
-    pincode: "560034",
-    phone: "8710031657"
+    line1: "",
+    line2: "",
+    city: "",
+    state: "",
+    pincode: "",
+    phone: ""
   });
   const [serviceError, setServiceError] = useState<string | null>(null);
+
+  const { data: profile } = useQuery({
+    queryKey: ["userProfile"],
+    queryFn: async () => {
+      const res = await apiClient.get("/users/me");
+      return res.data?.data;
+    }
+  });
+
+  useEffect(() => {
+    if (profile) {
+      setAddress(prev => ({
+        ...prev,
+        line1: profile.address || prev.line1,
+        pincode: profile.pincode || prev.pincode,
+        phone: profile.phone_number || prev.phone
+      }));
+    }
+  }, [profile]);
 
   const scaleAnim = useSharedValue(0);
   const opacityAnim = useSharedValue(0);
@@ -90,7 +110,13 @@ export default function CartScreen() {
     }
     
     setIsPlacingOrder(true);
-    
+
+    // One key per checkout attempt. apiClient retries network errors and 5xx twice with backoff,
+    // which on a weak mobile connection can replay a request the server already committed. The key
+    // lets the server return the original order instead of creating a second one. It is generated
+    // here rather than per-request so all retries of this attempt share it.
+    const idempotencyKey = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+
     try {
       // Step 1: Verify pincode serviceability
       const zoneCheckRes = await apiClient.post("/location/zone-check", { pincode: address.pincode });
@@ -114,7 +140,7 @@ export default function CartScreen() {
         buyerLng: 77.6220,
         paymentMethod: "CASH_ON_DELIVERY"
       };
-      await apiClient.post("/orders", payload);
+      await apiClient.post("/orders", payload, { headers: { "Idempotency-Key": idempotencyKey } });
       clearCart();
       triggerSuccessAnimation();
     } catch (error: any) {

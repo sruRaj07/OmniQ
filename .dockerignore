@@ -1,12 +1,26 @@
-node_modules
+# Dependency trees are reinstalled inside the image from the lockfile. This must be `**/node_modules`,
+# not `node_modules`: Docker matches ignore patterns from the context root only, so the bare form
+# excluded /node_modules while uploading every nested pnpm store - web-storefront/node_modules,
+# frontend/node_modules and one per workspace package. That made the build context multi-gigabyte.
+**/node_modules
+**/.turbo
+**/dist
+**/build
+
 npm-debug.log
 .DS_Store
 .git
+.gitignore
 .github
 .env
 .env.*
 .vscode
+
+# Workspaces and directories the backend image does not build from.
 frontend
-build
-dist
+web-storefront
+android
+ios
+omniq
 supabase
+docs

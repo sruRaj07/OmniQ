@@ -7,6 +7,7 @@ import dotenv from "dotenv";
 import express from "express";
 import helmet from "helmet";
 import { ok } from "../../../shared/utils/responseFormatter";
+import { requireRole } from "../../../shared/utils/gatewayIdentity";
 import { analyticsController, dashboardController, moderateProductController, zoneController, listZonesController, listAllOrdersController, listUserRequestsController, actionUserRequestController } from "./controllers/adminController";
 import { createAdvertisementController, deleteAdvertisementController, updateAdvertisementController } from "./controllers/advertisementController";
 import multer from "multer";
@@ -19,6 +20,14 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json());
 app.get("/health", (_request, response) => response.json(ok({ service: "admin-service", status: "ok", uptime: process.uptime(), version: "1.0.0" })));
+
+// SECURITY: this service performs administrative reads and writes over every customer's orders,
+// addresses and phone numbers. It previously had no authorisation of any kind and relied entirely
+// on the gateway, which itself did not verify token signatures. Every route below now independently
+// requires an admin identity issued by the gateway, so exposure of this service is not sufficient
+// to read customer data. Applied before the route table so a new route cannot be added unguarded.
+app.use("/admin", requireRole("admin"));
+
 app.get("/admin/dashboard", dashboardController);
 app.get("/admin/analytics", analyticsController);
 app.get("/admin/flagged-products", (_request, response) => response.json(ok([])));

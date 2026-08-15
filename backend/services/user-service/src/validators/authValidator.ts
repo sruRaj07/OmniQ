@@ -1,10 +1,13 @@
 import { z } from "zod";
 
 export const signUpSchema = z.object({
-  fullName: z.string().optional(),
+  fullName: z.string().max(120).optional(),
   email: z.string().email(),
-  password: z.string().min(6),
-  role: z.enum(["buyer", "seller", "admin"]).default("buyer"),
+  password: z.string().min(8, "Password must be at least 8 characters").max(72),
+  // SECURITY: "admin" is deliberately not accepted here. This enum previously included it, so
+  // POST /auth/signup with {"role":"admin"} minted an administrator account on demand.
+  // Administrators are provisioned out of band; sellers still require approval in the sellers table.
+  role: z.enum(["buyer", "seller"]).default("buyer"),
   acceptedTerms: z.literal(true)
 });
 

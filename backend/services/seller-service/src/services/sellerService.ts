@@ -3,12 +3,12 @@
  * Author: OmniQ Team
  */
 import { sellerRegistrationSchema, sellerStatusSchema, sellerUpdateProfileSchema } from "../validators/sellerValidator";
-import { supabase } from "../../../../shared/utils/supabaseClient";
+import { supabaseAdmin } from "../../../../shared/utils/supabaseClient";
 
 export async function registerSeller(ownerId: string, input: unknown) {
   const parsed = sellerRegistrationSchema.parse(input);
   
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("sellers")
     .insert({
       owner_id: ownerId,
@@ -27,13 +27,13 @@ export async function registerSeller(ownerId: string, input: unknown) {
 }
 
 export async function listSellers() {
-  const { data, error } = await supabase.from("sellers").select("*");
+  const { data, error } = await supabaseAdmin.from("sellers").select("*");
   if (error) throw new Error(`Failed to fetch sellers: ${error.message}`);
   return data;
 }
 
 export async function getSellerById(id: string) {
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("sellers")
     .select("*")
     .eq("id", id)
@@ -44,7 +44,7 @@ export async function getSellerById(id: string) {
 }
 
 export async function getSellerByOwnerId(ownerId: string) {
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("sellers")
     .select("*")
     .eq("owner_id", ownerId)
@@ -59,7 +59,7 @@ export async function getSellerByOwnerId(ownerId: string) {
 export async function updateSellerStatus(id: string, input: unknown) {
   const parsed = sellerStatusSchema.parse(input);
   
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("sellers")
     .update({ 
       status: parsed.status, 
@@ -76,7 +76,7 @@ export async function updateSellerStatus(id: string, input: unknown) {
 export async function updateSellerProfile(ownerId: string, input: unknown) {
   const parsed = sellerUpdateProfileSchema.parse(input);
   
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("sellers")
     .update({ 
       description: parsed.description 

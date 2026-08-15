@@ -3,29 +3,37 @@
  * Author: OmniQ Team
  */
 import { profileUpdateSchema, roleAssignmentSchema } from "../validators/userValidator";
-import { supabase, supabaseAdmin } from "../../../../shared/utils/supabaseClient";
+import { supabaseAdmin } from "../../../../shared/utils/supabaseClient";
 
-export async function getCurrentProfile(userId: string, jwtPayload?: any) {
-  let { data, error } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
-  
+export async function getCurrentProfile(userId: string, verifiedEmail?: string) {
+  let { data, error } = await supabaseAdmin.from("profiles").select("*").eq("id", userId).maybeSingle();
+
   if (error) {
     throw new Error(`Failed to fetch profile: ${error.message}`);
   }
 
-  // Lazy Initialization: If profile doesn't exist, auto-create it using metadata from JWT
+  // Lazy initialisation: if the profile row does not exist yet, create it from the auth record.
+  //
+  // SECURITY: the previous version seeded `role` from the JWT's user_metadata. user_metadata is
+  // writable by the client via supabase.auth.updateUser and at sign-up, so a user could self-assign
+  // "admin" and have it persisted into profiles on first read. New profiles are always buyers;
+  // elevation goes through assignRole, which is admin-only.
   if (!data) {
-    const metadata = jwtPayload?.user_metadata || {};
-    
-    const newProfile = {
-      id: userId,
-      email: metadata.email || jwtPayload?.email || "",
-      full_name: metadata.full_name || metadata.name || "",
-      role: metadata.role || "buyer"
-    };
+    let displayName = "";
+    let email = verifiedEmail || "";
 
-    const insertRes = await supabase
+    // auth.admin is the authoritative source for the display name. Falling back to an empty name
+    // is fine - the profile screen lets the user set it.
+    const authUser = await supabaseAdmin.auth.admin.getUserById(userId);
+    if (authUser.data?.user) {
+      const metadata = (authUser.data.user.user_metadata || {}) as Record<string, unknown>;
+      displayName = String(metadata.full_name || metadata.name || "");
+      email = authUser.data.user.email || email;
+    }
+
+    const insertRes = await supabaseAdmin
       .from("profiles")
-      .insert(newProfile)
+      .insert({ id: userId, email, full_name: displayName, role: "buyer" })
       .select()
       .single();
 
@@ -52,7 +60,7 @@ export async function updateProfile(userId: string, input: unknown) {
   Object.keys(updatePayload).forEach(key => updatePayload[key] === undefined && delete updatePayload[key]);
   
   // First attempt to update
-  let { data, error } = await supabase
+  let { data, error } = await supabaseAdmin
     .from("profiles")
     .update(updatePayload)
     .eq("id", userId)
@@ -67,7 +75,7 @@ export async function updateProfile(userId: string, input: unknown) {
     // Set a default role if this is a brand new profile insertion
     updatePayload.role = 'buyer';
     
-    const insertRes = await supabase
+    const insertRes = await supabaseAdmin
       .from("profiles")
       .insert(updatePayload)
       .select()
@@ -80,13 +88,30 @@ export async function updateProfile(userId: string, input: unknown) {
   return data;
 }
 
-export async function assignRole(userId: string, input: unknown) {
+/**
+ * Admin-only role assignment. The caller is NOT the subject: the target user id comes from the
+ * validated body. The previous version applied request.body.role to the *caller's own* id, so any
+ * signed-in user could POST {"role":"admin"} and promote themselves. The route is now wrapped in
+ * requireRole("admin") - see server.ts.
+ *
+ * Two places hold the role and both must move together:
+ *   - auth app_metadata.role - the authoritative claim, minted into the JWT and enforced server-side
+ *   - public.profiles.role   - a mirror the app reads to decide which UI group to route into
+ * app_metadata is written first: if the profile write then fails the user has the permission but
+ * not the UI, which is recoverable. The reverse would show an admin console that every API rejects.
+ */
+export async function assignRole(input: unknown) {
   const validated = roleAssignmentSchema.parse(input);
-  
-  const { data, error } = await supabase
+
+  const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(validated.userId, {
+    app_metadata: { role: validated.role }
+  });
+  if (authError) throw new Error(`Failed to assign role: ${authError.message}`);
+
+  const { data, error } = await supabaseAdmin
     .from("profiles")
     .update({ role: validated.role })
-    .eq("id", userId)
+    .eq("id", validated.userId)
     .select()
     .single();
 
