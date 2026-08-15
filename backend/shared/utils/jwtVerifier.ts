@@ -12,6 +12,18 @@
  * verify, the token is rejected — there is no decode-only fallback.
  */
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
+import dotenv from "dotenv";
+import path from "path";
+
+// The monorepo keeps a single .env at the repo root. Services call a bare `dotenv.config()`, which
+// resolves against the process cwd - and `pnpm --filter <svc> dev` sets cwd to the service
+// directory, where no .env exists. Most services get the variables anyway because supabaseClient.ts
+// loads the root file explicitly, but the api-gateway is a pure proxy and never imports it, so in
+// local development it saw no EXPO_PUBLIC_SUPABASE_URL, built no verification key, and rejected
+// every valid token. Load the same root file here so verification does not depend on which other
+// module happened to be imported first. dotenv does not overwrite variables that are already set,
+// so real deployment environments (Container Apps) still win.
+dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
 
 export type OmniqRole = "buyer" | "seller" | "admin";
 
@@ -21,26 +33,42 @@ export type VerifiedUser = {
   email?: string;
 };
 
-const supabaseUrl = (process.env.EXPO_PUBLIC_SUPABASE_URL || "").replace(/\/+$/, "");
-const legacySecret = process.env.SUPABASE_JWT_SECRET || "";
+type VerificationKeys = {
+  issuer?: string;
+  remoteJwks: ReturnType<typeof createRemoteJWKSet> | null;
+  hmacKey: Uint8Array | null;
+};
 
-if (!supabaseUrl) {
-  console.warn("[jwtVerifier] EXPO_PUBLIC_SUPABASE_URL is not set - token verification will fail closed.");
+let keys: VerificationKeys | null = null;
+
+// Resolved on first use rather than at module load. Import order then cannot decide whether
+// verification works: any dotenv call made by the importing service still counts.
+function getKeys(): VerificationKeys {
+  if (keys) return keys;
+
+  const supabaseUrl = (process.env.EXPO_PUBLIC_SUPABASE_URL || "").replace(/\/+$/, "");
+  const legacySecret = process.env.SUPABASE_JWT_SECRET || "";
+
+  if (!supabaseUrl && !legacySecret) {
+    console.warn("[jwtVerifier] Neither EXPO_PUBLIC_SUPABASE_URL nor SUPABASE_JWT_SECRET is set - token verification will fail closed.");
+  }
+
+  keys = {
+    issuer: supabaseUrl ? `${supabaseUrl}/auth/v1` : undefined,
+    // ⚡ PERFORMANCE: createRemoteJWKSet caches the fetched key set in memory and only re-fetches
+    // on an unknown `kid` (rate-limited internally by jose). Verification is therefore a local
+    // signature check on the hot path, not a network round-trip per request. Memoising the whole
+    // struct keeps that cache process-wide instead of rebuilding it per call.
+    remoteJwks: supabaseUrl
+      ? createRemoteJWKSet(new URL(`${supabaseUrl}/auth/v1/.well-known/jwks.json`), {
+          cacheMaxAge: 10 * 60 * 1000,
+          cooldownDuration: 30 * 1000
+        })
+      : null,
+    hmacKey: legacySecret ? new TextEncoder().encode(legacySecret) : null
+  };
+  return keys;
 }
-
-const issuer = supabaseUrl ? `${supabaseUrl}/auth/v1` : undefined;
-
-// ⚡ PERFORMANCE: createRemoteJWKSet caches the fetched key set in memory and only re-fetches
-// on an unknown `kid` (rate-limited internally by jose). Verification is therefore a local
-// signature check on the hot path, not a network round-trip per request.
-const remoteJwks = supabaseUrl
-  ? createRemoteJWKSet(new URL(`${supabaseUrl}/auth/v1/.well-known/jwks.json`), {
-      cacheMaxAge: 10 * 60 * 1000,
-      cooldownDuration: 30 * 1000
-    })
-  : null;
-
-const hmacKey = legacySecret ? new TextEncoder().encode(legacySecret) : null;
 
 function normaliseRole(payload: JWTPayload): OmniqRole {
   // Supabase puts privileged claims under app_metadata (server-controlled). user_metadata is
@@ -69,6 +97,8 @@ function toVerifiedUser(payload: JWTPayload): VerifiedUser {
  */
 export async function verifyAccessToken(token: string): Promise<VerifiedUser> {
   if (!token) throw new Error("Missing access token.");
+
+  const { issuer, remoteJwks, hmacKey } = getKeys();
 
   const options = {
     issuer,
