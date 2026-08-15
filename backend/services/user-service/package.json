@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "tsx src/server.ts",
-    "build": "tsc --noEmit",
+    "build": "tsc --outDir dist",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
     "test": "vitest run"
