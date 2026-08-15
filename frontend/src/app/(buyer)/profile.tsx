@@ -87,6 +87,7 @@ export default function ProfileScreen() {
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteReason, setDeleteReason] = useState("");
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const {
     sellerProfile,
     isLoading: isSellerLoading
@@ -138,14 +139,46 @@ export default function ProfileScreen() {
     }
   });
 
+  // Account deletion is immediate and irreversible. It used to file a `pending` request that
+  // nothing fulfilled, which is not a deletion path under Google Play's User Data policy - the
+  // account has to actually go. DELETE /users/me always targets the caller's own verified identity.
+  const deleteAccountMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiClient.delete("/users/me", { data: { confirm: "DELETE" } });
+      return res.data;
+    },
+    onSuccess: async () => {
+      setShowDeleteModal(false);
+      setDeleteConfirmText("");
+      setDeleteReason("");
+      // The session's user no longer exists; clear it locally and drop every cached query so no
+      // personal data survives in memory or in the persisted query cache on the device.
+      await supabase.auth.signOut();
+      queryClient.clear();
+      Alert.alert(
+        "Account deleted",
+        "Your account and personal details have been permanently deleted. Past order records are kept for tax purposes with all identifying details removed."
+      );
+      router.replace("/(auth)/login");
+    },
+    onError: (error: any) => {
+      Alert.alert(
+        "Deletion failed",
+        error?.response?.data?.error?.message || error?.message || "Your account was not deleted. Please try again or contact support."
+      );
+    }
+  });
+
   const handleDeleteAccountRequest = () => {
     setShowDeleteModal(true);
   };
 
   const submitDeleteRequest = () => {
-    requestMutation.mutate({ type: "account_deletion", reason: deleteReason });
-    setShowDeleteModal(false);
-    setDeleteReason("");
+    if (deleteConfirmText.trim().toUpperCase() !== "DELETE") {
+      Alert.alert("Type DELETE to confirm", 'Please type DELETE in the confirmation box to permanently delete your account.');
+      return;
+    }
+    deleteAccountMutation.mutate();
   };
 
   // Fallback to Supabase meta if backend profile isn't fully set up yet

@@ -10,6 +10,8 @@
 import type { Request, Response } from "express";
 import { fail, ok } from "../../../../shared/utils/responseFormatter";
 import { requireUserId } from "../../../../shared/utils/gatewayIdentity";
+import { deleteUserAccount } from "../../../../shared/utils/accountDeletion";
+import { supabaseAdmin } from "../../../../shared/utils/supabaseClient";
 import { assignRole, getCurrentProfile, updateProfile, createUserRequest, getUserRequests } from "../services/userService";
 
 export async function meController(request: Request, response: Response): Promise<void> {
@@ -60,5 +62,40 @@ export async function getUserRequestsController(request: Request, response: Resp
     response.json(ok(requests));
   } catch (error: any) {
     response.status(500).json(fail("FETCH_REQUESTS_FAILED", error.message));
+  }
+}
+
+/**
+ * DELETE /users/me - the account deletion path Google Play requires.
+ *
+ * The account deleted is always the one in the gateway-verified token; there is no user id in the
+ * body or the path, so this cannot be pointed at somebody else's account. Deletion is immediate and
+ * irreversible, so the client must echo a confirmation string - a stray DELETE from a retry or a
+ * mis-wired button should not erase an account.
+ *
+ * `apiClient` retries network errors and 5xx twice. That is safe here: deleting an already-deleted
+ * account finds no rows and no auth user, and the second attempt fails at the auth step rather than
+ * damaging anything. It is never a partial re-run of a successful deletion.
+ */
+export async function deleteAccountController(request: Request, response: Response): Promise<void> {
+  try {
+    const userId = requireUserId(request);
+
+    if (request.body?.confirm !== "DELETE") {
+      response.status(400).json(fail("CONFIRMATION_REQUIRED", 'Send {"confirm":"DELETE"} to permanently delete this account.'));
+      return;
+    }
+
+    const result = await deleteUserAccount(supabaseAdmin, userId, "self_service");
+    response.json(ok({
+      deleted: true,
+      ordersAnonymised: result.ordersAnonymised,
+      completedAt: result.completedAt,
+      retained: "Order records are kept for tax and accounting purposes with all identifying details removed."
+    }));
+  } catch (error: any) {
+    // Never a 200 on a failed deletion. The previous admin path logged the error and reported
+    // success, which told people their account was gone while it was still live.
+    response.status(500).json(fail("ACCOUNT_DELETION_FAILED", error.message));
   }
 }

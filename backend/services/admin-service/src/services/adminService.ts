@@ -4,6 +4,7 @@
  */
 import { moderationSchema, zoneSchema } from "../validators/adminValidator";
 import { supabaseAdmin } from "../../../../shared/utils/supabaseClient";
+import { deleteUserAccount } from "../../../../shared/utils/accountDeletion";
 
 export async function getDashboard() {
   // ⚡ PERFORMANCE: Fire ALL independent queries in parallel instead of sequentially.
@@ -205,13 +206,27 @@ export async function actionUserRequest(requestId: string, status: string, admin
 
   if (error) throw new Error(`Failed to update request: ${error.message}`);
 
-  // Perform actual deletion if approved
+  // Approving an account_deletion request carries it out for real.
+  //
+  // The previous version called `auth.admin.deleteUser` and, on failure, logged the error and
+  // returned success anyway - so the request showed as approved while the account was still live,
+  // and the person had been told their data was gone. It also could not succeed at all for a seller
+  // with orders: `orders.seller_id` is `on delete restrict`, so Postgres refuses the cascade.
+  // Both are handled by the shared routine, which throws rather than pretending.
   if (status === "approved" && data.type === "account_deletion") {
-    const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(data.user_id);
-    if (deleteError) {
-      console.error(`Failed to delete auth user ${data.user_id}:`, deleteError.message);
-      // We might not throw here so the status remains approved, but we log the error.
-    }
+    // Anonymising orders and clearing the profile also removes this request row (it cascades from
+    // profiles), so capture what the caller needs before the deletion runs.
+    const summary = { ...data };
+    const result = await deleteUserAccount(supabaseAdmin, data.user_id, "admin_approved");
+    return {
+      ...summary,
+      status: "completed",
+      deletion: {
+        ordersAnonymised: result.ordersAnonymised,
+        sellerDetached: result.sellerDetached,
+        completedAt: result.completedAt
+      }
+    };
   }
 
   return data;

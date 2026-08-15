@@ -8,7 +8,7 @@ import express from "express";
 import helmet from "helmet";
 import { ok } from "../../../shared/utils/responseFormatter";
 import { requireAuth, requireRole } from "../../../shared/utils/gatewayIdentity";
-import { assignRoleController, meController, updateProfileController, createUserRequestController, getUserRequestsController } from "./controllers/userController";
+import { assignRoleController, meController, updateProfileController, createUserRequestController, getUserRequestsController, deleteAccountController } from "./controllers/userController";
 import { signInController, signUpController, verifyOtpController } from "./controllers/authController";
 
 dotenv.config();
@@ -34,6 +34,12 @@ app.post("/role", requireRole("admin"), assignRoleController);
 
 app.post("/users/requests", requireAuth, createUserRequestController);
 app.get("/users/requests", requireAuth, getUserRequestsController);
+
+// Account deletion. Google Play requires an in-app path that actually deletes the account, plus a
+// publicly reachable web URL that explains it (see docs/ACCOUNT_DELETION.md). The target is always
+// the caller's own verified identity - there is no id in the path to tamper with.
+app.delete("/users/me", requireAuth, deleteAccountController);
+app.delete("/me", requireAuth, deleteAccountController);
 
 // Auth Proxy Routes
 app.post("/auth/signup", signUpController);
