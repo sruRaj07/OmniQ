@@ -7,8 +7,11 @@ WORKDIR /app
 # mismatch and re-downloaded pnpm 10.33.2 from npmjs.org - on every cold start, on every service.
 RUN corepack enable && corepack prepare pnpm@10.33.2 --activate
 
-# Copy workspace configuration
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+# Copy workspace configuration. .npmrc matters: it sets node-linker=hoisted and shamefully-hoist,
+# and backend/shared has no package.json of its own, so its imports (jose, dotenv, express types,
+# @supabase/supabase-js) only resolve from a flat root node_modules. Without this file the image
+# installed with pnpm's default isolated layout and the compile failed on "Cannot find module 'jose'".
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json .npmrc ./
 
 # Copy all source code (preserves exact directory structure)
 COPY backend/ ./backend/
