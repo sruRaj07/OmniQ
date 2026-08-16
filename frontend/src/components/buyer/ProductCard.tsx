@@ -12,6 +12,7 @@ import { NetworkAwareImage } from "@/components/shared/NetworkAwareImage";
 import { useThemeColors } from "@/store/useThemeStore";
 import type { Product } from "@/types/product.types";
 import { formatCurrency } from "@/utils/formatCurrency";
+import { FREE_DELIVERY_THRESHOLD } from "@/constants/delivery";
 
 type ProductCardProps = {
   product: Product;
@@ -23,6 +24,8 @@ export const ProductCard = React.memo(function ProductCard({ product, index = 0,
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
   const imageUrl = product.images && product.images.length > 0 ? product.images[0] : null;
+  const rating = Math.min(5, Math.max(0, Number(product.rating) || 0));
+  const reviewCount = Number(product.reviews) || 0;
 
   return (
     <View style={[styles.column, style]}>
@@ -53,10 +56,14 @@ export const ProductCard = React.memo(function ProductCard({ product, index = 0,
                 {product.title}
               </Text>
 
-              <View style={styles.ratingRow}>
-                <Text style={styles.stars}>★★★★☆</Text>
-                <Text style={styles.reviews}>189</Text>
-              </View>
+              {/* Only rendered when the product actually carries a rating. There is no reviews
+                  feature yet, so today this row is absent rather than showing invented stars. */}
+              {rating > 0 ? (
+                <View style={styles.ratingRow}>
+                  <Text style={styles.stars}>{"★".repeat(Math.round(rating)).padEnd(5, "☆")}</Text>
+                  {reviewCount > 0 ? <Text style={styles.reviews}>{reviewCount}</Text> : null}
+                </View>
+              ) : null}
 
               <View style={styles.priceRow}>
                 <Text style={styles.newPrice}>
@@ -69,7 +76,13 @@ export const ProductCard = React.memo(function ProductCard({ product, index = 0,
                 ) : null}
               </View>
 
-      <Text style={styles.deliveryText} numberOfLines={1}>FREE Delivery by OmniQ</Text>
+              {/* The fee depends on the whole cart, so the card states the rule rather than
+                  promising free delivery on an item that would not qualify on its own. */}
+              <Text style={styles.deliveryText} numberOfLines={1}>
+                {product.price >= FREE_DELIVERY_THRESHOLD
+                  ? "FREE Delivery by OmniQ"
+                  : `FREE Delivery over ${formatCurrency(FREE_DELIVERY_THRESHOLD)}`}
+              </Text>
             </View>
           </View>
         </Pressable>
@@ -81,6 +94,8 @@ export const ProductCard = React.memo(function ProductCard({ product, index = 0,
     prev.product.id === next.product.id &&
     prev.product.price === next.product.price &&
     prev.product.title === next.product.title &&
+    prev.product.rating === next.product.rating &&
+    prev.product.reviews === next.product.reviews &&
     prev.index === next.index
   );
 });

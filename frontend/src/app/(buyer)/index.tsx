@@ -13,12 +13,11 @@ import { ShoppingCartIcon } from "@/components/ui/ShoppingCartIcon";
 import { BoxIcon } from "@/components/ui/BoxIcon";
 import { UserIcon } from "@/components/ui/UserIcon";
 import { MenuIcon } from "@/components/ui/MenuIcon";
-import { SearchInput } from "@/components/buyer/SearchInput";
-import { ListIcon } from "@/components/ui/ListIcon";
 import { Screen } from "@/components/shared/Screen";
 import { BuyerHeader } from "@/components/buyer/BuyerHeader";
 import { useAppTheme } from "@/store/useThemeStore";
 import { useProducts } from "@/hooks/useProducts";
+import { useRefreshControl } from "@/hooks/useRefreshControl";
 import { useRouter } from "expo-router";
 import { useCallback } from "react";
 import type { Product } from "@/types/product.types";
@@ -29,6 +28,9 @@ const AdvertisementCarousel = lazy(() => import("@/components/buyer/Advertisemen
 export default function BuyerHomeScreen() {
   const { colors } = useAppTheme();
   const styles = useMemo(() => getStyles(colors), [colors]);
+  // Pull-to-refresh for this list. `Screen` owns it for scrolling screens; this one
+  // passes scroll={false}, so the list attaches it itself.
+  const refreshControl = useRefreshControl();
   const {
     products,
     isLoading,
@@ -69,6 +71,7 @@ export default function BuyerHomeScreen() {
         <View style={{ flex: 1 }}>
           <FlashList
             data={products}
+            refreshControl={refreshControl}
             numColumns={2}
             {...({ estimatedItemSize: 250 } as any)}
             scrollEventThrottle={16}

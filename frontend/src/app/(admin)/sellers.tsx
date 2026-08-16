@@ -13,10 +13,14 @@ import { apiClient } from "@/lib/apiClient";
 import { LocationIcon } from "@/components/ui/LocationIcon";
 import { ShieldIcon } from "@/components/ui/ShieldIcon";
 import { useRouter } from "expo-router";
+import { useRefreshControl } from "@/hooks/useRefreshControl";
 
 export default function AdminSellersScreen() {
   const colors = useThemeColors();
   const styles = getStyles(colors);
+  // Pull-to-refresh for this list. `Screen` owns it for scrolling screens; this one
+  // passes scroll={false}, so the list attaches it itself.
+  const refreshControl = useRefreshControl();
   const router = useRouter();
   
   const [activeTab, setActiveTab] = useState<'requests' | 'approved'>('requests');
@@ -152,6 +156,7 @@ export default function AdminSellersScreen() {
       ) : (
         <FlashList
           data={filteredSellers}
+          refreshControl={refreshControl}
           renderItem={renderItem}
           {...({ estimatedItemSize: 200 } as any)}
           ListHeaderComponent={renderHeader}

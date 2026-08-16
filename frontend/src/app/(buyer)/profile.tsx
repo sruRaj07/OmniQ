@@ -18,6 +18,7 @@ import { MenuIcon } from "@/components/ui/MenuIcon";
 import { SearchIcon } from "@/components/ui/SearchIcon";
 import { LocationGate } from "@/components/shared/LocationGate";
 import { Screen } from "@/components/shared/Screen";
+import { RefreshButton } from "@/components/shared/RefreshButton";
 import { useAppTheme } from "@/store/useThemeStore";
 import { useAuthStore } from "@/store/authStore";
 import { useSellerStatus } from "@/hooks/useSellerStatus";
@@ -159,7 +160,8 @@ export default function ProfileScreen() {
         "Account deleted",
         "Your account and personal details have been permanently deleted. Past order records are kept for tax purposes with all identifying details removed."
       );
-      router.replace("/(auth)/login");
+      // The sign-in screen is the (auth) group's index route; "/(auth)/login" does not exist.
+      router.replace("/(auth)");
     },
     onError: (error: any) => {
       Alert.alert(
@@ -298,6 +300,9 @@ export default function ProfileScreen() {
           <ChevronDownIcon size={18} color={colors.textSecondary} />
         </View>
         <View style={styles.headerIcons}>
+          {/* Profile, orders and seller status all come from the server; this is where a user
+              expects to confirm a change they just made elsewhere took effect. */}
+          <RefreshButton size={36} />
           <TouchableOpacity style={styles.iconButton} onPress={() => setIsEditing(true)}>
             <SettingsIcon size={24} color={colors.textPrimary} />
           </TouchableOpacity>

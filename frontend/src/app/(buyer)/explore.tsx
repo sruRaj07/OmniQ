@@ -11,12 +11,16 @@ import { Screen } from "@/components/shared/Screen";
 import { BuyerHeader } from "@/components/buyer/BuyerHeader";
 import { useAppTheme } from "@/store/useThemeStore";
 import { useProducts } from "@/hooks/useProducts";
+import { useRefreshControl } from "@/hooks/useRefreshControl";
 import { useCallback } from "react";
 import type { Product } from "@/types/product.types";
 
 export default function ExploreScreen() {
   const { colors } = useAppTheme();
   const styles = getStyles(colors);
+  // Pull-to-refresh for this list. `Screen` owns it for scrolling screens; this one
+  // passes scroll={false}, so the list attaches it itself.
+  const refreshControl = useRefreshControl();
   
   const {
     products,
@@ -70,6 +74,7 @@ export default function ExploreScreen() {
           ) : (
             <FlashList
               data={products}
+              refreshControl={refreshControl}
               numColumns={2}
               {...({ estimatedItemSize: 250 } as any)}
               scrollEventThrottle={16}

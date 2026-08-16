@@ -2,7 +2,7 @@
  * OmniQ mobile app - admin dashboard.
  * Author: OmniQ Team
  */
-import { StyleSheet, Text, View, ScrollView, ActivityIndicator, TouchableOpacity, Alert } from "react-native";
+import { StyleSheet, Text, View, ScrollView, ActivityIndicator, TouchableOpacity, Alert, Platform } from "react-native";
 import { useState } from "react";
 import { router } from "expo-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -18,6 +18,7 @@ import { ShieldIcon } from "@/components/ui/ShieldIcon";
 import { GridIcon } from "@/components/ui/GridIcon";
 import { SearchIcon } from "@/components/ui/SearchIcon";
 import { Screen } from "@/components/shared/Screen";
+import { RefreshButton } from "@/components/shared/RefreshButton";
 import { useThemeColors, useAppTheme } from "@/store/useThemeStore";
 import { apiClient } from "@/lib/apiClient";
 import { LinearGradient } from "expo-linear-gradient";
@@ -126,6 +127,9 @@ export default function AdminDashboardScreen() {
           <Text style={styles.dateText}>{today}</Text>
         </View>
         <View style={styles.topRightActions}>
+          {/* Admin KPIs are the numbers most likely to be watched live, so the control sits
+              first in the action row. */}
+          <RefreshButton size={34} />
           <TouchableOpacity onPress={() => setMode(mode === 'dark' ? 'light' : 'dark')} style={styles.actionBtn}>
             <Text style={styles.actionText}>{mode === 'dark' ? 'Light Mode' : 'Dark Mode'}</Text>
           </TouchableOpacity>
@@ -190,7 +194,7 @@ export default function AdminDashboardScreen() {
         <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginBottom: 12 }]}>CUSTOMER REQUESTS</Text>
         
         {isLoadingRequests ? (
-          <ActivityIndicator size="small" color={colors.primary} />
+          <ActivityIndicator size="small" color={colors.accent} />
         ) : pendingRequests.length === 0 ? (
           <View style={styles.emptyRequests}>
             <Text style={{ color: colors.textMuted }}>No pending requests.</Text>
@@ -204,7 +208,7 @@ export default function AdminDashboardScreen() {
                   <Text style={styles.requestEmail}>{req.profile?.email || 'No email'}</Text>
                 </View>
                 <View style={[styles.requestBadge, req.type === 'account_deletion' ? styles.badgeDanger : styles.badgeInfo]}>
-                  <Text style={[styles.requestBadgeText, req.type === 'account_deletion' ? styles.badgeTextDanger : styles.badgeTextInfo]}>
+                  <Text style={req.type === 'account_deletion' ? styles.badgeTextDanger : styles.badgeTextInfo}>
                     {req.type === 'account_deletion' ? 'Delete Account' : 'Data Export'}
                   </Text>
                 </View>

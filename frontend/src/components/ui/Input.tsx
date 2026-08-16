@@ -2,6 +2,7 @@
  * OmniQ mobile app - text input field.
  * Author: OmniQ Team
  */
+import { forwardRef } from "react";
 import { StyleSheet, TextInput, View, type TextInputProps } from "react-native";
 import { useThemeColors } from "@/store/useThemeStore";
 import { typography } from "@/constants/typography";
@@ -9,23 +10,25 @@ export interface InputProps extends TextInputProps {
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
 }
-export function Input({
+// forwardRef so a form can move focus from one field to the next on "return" instead of making
+// the user dismiss the keyboard and tap the following box.
+export const Input = forwardRef<TextInput, InputProps>(function Input({
   leftIcon,
   rightIcon,
   style,
   ...props
-}: InputProps) {
+}, ref) {
   const colors = useThemeColors();
   const styles = getStyles(colors);
   if (leftIcon || rightIcon) {
     return <View style={[styles.inputContainer, style as any]}>
         {leftIcon && <View style={styles.iconContainer}>{leftIcon}</View>}
-        <TextInput placeholderTextColor={colors.textMuted} {...props} style={styles.inputWithIcon} />
+        <TextInput ref={ref} placeholderTextColor={colors.textMuted} {...props} style={styles.inputWithIcon} />
         {rightIcon && <View style={styles.rightIconContainer}>{rightIcon}</View>}
       </View>;
   }
-  return <TextInput placeholderTextColor={colors.textMuted} {...props} style={[styles.input, style]} />;
-}
+  return <TextInput ref={ref} placeholderTextColor={colors.textMuted} {...props} style={[styles.input, style]} />;
+});
 const getStyles = (colors: any) => StyleSheet.create({
   inputContainer: {
     flexDirection: "row",

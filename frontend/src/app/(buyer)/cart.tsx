@@ -5,7 +5,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useRouter } from "expo-router";
-import { StyleSheet, Text, View, Alert, ActivityIndicator, Modal, Pressable, TextInput } from "react-native";
+import { StyleSheet, Text, View, Alert, ActivityIndicator, Modal, Pressable, ScrollView, TextInput } from "react-native";
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, runOnJS } from "react-native-reanimated";
 import { CartItem } from "@/components/buyer/CartItem";
 import { Card } from "@/components/ui/Card";
@@ -18,10 +18,55 @@ import { MenuIcon } from "@/components/ui/MenuIcon";
 import { Screen } from "@/components/shared/Screen";
 import { BuyerHeader } from "@/components/buyer/BuyerHeader";
 import { AnimatedEmptyCart } from "@/components/buyer/AnimatedEmptyCart";
+import { FreeDeliveryProgress } from "@/components/buyer/FreeDeliveryProgress";
 import { useAppTheme } from "@/store/useThemeStore";
 import { useCart } from "@/hooks/useCart";
 import { formatCurrency } from "@/utils/formatCurrency";
 import { apiClient } from "@/lib/apiClient";
+import { DELIVERY_FEE } from "@/constants/delivery";
+
+type AddressField = "line1" | "line2" | "city" | "state" | "pincode" | "phone";
+type DeliveryAddress = Record<AddressField, string>;
+type AddressErrors = Partial<Record<AddressField, string>>;
+
+// Indian pincodes are 6 digits and never start with 0. Mobile numbers are 10 digits starting 6-9.
+const PINCODE_PATTERN = /^[1-9][0-9]{5}$/;
+const MOBILE_PATTERN = /^[6-9][0-9]{9}$/;
+
+/** Strips spaces/dashes and an optional +91 or leading 0 so buyers can type the number any way. */
+function normalizeMobile(value: string): string {
+  const digits = value.replace(/[^0-9]/g, "");
+  if (digits.length === 12 && digits.startsWith("91")) return digits.slice(2);
+  if (digits.length === 11 && digits.startsWith("0")) return digits.slice(1);
+  return digits;
+}
+
+/** Every field except line2 is mandatory; the order cannot be placed until all of these pass. */
+function validateAddress(address: DeliveryAddress): AddressErrors {
+  const errors: AddressErrors = {};
+
+  const line1 = address.line1.trim();
+  if (!line1) errors.line1 = "Address is required.";
+  else if (line1.length < 5) errors.line1 = "Enter a complete address (at least 5 characters).";
+
+  const city = address.city.trim();
+  if (!city) errors.city = "City is required.";
+  else if (city.length < 2) errors.city = "Enter a valid city.";
+
+  const state = address.state.trim();
+  if (!state) errors.state = "State is required.";
+  else if (state.length < 2) errors.state = "Enter a valid state.";
+
+  const pincode = address.pincode.trim();
+  if (!pincode) errors.pincode = "Pincode is required.";
+  else if (!PINCODE_PATTERN.test(pincode)) errors.pincode = "Enter a valid 6-digit pincode.";
+
+  const phone = normalizeMobile(address.phone);
+  if (!phone) errors.phone = "Mobile number is required.";
+  else if (!MOBILE_PATTERN.test(phone)) errors.phone = "Enter a valid 10-digit mobile number.";
+
+  return errors;
+}
 
 export default function CartScreen() {
   const { colors } = useAppTheme();
@@ -30,6 +75,9 @@ export default function CartScreen() {
     items,
     subtotal,
     platformFee,
+    deliveryFee,
+    remainingForFreeDelivery,
+    freeDeliveryThreshold,
     total,
     updateQuantity,
     removeItem,
@@ -38,7 +86,7 @@ export default function CartScreen() {
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [showAddressModal, setShowAddressModal] = useState(false);
-  const [address, setAddress] = useState({
+  const [address, setAddress] = useState<DeliveryAddress>({
     line1: "",
     line2: "",
     city: "",
@@ -46,7 +94,16 @@ export default function CartScreen() {
     pincode: "",
     phone: ""
   });
+  const [errors, setErrors] = useState<AddressErrors>({});
   const [serviceError, setServiceError] = useState<string | null>(null);
+  // Remembers what the pincode lookup last filled in, so we only overwrite our own suggestion
+  // and never clobber a city/state the buyer typed by hand.
+  const autoFilledRef = useRef({ city: "", state: "" });
+
+  const updateField = (field: AddressField, value: string) => {
+    setAddress(prev => ({ ...prev, [field]: value }));
+    setErrors(prev => (prev[field] ? { ...prev, [field]: undefined } : prev));
+  };
 
   const { data: profile } = useQuery({
     queryKey: ["userProfile"],
@@ -66,6 +123,36 @@ export default function CartScreen() {
       }));
     }
   }, [profile]);
+
+  // City and State are not stored on the profile, so they arrive empty at checkout. Resolve them
+  // from the pincode instead of asking the buyer to type what the pincode already implies.
+  const trimmedPincode = address.pincode.trim();
+  const { data: pincodeLocation } = useQuery({
+    queryKey: ["pincodeLocation", trimmedPincode],
+    enabled: PINCODE_PATTERN.test(trimmedPincode),
+    staleTime: Infinity,
+    retry: false,
+    queryFn: async () => {
+      const res = await apiClient.get(`/location/pincode/${trimmedPincode}`);
+      return res.data?.data as { city?: string; state?: string } | undefined;
+    }
+  });
+
+  useEffect(() => {
+    const city = pincodeLocation?.city;
+    const state = pincodeLocation?.state;
+    if (!city || !state) return;
+
+    setAddress(prev => {
+      const previous = autoFilledRef.current;
+      const nextCity = !prev.city.trim() || prev.city === previous.city ? city : prev.city;
+      const nextState = !prev.state.trim() || prev.state === previous.state ? state : prev.state;
+      if (nextCity === prev.city && nextState === prev.state) return prev;
+      return { ...prev, city: nextCity, state: nextState };
+    });
+    autoFilledRef.current = { city, state };
+    setErrors(prev => (prev.city || prev.state ? { ...prev, city: undefined, state: undefined } : prev));
+  }, [pincodeLocation]);
 
   const scaleAnim = useSharedValue(0);
   const opacityAnim = useSharedValue(0);
@@ -104,11 +191,23 @@ export default function CartScreen() {
   };
 
   const submitOrder = async () => {
-    if (!address.pincode) {
-      Alert.alert("Missing Pincode", "Please enter a pincode.");
+    const validationErrors = validateAddress(address);
+    setErrors(validationErrors);
+    if (Object.keys(validationErrors).length > 0) {
+      setServiceError(null);
       return;
     }
-    
+
+    // Send trimmed/normalized values, not the raw keystrokes, so the order record is clean.
+    const deliveryAddress: DeliveryAddress = {
+      line1: address.line1.trim(),
+      line2: address.line2.trim(),
+      city: address.city.trim(),
+      state: address.state.trim(),
+      pincode: address.pincode.trim(),
+      phone: normalizeMobile(address.phone)
+    };
+
     setIsPlacingOrder(true);
 
     // One key per checkout attempt. apiClient retries network errors and 5xx twice with backoff,
@@ -119,7 +218,7 @@ export default function CartScreen() {
 
     try {
       // Step 1: Verify pincode serviceability
-      const zoneCheckRes = await apiClient.post("/location/zone-check", { pincode: address.pincode });
+      const zoneCheckRes = await apiClient.post("/location/zone-check", { pincode: deliveryAddress.pincode });
       const zoneData = zoneCheckRes.data?.data || zoneCheckRes.data;
       
       if (zoneData && zoneData.isServiceable === false) {
@@ -135,7 +234,7 @@ export default function CartScreen() {
           productId: item.product.id,
           quantity: item.quantity
         })),
-        deliveryAddress: address,
+        deliveryAddress,
         buyerLat: 12.9348,
         buyerLng: 77.6220,
         paymentMethod: "CASH_ON_DELIVERY"
@@ -194,10 +293,22 @@ export default function CartScreen() {
               </View>
             </Card>
 
+            <FreeDeliveryProgress subtotal={subtotal} remaining={remainingForFreeDelivery} threshold={freeDeliveryThreshold} />
+
             <Card style={styles.summary}>
               <Text style={styles.summaryTitle}>Order Summary</Text>
               <View style={styles.row}><Text style={styles.label}>Subtotal ({items.reduce((sum, item) => sum + item.quantity, 0)} items)</Text><Text style={styles.value}>{formatCurrency(subtotal)}</Text></View>
-              <View style={styles.row}><Text style={styles.label}>Delivery charges</Text><Text style={styles.free}>FREE</Text></View>
+              <View style={styles.row}>
+                <Text style={styles.label}>Delivery charges</Text>
+                {deliveryFee > 0 ? (
+                  <Text style={styles.value}>{formatCurrency(deliveryFee)}</Text>
+                ) : (
+                  <View style={styles.deliveryFreeGroup}>
+                    <Text style={styles.strikePrice}>{formatCurrency(DELIVERY_FEE)}</Text>
+                    <Text style={styles.free}>FREE</Text>
+                  </View>
+                )}
+              </View>
               <View style={styles.divider} />
               <View style={styles.row}><Text style={styles.totalLabel}>Total</Text><Text style={styles.total}>{formatCurrency(total)}</Text></View>
             </Card>
@@ -220,34 +331,67 @@ export default function CartScreen() {
 
       <Modal visible={showAddressModal} transparent animationType="slide">
         <View style={styles.modalBg}>
-          <View style={styles.addressModal}>
+          <ScrollView
+            style={styles.addressModalScroll}
+            contentContainerStyle={styles.addressModal}
+            keyboardShouldPersistTaps="handled"
+          >
             <Text style={styles.modalTitle}>Confirm Delivery Address</Text>
             
-            <Text style={styles.inputLabel}>Address Line 1</Text>
-            <TextInput style={styles.input} value={address.line1} onChangeText={(text) => setAddress({...address, line1: text})} />
-            
+            <Text style={styles.inputLabel}>Address Line 1 *</Text>
+            <TextInput
+              style={[styles.input, errors.line1 ? styles.inputError : null]}
+              value={address.line1}
+              onChangeText={(text) => updateField("line1", text)}
+            />
+            {errors.line1 ? <Text style={styles.fieldError}>{errors.line1}</Text> : null}
+
             <Text style={styles.inputLabel}>Address Line 2 (Optional)</Text>
-            <TextInput style={styles.input} value={address.line2} onChangeText={(text) => setAddress({...address, line2: text})} />
-            
+            <TextInput style={styles.input} value={address.line2} onChangeText={(text) => updateField("line2", text)} />
+
             <View style={{ flexDirection: "row", gap: 12 }}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.inputLabel}>City</Text>
-                <TextInput style={styles.input} value={address.city} onChangeText={(text) => setAddress({...address, city: text})} />
+                <Text style={styles.inputLabel}>City *</Text>
+                <TextInput
+                  style={[styles.input, errors.city ? styles.inputError : null]}
+                  value={address.city}
+                  onChangeText={(text) => updateField("city", text)}
+                />
+                {errors.city ? <Text style={styles.fieldError}>{errors.city}</Text> : null}
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.inputLabel}>State</Text>
-                <TextInput style={styles.input} value={address.state} onChangeText={(text) => setAddress({...address, state: text})} />
+                <Text style={styles.inputLabel}>State *</Text>
+                <TextInput
+                  style={[styles.input, errors.state ? styles.inputError : null]}
+                  value={address.state}
+                  onChangeText={(text) => updateField("state", text)}
+                />
+                {errors.state ? <Text style={styles.fieldError}>{errors.state}</Text> : null}
               </View>
             </View>
-            
-            <Text style={styles.inputLabel}>Pincode</Text>
-            <TextInput style={styles.input} value={address.pincode} keyboardType="numeric" onChangeText={(text) => {
-              setAddress({...address, pincode: text});
-              setServiceError(null);
-            }} />
-            
-            <Text style={styles.inputLabel}>Mobile Number</Text>
-            <TextInput style={styles.input} value={address.phone} keyboardType="phone-pad" onChangeText={(text) => setAddress({...address, phone: text})} />
+
+            <Text style={styles.inputLabel}>Pincode *</Text>
+            <TextInput
+              style={[styles.input, errors.pincode ? styles.inputError : null]}
+              value={address.pincode}
+              keyboardType="numeric"
+              maxLength={6}
+              onChangeText={(text) => {
+                updateField("pincode", text.replace(/[^0-9]/g, ""));
+                setServiceError(null);
+              }}
+            />
+            {errors.pincode ? <Text style={styles.fieldError}>{errors.pincode}</Text> : null}
+
+            <Text style={styles.inputLabel}>Mobile Number *</Text>
+            <TextInput
+              style={[styles.input, errors.phone ? styles.inputError : null]}
+              value={address.phone}
+              keyboardType="phone-pad"
+              maxLength={13}
+              onChangeText={(text) => updateField("phone", text)}
+            />
+            {errors.phone ? <Text style={styles.fieldError}>{errors.phone}</Text> : null}
 
             {serviceError ? (
               <Text style={{ color: colors.danger, fontSize: 13, marginTop: 12, textAlign: 'center', fontWeight: 'bold' }}>
@@ -263,7 +407,7 @@ export default function CartScreen() {
                 <Text style={styles.orderText}>{isPlacingOrder ? "Processing..." : "Confirm"}</Text>
               </Pressable>
             </View>
-          </View>
+          </ScrollView>
         </View>
       </Modal>
 
@@ -341,6 +485,16 @@ const getStyles = (colors: any) => StyleSheet.create({
     fontSize: 15,
     fontWeight: "700"
   },
+  deliveryFreeGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6
+  },
+  strikePrice: {
+    color: colors.textMuted,
+    fontSize: 14,
+    textDecorationLine: "line-through"
+  },
   divider: {
     height: 1,
     backgroundColor: colors.border,
@@ -375,10 +529,14 @@ const getStyles = (colors: any) => StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.6)",
     justifyContent: "flex-end"
   },
-  addressModal: {
+  addressModalScroll: {
+    flexGrow: 0,
+    maxHeight: "85%",
     backgroundColor: colors.bgPrimary,
     borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopRightRadius: 24
+  },
+  addressModal: {
     padding: 24,
     paddingBottom: 40
   },
@@ -403,6 +561,15 @@ const getStyles = (colors: any) => StyleSheet.create({
     fontSize: 16,
     borderWidth: 1,
     borderColor: colors.border
+  },
+  inputError: {
+    borderColor: colors.danger
+  },
+  fieldError: {
+    color: colors.danger,
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 4
   },
   modalActions: {
     flexDirection: "row",

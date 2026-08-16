@@ -2,16 +2,17 @@
  * OmniQ mobile app - admin login screen.
  * Author: OmniQ Team
  */
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link, useRouter } from "expo-router";
-import { StyleSheet, Text, View, Alert, Platform, TouchableOpacity, KeyboardAvoidingView } from "react-native";
+import { StyleSheet, Text, View, Platform, TouchableOpacity, KeyboardAvoidingView, type TextInput } from "react-native";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
+import { FormField } from "@/components/ui/FormField";
 import { ShieldIcon } from "@/components/ui/ShieldIcon";
 import { EyeIcon } from "@/components/ui/EyeIcon";
 import { EyeOffIcon } from "@/components/ui/EyeOffIcon";
 import { Screen } from "@/components/shared/Screen";
 import { useThemeColors } from "@/store/useThemeStore";
+import { typography } from "@/constants/typography";
 import { supabase } from "@/lib/supabase";
 import { apiClient } from "@/lib/apiClient";
 export default function AdminLoginScreen() {
@@ -22,12 +23,18 @@ export default function AdminLoginScreen() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  // Inline banner rather than Alert.alert: a failed admin login should leave the credentials on
+  // screen to correct, not put a modal over them.
+  const [formError, setFormError] = useState<string | null>(null);
+  const passwordRef = useRef<TextInput>(null);
+
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert("Error", "Please enter both email and password.");
+      setFormError("Enter both your admin email and password.");
       return;
     }
     setLoading(true);
+    setFormError(null);
     try {
       const res = await apiClient.post("/auth/login", {
         email,
@@ -42,21 +49,28 @@ export default function AdminLoginScreen() {
         if (userRole === "admin") {
           router.replace("/(admin)" as any);
         } else {
-          Alert.alert("Access Denied", "You do not have administrator privileges.");
+          // Sign back out first, then report: leaving a non-admin session live behind an
+          // "access denied" message is the kind of gap that turns into a real one.
           await supabase.auth.signOut();
+          setFormError("That account does not have administrator privileges.");
         }
       } else {
         throw new Error("Invalid response from server");
       }
     } catch (err: any) {
-      Alert.alert("Admin Login Failed", err?.response?.data?.error?.message || err?.response?.data?.message || err.message);
+      setFormError(
+        err?.response?.data?.error?.message ||
+        err?.response?.data?.message ||
+        err.message ||
+        "Sign in failed. Please try again."
+      );
     } finally {
       setLoading(false);
     }
   };
-  return <Screen scroll={true}>
-      <KeyboardAvoidingView 
-        style={{ flex: 1, width: '100%' }} 
+  return <Screen scroll={true} refreshable={false}>
+      <KeyboardAvoidingView
+        style={{ flex: 1, width: '100%' }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={Platform.OS === "ios" ? 40 : 0}
       >
@@ -66,22 +80,54 @@ export default function AdminLoginScreen() {
         </View>
         <Text style={styles.title}>Admin Portal</Text>
         <Text style={styles.subtitle}>Secure access for OmniQ administrators</Text>
+
+        {formError ? (
+          <View accessibilityRole="alert" style={styles.banner}>
+            <Text style={styles.bannerText}>{formError}</Text>
+          </View>
+        ) : null}
+
         <View style={styles.form}>
-          <Text style={styles.label}>Admin Email</Text>
-          <Input placeholder="admin@omniq.in" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
-          <Text style={styles.label}>Password</Text>
-          <Input 
-            placeholder="••••••••••••" 
-            secureTextEntry={!showPassword} 
-            value={password} 
-            onChangeText={setPassword} 
+          <FormField
+            label="Admin email"
+            placeholder="admin@omniq.in"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="email"
+            textContentType="emailAddress"
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => passwordRef.current?.focus()}
+          />
+          <FormField
+            ref={passwordRef}
+            label="Password"
+            placeholder="Your password"
+            secureTextEntry={!showPassword}
+            value={password}
+            onChangeText={setPassword}
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="current-password"
+            textContentType="password"
+            returnKeyType="go"
+            onSubmitEditing={handleLogin}
             rightIcon={
-              <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={{ padding: 4 }}>
+              <TouchableOpacity
+                onPress={() => setShowPassword(!showPassword)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                accessibilityRole="button"
+                accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+                style={{ padding: 4 }}
+              >
                 {showPassword ? <EyeOffIcon color={colors.textSecondary} size={20} /> : <EyeIcon color={colors.textSecondary} size={20} />}
               </TouchableOpacity>
             }
           />
-          <Button style={styles.button} onPress={handleLogin} disabled={loading}>
+          <Button style={styles.button} onPress={handleLogin} loading={loading}>
             {loading ? "Authenticating..." : "Sign In to Admin Panel"}
           </Button>
         </View>
@@ -93,59 +139,66 @@ export default function AdminLoginScreen() {
 }
 const getStyles = (colors: any) => StyleSheet.create({
   wrap: {
-    paddingTop: 60,
+    paddingTop: 48,
     paddingHorizontal: 20,
     paddingBottom: 40
   },
   shield: {
     alignSelf: "center",
-    width: 108,
-    height: 108,
-    borderRadius: 30,
-    backgroundColor: "rgba(108,99,255,0.2)",
+    width: 96,
+    height: 96,
+    borderRadius: 28,
+    backgroundColor: `${colors.accent}1A`,
     borderColor: colors.accent,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 28
-  },
-  shieldText: {
-    fontSize: 28
+    marginBottom: 24
   },
   title: {
+    ...typography.heading1,
     color: colors.textPrimary,
-    textAlign: "center",
-    fontSize: 28,
-    fontWeight: "800"
+    textAlign: "center"
   },
   subtitle: {
+    ...typography.body,
     color: colors.textSecondary,
     textAlign: "center",
-    fontSize: 18,
-    marginTop: 10,
-    marginBottom: 46
+    marginTop: 8,
+    marginBottom: 32
+  },
+  banner: {
+    backgroundColor: `${colors.danger}14`,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.danger,
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 18
+  },
+  bannerText: {
+    ...typography.caption,
+    color: colors.danger,
+    lineHeight: 19
   },
   form: {
-    gap: 12
-  },
-  label: {
-    color: colors.textSecondary,
-    fontWeight: "800",
-    marginTop: 8
+    gap: 16
   },
   button: {
-    marginTop: 18
+    marginTop: 6,
+    minHeight: 56,
+    borderRadius: 14
   },
   backLink: {
-    color: colors.accentLight,
+    ...typography.captionBold,
+    color: colors.accent,
     textAlign: "center",
-    marginTop: 24,
-    fontWeight: "700",
-    fontSize: 16
+    marginTop: 28
   },
   footer: {
+    ...typography.caption,
     color: colors.textMuted,
     textAlign: "center",
-    marginTop: 26
+    marginTop: 22
   }
 });

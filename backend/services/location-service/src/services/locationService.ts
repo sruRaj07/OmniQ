@@ -2,8 +2,17 @@
  * OmniQ location service - delivery zone logic.
  * Author: OmniQ Team
  */
-import { zoneCheckSchema } from "../validators/locationValidator";
+import { pincodeSchema, zoneCheckSchema } from "../validators/locationValidator";
 import { supabaseAdmin } from "../../../../shared/utils/supabaseClient";
+
+export type PincodeLocation = { pincode: string; city: string; district: string; state: string };
+
+// ⚡ PERFORMANCE: Indian pincode -> city/state mapping never changes, so a resolved lookup is
+// cached for the lifetime of the process. This keeps checkout off the network for repeat
+// pincodes (the common case: one buyer, one delivery area) and shields us from India Post
+// rate limits. Misses are not cached so a transient upstream failure can be retried.
+const pincodeCache = new Map<string, PincodeLocation>();
+const PINCODE_LOOKUP_TIMEOUT_MS = 4000;
 
 function distanceKm(point: { lat: number; lng: number }, centre: { lat: number; lng: number }): number {
   const toRad = (value: number): number => (value * Math.PI) / 180;
@@ -14,6 +23,35 @@ function distanceKm(point: { lat: number; lng: number }, centre: { lat: number; 
     Math.sin(dLat / 2) ** 2 +
     Math.cos(toRad(point.lat)) * Math.cos(toRad(centre.lat)) * Math.sin(dLng / 2) ** 2;
   return 2 * earthKm * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+export async function lookupPincode(input: unknown): Promise<PincodeLocation | null> {
+  const pincode = pincodeSchema.parse(input);
+
+  const cached = pincodeCache.get(pincode);
+  if (cached) return cached;
+
+  const response = await fetch(`https://api.postalpincode.in/pincode/${pincode}`, {
+    signal: AbortSignal.timeout(PINCODE_LOOKUP_TIMEOUT_MS)
+  });
+  if (!response.ok) throw new Error(`Pincode directory returned ${response.status}`);
+
+  const payload = (await response.json()) as any[];
+  const entry = Array.isArray(payload) ? payload[0] : null;
+  const postOffice = entry?.Status === "Success" ? entry?.PostOffice?.[0] : null;
+  if (!postOffice) return null;
+
+  const resolved: PincodeLocation = {
+    pincode,
+    // District is the administrative city for delivery purposes; Block/Name is the locality.
+    city: String(postOffice.District ?? postOffice.Block ?? postOffice.Name ?? "").trim(),
+    district: String(postOffice.District ?? "").trim(),
+    state: String(postOffice.State ?? "").trim()
+  };
+  if (!resolved.city || !resolved.state) return null;
+
+  pincodeCache.set(pincode, resolved);
+  return resolved;
 }
 
 export async function checkZone(input: unknown) {

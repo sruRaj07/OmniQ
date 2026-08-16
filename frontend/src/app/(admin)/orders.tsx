@@ -12,10 +12,15 @@ import { ShieldIcon } from "@/components/ui/ShieldIcon";
 import { useThemeColors } from "@/store/useThemeStore";
 import { apiClient } from "@/lib/apiClient";
 import { formatCurrency } from "@/utils/formatCurrency";
+import { orderSubtotalOf, resolveOrderDeliveryFee } from "@/constants/delivery";
+import { useRefreshControl } from "@/hooks/useRefreshControl";
 
 export default function AdminOrdersScreen() {
   const colors = useThemeColors();
   const styles = getStyles(colors);
+  // Pull-to-refresh for this list. `Screen` owns it for scrolling screens; this one
+  // passes scroll={false}, so the list attaches it itself.
+  const refreshControl = useRefreshControl();
   const [activeTab, setActiveTab] = useState<'new' | 'delivered'>('new');
 
   const { data: orders, isLoading } = useQuery({
@@ -100,6 +105,9 @@ export default function AdminOrdersScreen() {
       };
     }
     const pickups = Object.values(sellerMap);
+    const itemsSubtotal = orderSubtotalOf(order);
+    const deliveryFee = resolveOrderDeliveryFee(itemsSubtotal, order.total);
+    const orderTotal = itemsSubtotal + deliveryFee;
 
     return (
       <View style={styles.orderCard}>
@@ -125,8 +133,16 @@ export default function AdminOrdersScreen() {
             <Text style={styles.metaValue}>{formatDate(order.created_at)}</Text>
           </View>
           <View style={styles.metaRow}>
+            <Text style={styles.metaLabel}>Item Total</Text>
+            <Text style={styles.metaValue}>{formatCurrency(itemsSubtotal)}</Text>
+          </View>
+          <View style={styles.metaRow}>
+            <Text style={styles.metaLabel}>Delivery</Text>
+            <Text style={styles.metaValue}>{deliveryFee > 0 ? formatCurrency(deliveryFee) : "FREE"}</Text>
+          </View>
+          <View style={styles.metaRow}>
             <Text style={styles.metaLabel}>Total</Text>
-            <Text style={[styles.metaValue, styles.metaAmount]}>{formatCurrency(order.total)}</Text>
+            <Text style={[styles.metaValue, styles.metaAmount]}>{formatCurrency(orderTotal)}</Text>
           </View>
           <View style={styles.metaRow}>
             <Text style={styles.metaLabel}>Platform Fee</Text>
@@ -216,6 +232,7 @@ export default function AdminOrdersScreen() {
       ) : (
         <FlashList
           data={filteredOrders}
+          refreshControl={refreshControl}
           renderItem={renderItem}
           {...({ estimatedItemSize: 400 } as any)}
           ListHeaderComponent={renderHeader}

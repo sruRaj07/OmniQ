@@ -3,15 +3,15 @@
  * Author: OmniQ Team
  */
 import { Link, useLocalSearchParams, useRouter } from "expo-router";
-import { StyleSheet, Text, View, ActivityIndicator, ScrollView, Dimensions, TouchableOpacity } from "react-native";
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, useWindowDimensions } from "react-native";
 import { ArrowLeftIcon } from "@/components/ui/ArrowLeftIcon";
 import { SearchInput } from "@/components/buyer/SearchInput";
 import { useState, useEffect } from "react";
-import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Screen } from "@/components/shared/Screen";
 import { useThemeColors } from "@/store/useThemeStore";
+import { typography } from "@/constants/typography";
 import { useCartStore } from "@/store/cartStore";
 import { formatCurrency } from "@/utils/formatCurrency";
 import { apiClient } from "@/lib/apiClient";
@@ -19,6 +19,27 @@ import type { Product } from "@/types/product.types";
 import { ProductCard } from "@/components/buyer/ProductCard";
 import { ImageZoomViewer } from "@/components/shared/ImageZoomViewer";
 import { NetworkAwareImage } from "@/components/shared/NetworkAwareImage";
+import { FREE_DELIVERY_THRESHOLD } from "@/constants/delivery";
+
+/** At or below this many units left, the stock line switches to an urgency message. */
+const LOW_STOCK_THRESHOLD = 5;
+
+/** Gallery height in px. Shared by the frame and each slide so the slides never depend on a
+ *  percentage of the ScrollView, which sizes itself to its content and would collapse to 0. */
+const GALLERY_HEIGHT = 360;
+
+/** Gallery frame border. onLayout reports the border box, so slides subtract it to match the
+ *  scrollable content width exactly - otherwise paging drifts 2px per swipe. */
+const GALLERY_BORDER = 1;
+
+/** Mirrors `Screen`: root is capped at 500px and `inner` pads 24px each side. Used to derive a
+ *  usable slide width on the very first render, before onLayout has reported one. */
+const SCREEN_MAX_WIDTH = 500;
+const SCREEN_H_PADDING = 24;
+
+/** Breathing room between the photo and the gallery's rounded corners. */
+const SLIDE_PADDING = 16;
+
 export default function ProductDetailScreen() {
   const colors = useThemeColors();
   const styles = getStyles(colors);
@@ -35,8 +56,16 @@ export default function ProductDetailScreen() {
   const [isDescExpanded, setIsDescExpanded] = useState(false);
   const [isZoomVisible, setIsZoomVisible] = useState(false);
   const [activeZoomImage, setActiveZoomImage] = useState("");
-  const { width } = Dimensions.get("window");
+  const [measuredGalleryWidth, setMeasuredGalleryWidth] = useState(0);
   const addItem = useCartStore(state => state.addItem);
+  const { width: windowWidth } = useWindowDimensions();
+
+  // Slides must never be 0px wide or the gallery renders blank. onLayout is the accurate source,
+  // but it only arrives after the first paint (and not at all if the node never resizes), so the
+  // computed Screen width seeds it and the measurement takes over once it lands.
+  const slideWidth =
+    (measuredGalleryWidth || Math.min(windowWidth, SCREEN_MAX_WIDTH) - SCREEN_H_PADDING * 2) -
+    GALLERY_BORDER * 2;
 
   const handleScroll = (event: any) => {
     const slideSize = event.nativeEvent.layoutMeasurement.width;
@@ -110,7 +139,6 @@ export default function ProductDetailScreen() {
     </Screen>;
   }
   const discount = product.compare_price ? Math.round((product.compare_price - product.price) / product.compare_price * 100) : 0;
-  const imageUrl = product.images && product.images.length > 0 ? product.images[0] : null;
   const topHeader = (
     <View style={[styles.top, { paddingHorizontal: 24, paddingTop: 18, marginBottom: 12, backgroundColor: colors.bgPrimary }]}>
       <Link href="/(buyer)" asChild>
@@ -119,42 +147,44 @@ export default function ProductDetailScreen() {
         </TouchableOpacity>
       </Link>
       <View style={styles.searchContainer}>
-        <SearchInput
-          placeholder="Search OmniQ"
-          style={{ 
-            flex: 1, 
-            marginBottom: 0,
-            backgroundColor: colors.card,
-            borderWidth: 1,
-            borderColor: "transparent",
-            borderRadius: 12,
-            elevation: 4,
-            boxShadow: "0px 3px 8px rgba(0,0,0,0.08)"
-          }}
-        />
+        {/* Fixed placeholder: a hint cycling next to the product being read is a distraction. */}
+        <SearchInput placeholder="Search OmniQ" style={styles.headerSearch} />
       </View>
     </View>
   );
 
+  const images = product.images ?? [];
+  const savings = product.compare_price ? Math.max(0, product.compare_price - product.price) : 0;
+  const stockLeft = product.stock_quantity ?? 0;
+  const isOutOfStock = stockLeft <= 0;
+  const isLowStock = !isOutOfStock && stockLeft <= LOW_STOCK_THRESHOLD;
+  const qualifiesForFreeDelivery = product.price >= FREE_DELIVERY_THRESHOLD;
+  // Same cutoff the cart quotes, so the promise made here is the one checkout keeps.
+  const deliveryWindow = new Date().getHours() < 12
+    ? "Today, 12:00 PM – 7:00 PM"
+    : "Tomorrow, 12:00 PM – 7:00 PM";
+
   return <Screen header={topHeader}>
-    <Text style={styles.title}>{product.title}</Text>
-    <View style={styles.imagePanel}>
-      {product.images && product.images.length > 0 ? (
+    {/* Gallery. Slide width tracks the gallery's own box, not the window: the Screen wrapper caps
+        its content at 500px, so a window-width slide would break paging on web/tablet. */}
+    <View style={styles.gallery} onLayout={event => setMeasuredGalleryWidth(event.nativeEvent.layout.width)}>
+      {images.length > 0 ? (
         <ScrollView
           horizontal
           pagingEnabled
           showsHorizontalScrollIndicator={false}
           onMomentumScrollEnd={handleScroll}
+          style={styles.galleryScroll}
         >
-          {product.images.map((uri, i) => (
-            <TouchableOpacity 
-              key={i} 
+          {images.map((uri, i) => (
+            <TouchableOpacity
+              key={i}
               activeOpacity={0.9}
               onPress={() => {
                 setActiveZoomImage(uri);
                 setIsZoomVisible(true);
               }}
-              style={{ width: width, height: "100%", alignItems: "center", justifyContent: "center" }}
+              style={[styles.slide, { width: slideWidth }]}
             >
               {/* Only the first image has a generated thumbnail/placeholder, and it
                   is already in the disk cache from the grid — so slide 0 paints
@@ -172,27 +202,98 @@ export default function ProductDetailScreen() {
           ))}
         </ScrollView>
       ) : (
-        <Text style={styles.image}>📦</Text>
+        <Text style={styles.placeholderGlyph}>📦</Text>
       )}
-    </View>
-    <View style={styles.dots}>
-      {product.images && product.images.length > 1 ? product.images.map((_, i) => (
-        <View key={i} style={i === activeIndex ? styles.dotActive : styles.dot} />
-      )) : null}
+
+      {discount > 0 ? (
+        <View style={styles.discountBadge}>
+          <Text style={styles.discountBadgeText}>-{discount}%</Text>
+        </View>
+      ) : null}
+
+      {images.length > 1 ? (
+        <View style={styles.counterPill}>
+          <Text style={styles.counterText}>{activeIndex + 1}/{images.length}</Text>
+        </View>
+      ) : null}
     </View>
 
-    <ImageZoomViewer 
-      visible={isZoomVisible} 
-      imageUrl={activeZoomImage} 
-      onClose={() => setIsZoomVisible(false)} 
+    {images.length > 1 ? (
+      <View style={styles.dots}>
+        {images.map((_, i) => (
+          <View key={i} style={i === activeIndex ? styles.dotActive : styles.dot} />
+        ))}
+      </View>
+    ) : null}
+
+    <ImageZoomViewer
+      visible={isZoomVisible}
+      imageUrl={activeZoomImage}
+      onClose={() => setIsZoomVisible(false)}
     />
 
-    <View style={styles.rating}>
-      {product.stock_quantity > 0 ? <Text style={styles.meta}>{product.stock_quantity} in stock</Text> : null}
-    </View>
+    <Text style={styles.title}>{product.title}</Text>
+
+    {/* TEMPORARILY HIDDEN - stock availability row. The derived flags below stay in place so
+        this is a one-line restore once the stock source is settled.
+        <View style={styles.stockRow}>
+          <View style={[styles.stockDot, isOutOfStock ? styles.stockDotOut : isLowStock ? styles.stockDotLow : null]} />
+          <Text style={[styles.stockText, isOutOfStock ? styles.stockTextOut : isLowStock ? styles.stockTextLow : null]}>
+            {isOutOfStock ? "Out of stock" : isLowStock ? `Only ${stockLeft} left` : "In stock"}
+          </Text>
+        </View>
+    */}
+
+    <Card style={styles.pricingCard}>
+      <View style={styles.priceRow}>
+        <Text style={styles.price}>{formatCurrency(product.price)}</Text>
+        {product.compare_price ? (
+          <Text style={styles.compare}>{formatCurrency(product.compare_price)}</Text>
+        ) : null}
+        {savings > 0 ? (
+          <View style={styles.saveBadge}>
+            <Text style={styles.saveBadgeText}>SAVE {formatCurrency(savings)}</Text>
+          </View>
+        ) : null}
+      </View>
+      <Text style={styles.taxNote}>Inclusive of all taxes</Text>
+
+      <View style={styles.pricingDivider} />
+
+      <View style={styles.deliveryRow}>
+        <View style={styles.deliveryIconWrap}>
+          <Text style={styles.deliveryGlyph}>🚚</Text>
+        </View>
+        <View style={styles.deliveryCopy}>
+          <Text style={styles.deliveryTitle}>
+            {qualifiesForFreeDelivery
+              ? "FREE delivery by OmniQ"
+              : `FREE delivery over ${formatCurrency(FREE_DELIVERY_THRESHOLD)}`}
+          </Text>
+          <Text style={styles.deliverySub}>{deliveryWindow}</Text>
+        </View>
+      </View>
+    </Card>
+
+    <Link href="/(buyer)/cart" asChild>
+      <Button style={styles.buyNowButton} onPress={() => addItem(product)}>Buy Now</Button>
+    </Link>
+
+    <Link href="/(buyer)/cart" asChild>
+      <Button
+        variant="secondary"
+        style={styles.addToCartButton}
+        textStyle={styles.addToCartText}
+        onPress={() => addItem(product)}
+      >
+        Add to Cart
+      </Button>
+    </Link>
+
     {product.description ? (
-      <View style={styles.descriptionWrapper}>
-        <Text style={styles.description} numberOfLines={isDescExpanded ? undefined : 1}>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Product details</Text>
+        <Text style={styles.description} numberOfLines={isDescExpanded ? undefined : 3}>
           {product.description}
         </Text>
         {product.description.length > 40 && (
@@ -202,27 +303,10 @@ export default function ProductDetailScreen() {
         )}
       </View>
     ) : null}
-    <View style={styles.priceRow}>
-      {discount > 0 ? <Text style={styles.discount}>-{discount}%</Text> : null}
-      <Text style={styles.price}>{formatCurrency(product.price)}</Text>
-    </View>
-    {product.compare_price ? (
-      <Text style={styles.compareWrapper}>
-        M.R.P.: <Text style={styles.compare}>{formatCurrency(product.compare_price)}</Text>
-      </Text>
-    ) : null}
-
-    <Link href="/(buyer)/cart" asChild>
-      <Button style={styles.button} textStyle={{ color: "#000000" }} onPress={() => addItem(product)}>Add to Cart</Button>
-    </Link>
-
-    <Link href="/(buyer)/cart" asChild>
-      <Button style={styles.buyNowButton} textStyle={{ color: "#000000" }} onPress={() => addItem(product)}>Buy Now</Button>
-    </Link>
 
     {relatedProducts.length > 0 && (
       <View style={styles.relatedSection}>
-        <Text style={styles.relatedTitle}>Customers who viewed this also viewed</Text>
+        <Text style={styles.relatedTitle}>You may also like</Text>
         <View style={styles.relatedGrid}>
           {relatedProducts.map(rp => (
             <View key={rp.id} style={styles.relatedCardContainer}>
@@ -248,6 +332,9 @@ const getStyles = (colors: any) => StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
+  headerSearch: {
+    flex: 1,
+  },
   backButton: {
     width: 44,
     height: 44,
@@ -258,193 +345,236 @@ const getStyles = (colors: any) => StyleSheet.create({
     elevation: 3,
     boxShadow: "0px 2px 6px rgba(0,0,0,0.1)"
   },
-  imagePanel: {
-    height: 400,
-    backgroundColor: "transparent",
+  gallery: {
+    height: GALLERY_HEIGHT,
+    backgroundColor: colors.card,
+    borderRadius: 24,
+    borderWidth: GALLERY_BORDER,
+    borderColor: colors.border,
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  galleryScroll: {
+    width: "100%",
+    height: GALLERY_HEIGHT
+  },
+  slide: {
+    height: GALLERY_HEIGHT,
     alignItems: "center",
     justifyContent: "center",
-    marginHorizontal: -24
+    padding: SLIDE_PADDING
   },
   productImage: {
+    // Both axes are explicit. expo-image renders nothing when it resolves to a zero-sized box,
+    // which is what a percentage height collapses to if any ancestor is content-sized.
     width: "100%",
-    height: "100%"
+    height: GALLERY_HEIGHT - SLIDE_PADDING * 2
   },
-  image: {
-    fontSize: 28
+  placeholderGlyph: {
+    fontSize: 36
+  },
+  discountBadge: {
+    position: "absolute",
+    top: 14,
+    left: 14,
+    backgroundColor: colors.danger,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 5
+  },
+  discountBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0.3
+  },
+  counterPill: {
+    position: "absolute",
+    top: 14,
+    right: 14,
+    backgroundColor: "rgba(15, 17, 17, 0.55)",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4
+  },
+  counterText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "700"
   },
   dots: {
     flexDirection: "row",
     justifyContent: "center",
-    gap: 8,
-    marginVertical: 16
+    alignItems: "center",
+    gap: 6,
+    marginTop: 14
   },
   dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     backgroundColor: colors.border2
   },
   dotActive: {
-    width: 24,
-    height: 8,
-    borderRadius: 4,
+    width: 20,
+    height: 6,
+    borderRadius: 3,
     backgroundColor: colors.accent
   },
-  badges: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 10
-  },
   title: {
+    ...typography.heading2,
     color: colors.textPrimary,
-    fontSize: 20,
-    lineHeight: 26,
-    fontWeight: "600",
-    marginTop: 16,
-    marginBottom: 20
+    lineHeight: 30,
+    marginTop: 22
   },
-  rating: {
+  stockRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 18,
-    marginTop: 14
+    gap: 7,
+    marginTop: 10
   },
-  ratingText: {
-    color: colors.textPrimary,
-    backgroundColor: colors.card,
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    overflow: "hidden",
-    fontWeight: "900"
+  stockDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: colors.success
   },
-  meta: {
-    color: colors.textMuted,
-    fontWeight: "700"
+  stockDotLow: {
+    backgroundColor: colors.warning
   },
-  descriptionWrapper: {
-    marginTop: 12,
+  stockDotOut: {
+    backgroundColor: colors.danger
   },
-  description: {
-    color: colors.textSecondary,
-    fontSize: 15,
-    lineHeight: 22,
+  stockText: {
+    ...typography.captionBold,
+    color: colors.success
   },
-  readMore: {
-    color: "#007185",
-    fontWeight: "700",
-    marginTop: 4,
+  stockTextLow: {
+    color: colors.warning
+  },
+  stockTextOut: {
+    color: colors.danger
+  },
+  pricingCard: {
+    marginTop: 18,
+    padding: 18,
+    backgroundColor: colors.card2
   },
   priceRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 8,
-    marginTop: 24,
-    marginBottom: 2
+    alignItems: "baseline",
+    flexWrap: "wrap",
+    gap: 10
   },
   price: {
     color: colors.textPrimary,
-    fontSize: 32,
-    fontWeight: "900",
-    lineHeight: 38
-  },
-  discount: {
-    color: "#CC0C39",
-    fontSize: 32,
-    fontWeight: "300",
-    lineHeight: 38
-  },
-  compareWrapper: {
-    color: colors.textSecondary,
-    fontSize: 14,
-    fontWeight: "500"
+    fontSize: 30,
+    fontWeight: "800",
+    lineHeight: 36,
+    letterSpacing: -0.5
   },
   compare: {
-    textDecorationLine: "line-through",
+    color: colors.textMuted,
+    fontSize: 15,
+    fontWeight: "500",
+    textDecorationLine: "line-through"
   },
-  seller: {
+  saveBadge: {
+    // Tinted from the theme token rather than a fixed rgba, so the badge follows a dark palette
+    // when one is wired up instead of staying a light-mode green wash.
+    backgroundColor: `${colors.success}1F`,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3
+  },
+  saveBadgeText: {
+    color: colors.success,
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.4
+  },
+  taxNote: {
+    ...typography.small,
+    color: colors.textMuted,
+    marginTop: 4
+  },
+  pricingDivider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: 14
+  },
+  deliveryRow: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 18,
-    marginTop: 28,
-    gap: 14
-  },
-  sellerAvatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: colors.accent,
-    color: colors.textPrimary,
-    textAlign: "center",
-    lineHeight: 50,
-    fontSize: 22,
-    fontWeight: "900",
-    overflow: "hidden"
-  },
-  sellerInfo: {
-    flex: 1
-  },
-  sellerName: {
-    color: colors.textPrimary,
-    fontSize: 18,
-    fontWeight: "900"
-  },
-  sellerMeta: {
-    color: colors.success,
-    fontWeight: "800"
-  },
-  chevron: {
-    color: colors.textMuted,
-    fontSize: 28
-  },
-  optionTitle: {
-    color: colors.textSecondary,
-    fontSize: 16,
-    fontWeight: "900",
-    marginTop: 26,
-    marginBottom: 12
-  },
-  options: {
-    flexDirection: "row",
     gap: 12
   },
-  option: {
+  deliveryIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.bgTertiary,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  deliveryGlyph: {
+    fontSize: 18
+  },
+  deliveryCopy: {
+    flex: 1
+  },
+  deliveryTitle: {
+    ...typography.captionBold,
+    color: colors.textPrimary
+  },
+  deliverySub: {
+    ...typography.small,
     color: colors.textSecondary,
-    minWidth: 56,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    textAlign: "center",
-    borderRadius: 14,
-    borderColor: colors.border2,
-    borderWidth: 1,
-    overflow: "hidden",
-    fontWeight: "900"
-  },
-  selectedOption: {
-    color: colors.accentLight,
-    borderColor: colors.accent
-  },
-  button: {
-    marginTop: 26,
-    backgroundColor: "#FFD814",
-    borderRadius: 999,
+    marginTop: 2
   },
   buyNowButton: {
+    marginTop: 22,
+    minHeight: 52,
+    borderRadius: 999
+  },
+  addToCartButton: {
     marginTop: 12,
-    backgroundColor: "#FFA41C",
+    minHeight: 52,
     borderRadius: 999,
+    borderColor: colors.accent,
+    backgroundColor: colors.card
+  },
+  addToCartText: {
+    color: colors.accent
+  },
+  section: {
+    marginTop: 30
+  },
+  sectionTitle: {
+    ...typography.heading3,
+    color: colors.textPrimary,
+    marginBottom: 8
+  },
+  description: {
+    ...typography.body,
+    color: colors.textSecondary,
+    lineHeight: 23
+  },
+  readMore: {
+    ...typography.captionBold,
+    color: colors.accent,
+    marginTop: 6
   },
   relatedSection: {
-    marginTop: 40,
+    marginTop: 36,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    paddingTop: 20,
+    paddingTop: 24,
     marginHorizontal: -24,
   },
   relatedTitle: {
+    ...typography.heading3,
     color: colors.textPrimary,
-    fontSize: 18,
-    fontWeight: "900",
     marginBottom: 16,
     paddingHorizontal: 24,
   },

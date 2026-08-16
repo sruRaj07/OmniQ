@@ -4,6 +4,7 @@
  */
 import { z } from "zod";
 import { emitOrderStatusChanged } from "../events/orderEventEmitter";
+import { computeDeliveryFee } from "../../../../shared/constants/delivery";
 import { supabaseAdmin } from "../../../../shared/utils/supabaseClient";
 
 export const orderCreateSchema = z.object({
@@ -113,7 +114,10 @@ export async function placeOrder(buyerId: string, input: unknown, idempotencyKey
   }
   const sellerId = sellerIds[0];
 
-  const total = subtotal;
+  // Delivery is recomputed from the server-side subtotal, never taken from the client - otherwise
+  // a caller could post a ₹40 cart and claim free delivery.
+  const deliveryFee = computeDeliveryFee(subtotal);
+  const total = subtotal + deliveryFee;
 
   // 3. Reserve stock BEFORE creating the order, using a conditional update per item.
   //    `.gte("stock", quantity)` makes this compare-and-set: if a concurrent order consumed the
@@ -143,6 +147,8 @@ export async function placeOrder(buyerId: string, input: unknown, idempotencyKey
         seller_id: sellerId,
         subtotal,
         platform_fee: 0,
+        // `orders` has no delivery_fee column, so the charge lives inside `total`. Readers derive
+        // it as (total - subtotal), which stays accurate for past orders even if the rule changes.
         total,
         delivery_address: parsed.deliveryAddress,
         buyer_lat: parsed.buyerLat,

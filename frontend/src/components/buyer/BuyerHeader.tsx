@@ -2,6 +2,7 @@ import React from "react";
 import { StyleSheet, View, Text, TouchableOpacity } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SearchInput } from "./SearchInput";
+import { RefreshButton } from "@/components/shared/RefreshButton";
 import { useThemeColors, useAppTheme } from "@/store/useThemeStore";
 import { useRouter } from "expo-router";
 
@@ -20,10 +21,11 @@ export function BuyerHeader() {
       style={styles.headerContainer}
     >
       <View style={styles.searchRow}>
-        <SearchInput 
-          placeholder="Search OmniQ" 
-          style={{ flex: 1, marginBottom: 0 }} 
-        />
+        {/* No fixed placeholder here, so the bar cycles its discovery hints. */}
+        <SearchInput style={styles.search} />
+        {/* Sits beside the search bar so every buyer feed has an explicit way to pull fresh
+            data, for anyone who does not discover the pull-to-refresh gesture. */}
+        <RefreshButton size={46} style={styles.refresh} />
       </View>
     </LinearGradient>
   );
@@ -57,5 +59,12 @@ const getStyles = (colors: any) => StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    gap: 10,
+  },
+  search: {
+    flex: 1,
+  },
+  refresh: {
+    flexShrink: 0,
   }
 });

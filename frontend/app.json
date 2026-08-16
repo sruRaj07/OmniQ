@@ -48,7 +48,7 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
       },
-      "versionCode": 7,
+      "versionCode": 8,
       "jsEngine": "hermes",
       "enableProguardInReleaseBuilds": true,
       "enableShrinkResourcesInReleaseBuilds": true

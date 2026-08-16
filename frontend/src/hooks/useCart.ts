@@ -3,6 +3,11 @@
  * Author: OmniQ Team
  */
 import { useCartStore } from "@/store/cartStore";
+import {
+  FREE_DELIVERY_THRESHOLD,
+  amountToFreeDelivery,
+  computeDeliveryFee
+} from "@/constants/delivery";
 
 export function useCart() {
   const items = useCartStore((state) => state.items);
@@ -12,15 +17,21 @@ export function useCart() {
   const clearCart = useCartStore((state) => state.clearCart);
   
   const subtotal = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
-  
-  return { 
-    items, 
+  const deliveryFee = computeDeliveryFee(subtotal);
+  const remainingForFreeDelivery = amountToFreeDelivery(subtotal);
+
+  return {
+    items,
     addItem,
-    updateQuantity, 
-    removeItem, 
+    updateQuantity,
+    removeItem,
     clearCart,
-    subtotal, 
-    platformFee: 0, 
-    total: subtotal 
+    subtotal,
+    platformFee: 0,
+    deliveryFee,
+    remainingForFreeDelivery,
+    hasFreeDelivery: subtotal > 0 && remainingForFreeDelivery === 0,
+    freeDeliveryThreshold: FREE_DELIVERY_THRESHOLD,
+    total: subtotal + deliveryFee
   };
 }

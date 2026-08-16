@@ -3,10 +3,11 @@
  * Author: OmniQ Team
  */
 import type { PropsWithChildren } from "react";
-import { StyleSheet, View, Platform, StatusBar } from "react-native";
+import { StyleSheet, View, Platform, StatusBar, RefreshControl } from "react-native";
 import Animated, { useSharedValue, useAnimatedScrollHandler, useAnimatedStyle, interpolate, Extrapolation, runOnJS } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAppTheme } from "@/store/useThemeStore";
+import { useDataRefresh } from "@/hooks/useDataRefresh";
 import { BottomNavBar, type NavItem } from "@/components/ui/BottomNavBar";
 
 type ScreenProps = PropsWithChildren<{
@@ -14,6 +15,12 @@ type ScreenProps = PropsWithChildren<{
   bottomNavItems?: NavItem[];
   onScroll?: (event: any) => void;
   header?: React.ReactNode;
+  /**
+   * Pull-to-refresh. On by default for scrolling screens, which is what makes every buyer,
+   * seller and admin surface refreshable without each one wiring it up. Set false where a pull
+   * would fight another gesture.
+   */
+  refreshable?: boolean;
 }>;
 
 export function Screen({
@@ -21,10 +28,12 @@ export function Screen({
   scroll = true,
   bottomNavItems,
   onScroll,
-  header
+  header,
+  refreshable = true
 }: ScreenProps) {
   const { colors } = useAppTheme();
   const styles = getStyles(colors);
+  const { refresh, isRefreshing } = useDataRefresh();
 
   const scrollY = useSharedValue(0);
   const lastScrollY = useSharedValue(0);
@@ -65,13 +74,23 @@ export function Screen({
       <View style={styles.root}>
         {header}
         {scroll ? (
-          <Animated.ScrollView 
-            style={styles.root} 
-            contentContainerStyle={[styles.content, bottomNavItems ? { paddingBottom: 110 } : {}]} 
-            onScroll={scrollHandler} 
-            scrollEventThrottle={16} 
-            showsVerticalScrollIndicator={false} 
+          <Animated.ScrollView
+            style={styles.root}
+            contentContainerStyle={[styles.content, bottomNavItems ? { paddingBottom: 110 } : {}]}
+            onScroll={scrollHandler}
+            scrollEventThrottle={16}
+            showsVerticalScrollIndicator={false}
             bounces={true}
+            refreshControl={
+              refreshable ? (
+                <RefreshControl
+                  refreshing={isRefreshing}
+                  onRefresh={refresh}
+                  tintColor={colors.accent}
+                  colors={[colors.accent]}
+                />
+              ) : undefined
+            }
           >
             {content}
           </Animated.ScrollView>

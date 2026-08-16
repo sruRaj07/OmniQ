@@ -14,6 +14,7 @@ import { ListIcon } from "@/components/ui/ListIcon";
 import { BoxIcon } from "@/components/ui/BoxIcon";
 import { UserIcon } from "@/components/ui/UserIcon";
 import { formatCurrency } from "@/utils/formatCurrency";
+import { orderSubtotalOf, resolveOrderDeliveryFee } from "@/constants/delivery";
 
 export default function SellerOrdersScreen() {
   const { colors } = useAppTheme();
@@ -28,6 +29,13 @@ export default function SellerOrdersScreen() {
   const completedOrders = sellerOrders.filter((order: any) => order.status === 'delivered' || order.status === 'cancelled');
 
   const displayedOrders = activeTab === 'new' ? activeOrders : completedOrders;
+
+  // Safe on a null selection: both helpers fall through to 0 when there is no order open.
+  const selectedSubtotal = orderSubtotalOf(selectedOrder);
+  const selectedDeliveryFee = resolveOrderDeliveryFee(
+    selectedSubtotal,
+    selectedOrder?.total ?? selectedOrder?.total_amount
+  );
 
   return (
     <Screen
@@ -123,10 +131,18 @@ export default function SellerOrdersScreen() {
                 <View style={styles.divider} />
                 
                 <View style={styles.totalRow}>
-                  <Text style={styles.totalLabel}>Total Amount</Text>
-                  <Text style={styles.totalValue}>
-                    {formatCurrency(Number(selectedOrder.total || selectedOrder.total_amount || 0))}
+                  <Text style={styles.totalLabel}>Item Total</Text>
+                  <Text style={styles.detailValue}>{formatCurrency(selectedSubtotal)}</Text>
+                </View>
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>Delivery</Text>
+                  <Text style={styles.detailValue}>
+                    {selectedDeliveryFee > 0 ? formatCurrency(selectedDeliveryFee) : "FREE"}
                   </Text>
+                </View>
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>Total Amount</Text>
+                  <Text style={styles.totalValue}>{formatCurrency(selectedSubtotal + selectedDeliveryFee)}</Text>
                 </View>
               </ScrollView>
             )}

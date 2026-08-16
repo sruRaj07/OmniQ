@@ -1,67 +1,96 @@
 /**
- * OmniQ mobile app - search input bar (tappable on home, navigates to search screen).
+ * OmniQ mobile app - search entry bar (tappable, navigates to the search screen).
  * Author: OmniQ Team
  */
-import React from "react";
-import { StyleSheet, Text, View, TouchableOpacity, type ViewStyle } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
 import { useRouter } from "expo-router";
 import { SearchIcon } from "@/components/ui/SearchIcon";
-import { ListIcon } from "@/components/ui/ListIcon";
 import { useThemeColors } from "@/store/useThemeStore";
+import { typography } from "@/constants/typography";
+
+/**
+ * Rotating hints double as discovery: they tell a first-time buyer what this marketplace
+ * actually stocks, which a static "Search OmniQ" never does.
+ */
+const DEFAULT_HINTS = ["atta", "rice", "cookware", "kurta", "extension board"];
+
+/** Slow enough to finish reading, quick enough to see two or three before tapping. */
+const HINT_INTERVAL_MS = 2600;
 
 export interface SearchInputProps {
+  /** Fixed placeholder. Supplying this turns hint rotation off. */
   placeholder?: string;
+  /** Terms cycled through when no fixed `placeholder` is given. */
+  hints?: string[];
   style?: ViewStyle;
 }
 
-export function SearchInput({ placeholder = "Search OmniQ", style }: SearchInputProps) {
+export const SearchInput = React.memo(function SearchInput({
+  placeholder,
+  hints = DEFAULT_HINTS,
+  style,
+}: SearchInputProps) {
   const router = useRouter();
   const colors = useThemeColors();
-  const styles = getStyles(colors);
+  const styles = useMemo(() => getStyles(colors), [colors]);
+
+  const [hintIndex, setHintIndex] = useState(0);
+  const shouldRotate = !placeholder && hints.length > 1;
+
+  // ⚡ PERFORMANCE: one setState every 2.6s, on a memoized leaf that renders two nodes. It cannot
+  // reach the product list or any sibling, so the cost is a single text measure. The timer is torn
+  // down on unmount and never starts when a fixed placeholder is supplied.
+  useEffect(() => {
+    if (!shouldRotate) return;
+    const timer = setInterval(() => {
+      setHintIndex(current => (current + 1) % hints.length);
+    }, HINT_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [shouldRotate, hints.length]);
+
+  const label = placeholder ?? `Search "${hints[hintIndex % hints.length]}"`;
 
   return (
-    <TouchableOpacity
-      style={[styles.container, style]}
-      activeOpacity={0.8}
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Search products"
+      accessibilityHint="Opens the search screen"
+      style={({ pressed }) => [styles.container, pressed && styles.pressed, style]}
       onPress={() => router.push("/(buyer)/search")}
     >
-      <View style={styles.iconContainer}>
-        <SearchIcon size={22} color={colors.textPrimary} />
+      <SearchIcon size={19} color={colors.textSecondary} />
+      <View style={styles.labelWrap}>
+        <Text style={styles.label} numberOfLines={1}>
+          {label}
+        </Text>
       </View>
-      <Text style={styles.placeholderText}>{placeholder}</Text>
-      <View style={styles.filterBtn}>
-        <ListIcon size={16} color={colors.textPrimary} />
-      </View>
-    </TouchableOpacity>
+    </Pressable>
   );
-}
+});
 
 const getStyles = (colors: any) => StyleSheet.create({
   container: {
     flexDirection: "row",
     alignItems: "center",
-    height: 48,
-    borderRadius: 8,
+    gap: 10,
+    height: 46,
+    paddingHorizontal: 16,
+    borderRadius: 999,
     backgroundColor: colors.card,
-    paddingHorizontal: 12,
     borderWidth: 1,
     borderColor: colors.border,
-    boxShadow: "0px 2px 4px rgba(0,0,0,0.05)",
-    marginBottom: 16,
+    boxShadow: "0px 1px 3px rgba(0,0,0,0.06)",
   },
-  iconContainer: {
-    marginRight: 10,
+  // Opacity only - no layout or shadow recalculation, so the tap stays instant on low-end Android.
+  pressed: {
+    opacity: 0.75,
   },
-  placeholderText: {
+  labelWrap: {
     flex: 1,
-    color: colors.textMuted,
-    fontSize: 16,
-    fontWeight: "500",
   },
-  filterBtn: {
-    padding: 6,
-    marginLeft: 8,
-    backgroundColor: colors.bgSecondary,
-    borderRadius: 6,
-  }
+  label: {
+    ...typography.body,
+    color: colors.textMuted,
+  },
 });

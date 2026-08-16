@@ -5,6 +5,7 @@ import { useThemeColors } from "@/store/useThemeStore";
 import { useOrders } from "@/hooks/useOrders";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { formatCurrency } from "@/utils/formatCurrency";
+import { orderSubtotalOf, resolveOrderDeliveryFee } from "@/constants/delivery";
 import { Image } from "expo-image";
 export default function OrderDetailsScreen() {
   const colors = useThemeColors();
@@ -49,9 +50,10 @@ export default function OrderDetailsScreen() {
   }).toLowerCase();
   const placedText = `Placed at ${dateText}, ${timeText}`;
   const displayId = order.id.length > 8 ? `#OMQ-${order.id.split("-")[0].toUpperCase()}` : order.id;
-  const subtotal = order.subtotal || order.order_items?.reduce((sum: number, item: any) => sum + (Number(item.subtotal) || 0), 0) || 0;
+  const subtotal = orderSubtotalOf(order);
   const platformFee = 0;
-  const total = order.total || order.amount || subtotal;
+  const deliveryFee = resolveOrderDeliveryFee(subtotal, order.total ?? order.amount);
+  const total = subtotal + deliveryFee;
   return <Screen scroll={true}>
       <TouchableOpacity style={styles.backButton} onPress={() => router.canGoBack() ? router.back() : router.replace("/(buyer)/orders")}>
         <Text style={styles.backText}>← Back to Orders</Text>
@@ -136,7 +138,11 @@ export default function OrderDetailsScreen() {
         </View>
         <View style={styles.invoiceRow}>
           <Text style={styles.invoiceLabel}>Delivery</Text>
-          <Text style={[styles.invoiceValue, { color: '#16A34A', fontWeight: '700' }]}>FREE</Text>
+          {deliveryFee > 0 ? (
+            <Text style={styles.invoiceValue}>{formatCurrency(deliveryFee)}</Text>
+          ) : (
+            <Text style={[styles.invoiceValue, { color: '#16A34A', fontWeight: '700' }]}>FREE</Text>
+          )}
         </View>
         <View style={[styles.invoiceRow, styles.invoiceTotalRow]}>
           <Text style={styles.invoiceTotalLabel}>Grand Total</Text>

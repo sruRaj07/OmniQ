@@ -3,6 +3,7 @@
  * Author: OmniQ Team
  */
 import { moderationSchema, zoneSchema } from "../validators/adminValidator";
+import { resolveOrderTotal } from "../../../../shared/constants/delivery";
 import { supabaseAdmin } from "../../../../shared/utils/supabaseClient";
 import { deleteUserAccount } from "../../../../shared/utils/accountDeletion";
 
@@ -18,14 +19,16 @@ export async function getDashboard() {
     { data: sellers },
   ] = await Promise.all([
     supabaseAdmin.from('orders').select('*', { count: 'exact', head: true }),
-    supabaseAdmin.from('orders').select('total, seller_id'),
+    supabaseAdmin.from('orders').select('subtotal, total, seller_id'),
     supabaseAdmin.from('sellers').select('*', { count: 'exact', head: true }).eq('status', 'approved'),
     supabaseAdmin.from('sellers').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
     supabaseAdmin.auth.admin.listUsers(),
     supabaseAdmin.from('sellers').select('id, business_name, status, created_at'),
   ]);
 
-  const gmv = (orders || []).reduce((sum, order) => sum + Number(order.total || 0), 0);
+  // GMV is what buyers paid, delivery included, so it reconciles with the per-order totals shown
+  // in the admin order list rather than trailing them by ₹20 an order.
+  const gmv = (orders || []).reduce((sum, order) => sum + resolveOrderTotal(order.subtotal, order.total), 0);
   const registeredBuyers = usersData?.users?.length || 0;
 
   // Build seller stats in a single pass (O(n))
@@ -33,7 +36,7 @@ export async function getDashboard() {
   for (const order of (orders || [])) {
     if (order.seller_id) {
       const stat = sellerStats[order.seller_id] ??= { gmv: 0, orders: 0 };
-      stat.gmv += Number(order.total || 0);
+      stat.gmv += resolveOrderTotal(order.subtotal, order.total);
       stat.orders += 1;
     }
   }

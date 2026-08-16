@@ -8,22 +8,30 @@ import { ShoppingCartIcon } from "@/components/ui/ShoppingCartIcon";
 import { BoxIcon } from "@/components/ui/BoxIcon";
 import { UserIcon } from "@/components/ui/UserIcon";
 import { MenuIcon } from "@/components/ui/MenuIcon";
-import { CategorySvgIcon } from "@/components/ui/CategorySvgIcon";
+import { getCategoryConfig } from "@/components/ui/CategorySvgIcon";
 import { useAppTheme } from "@/store/useThemeStore";
+import { typography } from "@/constants/typography";
 import { useProducts } from "@/hooks/useProducts";
+import { useRefreshControl } from "@/hooks/useRefreshControl";
 import { ProductCard } from "@/components/buyer/ProductCard";
 import { ProductGridSkeleton } from "@/components/buyer/ProductGridSkeleton";
 import type { Product } from "@/types/product.types";
 
+/** Icon/label colour on a filled chip. Fixed white reads correctly on every category tint. */
+const CHIP_ACTIVE_INK = "#FFFFFF";
+
+/** Normalize category to Title Case so "kitchen" and "Kitchen" merge. */
+const normalizeCategory = (cat: string) =>
+  cat.trim().replace(/\b\w/g, (c) => c.toUpperCase());
+
 export default function BrowseScreen() {
   const { colors } = useAppTheme();
   const styles = useMemo(() => getStyles(colors), [colors]);
+  // Pull-to-refresh for this list. `Screen` owns it for scrolling screens; this one
+  // passes scroll={false}, so the list attaches it itself.
+  const refreshControl = useRefreshControl();
 
   const { products, isLoading, hasNextPage, isFetchingNextPage, fetchNextPage } = useProducts();
-
-  // Normalize category to Title Case so "kitchen" and "Kitchen" merge
-  const normalizeCategory = (cat: string) =>
-    cat.trim().replace(/\b\w/g, (c) => c.toUpperCase());
 
   // Dynamically derive categories from products, but explicitly ensure Kitchen is present
   const categories = useMemo(() => {
@@ -32,6 +40,14 @@ export default function BrowseScreen() {
     const allCats = new Set(["Grocery", "Kitchen", ...normalized]);
     return ["All", ...Array.from(allCats)];
   }, [products]);
+
+  // ⚡ PERFORMANCE: getCategoryConfig walks a chain of substring tests to pick an icon. Resolving
+  // it once per category here keeps it off the render path, where it previously ran for every chip
+  // on every keystroke-free re-render (tab switch, page fetch, focus change).
+  const categoryChips = useMemo(
+    () => categories.map(name => ({ name, config: getCategoryConfig(name) })),
+    [categories]
+  );
 
   const [activeCategory, setActiveCategory] = useState("All");
 
@@ -61,32 +77,35 @@ export default function BrowseScreen() {
       ]}
     >
       <View style={styles.container}>
-        {/* Top Horizontal Categories Scroll (Screenshot exact match design) */}
-        <View style={styles.categoriesContainer}>
+        {/* Category filter. A selected chip fills with that category's own tint - the icons already
+            carry those colours, so the row stays recognisable at a glance without a second cue. */}
+        <View style={styles.filterBar}>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.categoriesScrollContent}
+            contentContainerStyle={styles.filterBarContent}
           >
-            {categories.map((cat) => {
-              const isActive = activeCategory === cat;
+            {categoryChips.map(({ name, config }) => {
+              const isActive = activeCategory === name;
               return (
                 <Pressable
-                  key={cat}
-                  style={[
-                    styles.categoryCard,
-                    isActive && styles.categoryCardActive,
+                  key={name}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isActive }}
+                  accessibilityLabel={`${name} category`}
+                  style={({ pressed }) => [
+                    styles.chip,
+                    isActive && { backgroundColor: config.color, borderColor: config.color },
+                    pressed && styles.chipPressed,
                   ]}
-                  onPress={() => setActiveCategory(cat)}
+                  onPress={() => setActiveCategory(name)}
                 >
-                  <CategorySvgIcon category={cat} size={18} />
+                  {config.renderIcon(16, isActive ? CHIP_ACTIVE_INK : config.color)}
                   <Text
-                    style={[
-                      styles.categoryText,
-                      isActive && styles.categoryTextActive,
-                    ]}
+                    style={[styles.chipLabel, isActive && styles.chipLabelActive]}
+                    numberOfLines={1}
                   >
-                    {cat}
+                    {name}
                   </Text>
                 </Pressable>
               );
@@ -103,6 +122,7 @@ export default function BrowseScreen() {
           ) : (
             <FlashList
               data={displayProducts}
+              refreshControl={refreshControl}
               numColumns={2}
               {...({ estimatedItemSize: 250 } as any)}
               scrollEventThrottle={16}
@@ -110,8 +130,20 @@ export default function BrowseScreen() {
               showsVerticalScrollIndicator={false}
               ListHeaderComponent={
                 <View style={styles.headerRow}>
-                  <Text style={styles.categoryTitle}>{activeCategory} Products</Text>
-                  <Text style={styles.productCount}>{displayProducts.length} items</Text>
+                  <Text style={styles.categoryTitle}>
+                    {activeCategory === "All" ? "All products" : activeCategory}
+                  </Text>
+                  <Text style={styles.productCount}>
+                    {displayProducts.length} {displayProducts.length === 1 ? "item" : "items"}
+                  </Text>
+                </View>
+              }
+              ListEmptyComponent={
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyTitle}>Nothing here yet</Text>
+                  <Text style={styles.emptyBody}>
+                    No products in {activeCategory} right now. Try another category.
+                  </Text>
                 </View>
               }
               onEndReached={() => {
@@ -139,44 +171,40 @@ const getStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
     flexDirection: "column",
-    backgroundColor: "#F7F9FC",
+    backgroundColor: colors.bgPrimary,
   },
-  categoriesContainer: {
-    backgroundColor: "#E5E7EB", // Grey background to match screenshot
+  filterBar: {
+    backgroundColor: colors.bgPrimary,
     paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
   },
-  categoriesScrollContent: {
+  filterBarContent: {
     paddingHorizontal: 16,
     gap: 8,
+    alignItems: "center",
   },
-  categoryCard: {
+  chip: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 8, // Soft rounded corners
-    paddingRight: 16,
-    paddingLeft: 8,
-    paddingVertical: 6,
-    borderWidth: 1.5,
-    borderColor: "transparent",
+    gap: 7,
+    height: 38,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  categoryCardActive: {
-    borderColor: colors.accent,
+  // Opacity only - no layout or shadow work, so the press feedback stays cheap on low-end Android.
+  chipPressed: {
+    opacity: 0.7,
   },
-  categoryImage: {
-    width: 32,
-    height: 32,
-    marginRight: 10,
-    borderRadius: 4,
-    backgroundColor: "#F3F4F6", // placeholder background if image loads slow
+  chipLabel: {
+    ...typography.captionBold,
+    color: colors.textSecondary,
   },
-  categoryText: {
-    fontSize: 15,
-    color: "#111827", // Darker text
-    fontWeight: "500",
-  },
-  categoryTextActive: {
-    color: colors.accent,
+  chipLabelActive: {
+    color: CHIP_ACTIVE_INK,
     fontWeight: "700",
   },
   content: {
@@ -190,18 +218,32 @@ const getStyles = (colors: any) => StyleSheet.create({
   headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "baseline",
     marginBottom: 16,
   },
   categoryTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1A1A1A",
+    ...typography.heading3,
+    color: colors.textPrimary,
+    letterSpacing: -0.2,
   },
   productCount: {
-    fontSize: 14,
-    color: "#666",
-    fontWeight: "500",
+    ...typography.caption,
+    color: colors.textMuted,
+  },
+  emptyState: {
+    paddingTop: 48,
+    paddingHorizontal: 24,
+    alignItems: "center",
+  },
+  emptyTitle: {
+    ...typography.heading3,
+    color: colors.textPrimary,
+    marginBottom: 6,
+  },
+  emptyBody: {
+    ...typography.body,
+    color: colors.textSecondary,
+    textAlign: "center",
   },
   grid: {
     flexDirection: "row",

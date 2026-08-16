@@ -351,12 +351,12 @@ export default function SearchScreen() {
           <ArrowLeftSvg size={26} />
         </TouchableOpacity>
         <View style={styles.inputContainer}>
-          <SearchSvg color="#888" size={18} />
-          <TextInput ref={inputRef} style={styles.input} placeholder="Search OmniQ" placeholderTextColor="#888" value={query} onChangeText={text => {
+          <SearchSvg color={colors.textSecondary} size={18} />
+          <TextInput ref={inputRef} style={styles.input} placeholder="Search OmniQ" placeholderTextColor={colors.textMuted} value={query} onChangeText={text => {
           setQuery(text);
           if (showResults) setShowResults(false);
         }} onSubmitEditing={handleSubmit} returnKeyType="search" autoCorrect={false} />
-          {query.length > 0 && <TouchableOpacity onPress={handleClear} style={styles.clearBtn}>
+          {query.length > 0 && <TouchableOpacity onPress={handleClear} style={styles.clearBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel="Clear search">
               <CloseSvg size={16} />
             </TouchableOpacity>}
         </View>
@@ -504,21 +504,24 @@ const getStyles = (colors: any) => StyleSheet.create({
     justifyContent: "center",
     alignItems: "center"
   },
+  // Matches the tappable SearchInput bar, so the field the user lands on is the one they tapped.
   inputContainer: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     height: 46,
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    paddingHorizontal: 14,
+    backgroundColor: colors.card,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 16,
     gap: 10
   },
   input: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "500",
-    color: "#000",
+    color: colors.textPrimary,
     height: "100%"
   },
   clearBtn: {

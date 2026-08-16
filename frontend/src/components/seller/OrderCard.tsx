@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/Card";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useThemeColors } from "@/store/useThemeStore";
 import { formatCurrency } from "@/utils/formatCurrency";
+import { orderTotalOf } from "@/constants/delivery";
 
 type OrderCardProps = {
   order: any;
@@ -36,7 +37,7 @@ export const OrderCard = memo(function OrderCard({ order, isSeller, onPress }: O
     }
   }
 
-  const amount = Number(order.total || order.total_amount || 0);
+  const amount = orderTotalOf(order);
 
   const cardContent = (
     <Card style={styles.card}>
@@ -80,6 +81,8 @@ export const OrderCard = memo(function OrderCard({ order, isSeller, onPress }: O
     prev.order.status === next.order.status &&
     prev.order.total === next.order.total &&
     prev.order.total_amount === next.order.total_amount &&
+    // The displayed amount is derived from the subtotal too, so it must take part in the compare.
+    prev.order.subtotal === next.order.subtotal &&
     prev.isSeller === next.isSeller
   );
 });

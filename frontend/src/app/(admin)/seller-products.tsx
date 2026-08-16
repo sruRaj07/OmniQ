@@ -17,9 +17,13 @@ import { apiClient } from "@/lib/apiClient";
 import { formatCurrency } from "@/utils/formatCurrency";
 import { ShieldIcon } from "@/components/ui/ShieldIcon";
 import { CategorySvgIcon } from "@/components/ui/CategorySvgIcon";
+import { useRefreshControl } from "@/hooks/useRefreshControl";
 export default function AdminSellerProductsScreen() {
   const colors = useThemeColors();
   const styles = getStyles(colors);
+  // Pull-to-refresh for this list. `Screen` owns it for scrolling screens; this one
+  // passes scroll={false}, so the list attaches it itself.
+  const refreshControl = useRefreshControl();
   const {
     sellerId,
     storeName
@@ -245,6 +249,7 @@ export default function AdminSellerProductsScreen() {
       ) : (
         <FlashList
           data={filteredProducts}
+          refreshControl={refreshControl}
           renderItem={renderItem}
           {...({ estimatedItemSize: 250 } as any)}
           extraData={expandedId}

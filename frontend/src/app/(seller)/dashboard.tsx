@@ -4,6 +4,7 @@ import { KpiCard } from "@/components/seller/KpiCard";
 import { OrderCard } from "@/components/seller/OrderCard";
 import { Card } from "@/components/ui/Card";
 import { Screen } from "@/components/shared/Screen";
+import { RefreshButton } from "@/components/shared/RefreshButton";
 import { useAppTheme } from "@/store/useThemeStore";
 import { useOrders } from "@/hooks/useOrders";
 import { useSellerProducts } from "@/hooks/useProducts";
@@ -14,6 +15,7 @@ import { UserIcon } from "@/components/ui/UserIcon";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/apiClient";
 import { formatCurrency } from "@/utils/formatCurrency";
+import { orderTotalOf } from "@/constants/delivery";
 export default function SellerDashboardScreen() {
   const {
     colors
@@ -58,8 +60,10 @@ export default function SellerDashboardScreen() {
     const d = new Date(o.created_at);
     return d >= yesterday && d < today;
   });
-  const revenueToday = todayOrders.reduce((sum: number, o: any) => sum + Number(o.total || 0), 0);
-  const revenueYesterday = yesterdayOrders.reduce((sum: number, o: any) => sum + Number(o.total || 0), 0);
+  // Revenue counts what the buyer actually paid (items + delivery), matching the amount shown on
+  // every order card so the dashboard and the order list never disagree.
+  const revenueToday = todayOrders.reduce((sum: number, o: any) => sum + orderTotalOf(o), 0);
+  const revenueYesterday = yesterdayOrders.reduce((sum: number, o: any) => sum + orderTotalOf(o), 0);
   let revenueTrend = 0;
   if (revenueYesterday > 0) {
     revenueTrend = Math.round((revenueToday - revenueYesterday) / revenueYesterday * 100);
@@ -88,7 +92,7 @@ export default function SellerDashboardScreen() {
       const d = new Date(o.created_at);
       return d >= date && d < nextDate;
     });
-    return dayOrders.reduce((sum: number, o: any) => sum + Number(o.total || 0), 0);
+    return dayOrders.reduce((sum: number, o: any) => sum + orderTotalOf(o), 0);
   });
 
   // Calculate bar heights, minimum visible height of 4 so empty days still show a tiny tick
@@ -126,7 +130,12 @@ export default function SellerDashboardScreen() {
               <View>
                 <Text style={styles.title}>{displayFullName}</Text>
               </View>
-              <Text style={styles.avatar}>{initial}</Text>
+              <View style={styles.headerActions}>
+                {/* Revenue and order counts move all day; a seller should not have to relaunch
+                    the app to see an order that just came in. */}
+                <RefreshButton size={36} />
+                <Text style={styles.avatar}>{initial}</Text>
+              </View>
             </View>
             <View style={styles.kpiGrid}>
               <KpiCard label="REVENUE TODAY" value={formatCurrency(revenueToday)} trend={revenueTrendText} />
@@ -172,6 +181,11 @@ const getStyles = (colors: any) => StyleSheet.create({
     alignItems: "center",
     marginBottom: 22,
     marginTop: 10
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12
   },
   title: {
     color: colors.textPrimary,

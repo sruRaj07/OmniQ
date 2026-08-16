@@ -14,6 +14,7 @@ import { BuyerHeader } from "@/components/buyer/BuyerHeader";
 import { useAppTheme } from "@/store/useThemeStore";
 import { useOrders } from "@/hooks/useOrders";
 import { formatCurrency } from "@/utils/formatCurrency";
+import { orderTotalOf } from "@/constants/delivery";
 import { Link } from "expo-router";
 export default function BuyerOrdersScreen() {
   const {
@@ -120,7 +121,7 @@ export default function BuyerOrdersScreen() {
         textAlign: 'center',
         marginTop: 40
       }}>No orders found.</Text> : buyerOrders.map((order: any) => {
-        const amount = order.total || order.amount || 0;
+        const amount = orderTotalOf(order);
         const createdAt = new Date(order.created_at || order.createdAt || Date.now());
 
         // Format date like "10th Jun 2026, 08:03 pm"

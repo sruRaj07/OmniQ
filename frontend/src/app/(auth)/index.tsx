@@ -2,44 +2,70 @@
  * OmniQ mobile app - Email/Password and Google sign-in screen.
  * Author: OmniQ Team
  */
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link, useRouter, useLocalSearchParams } from "expo-router";
-import { StyleSheet, Text, View, Alert, Platform, TouchableOpacity, Modal, KeyboardAvoidingView } from "react-native";
+import { StyleSheet, Text, View, Platform, TouchableOpacity, KeyboardAvoidingView, type TextInput } from "react-native";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
+import { FormField } from "@/components/ui/FormField";
+import { GoogleIcon } from "@/components/ui/GoogleIcon";
 import { EyeIcon } from "@/components/ui/EyeIcon";
 import { EyeOffIcon } from "@/components/ui/EyeOffIcon";
 import { Screen } from "@/components/shared/Screen";
 import { useThemeColors } from "@/store/useThemeStore";
+import { typography } from "@/constants/typography";
 import { supabase } from "@/lib/supabase";
 import { apiClient } from "@/lib/apiClient";
 WebBrowser.maybeCompleteAuthSession();
 const signInSchema = z.object({
-  email: z.string().email("Invalid email address"),
+  email: z.string().email("Enter a valid email address"),
   password: z.string().min(6, "Password must be at least 6 characters")
 });
 type SignInFormData = z.infer<typeof signInSchema>;
+
+/**
+ * Server messages are written for developers. These are the two failures a real person actually
+ * hits, rewritten to say what to do next; anything else falls through unchanged.
+ */
+function readableAuthError(raw: string): string {
+  const message = raw.toLowerCase();
+  if (message.includes("invalid login") || message.includes("invalid credentials")) {
+    return "That email and password don't match. Check them and try again.";
+  }
+  if (message.includes("email not confirmed")) {
+    return "Confirm your email address first - check your inbox for the link we sent.";
+  }
+  return raw || "Something went wrong. Please try again.";
+}
+
 export default function SignInScreen() {
   const colors = useThemeColors();
   const styles = getStyles(colors);
   const router = useRouter();
   const {
-    role
+    role,
+    justSignedUp
   } = useLocalSearchParams<{
     role?: string;
+    justSignedUp?: string;
   }>();
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  // Failures render in a banner above the form. A modal alert hides the field it is complaining
+  // about and has to be dismissed before the user can correct anything.
+  const [formError, setFormError] = useState<string | null>(null);
+  const [resetSent, setResetSent] = useState(false);
+  const passwordRef = useRef<TextInput>(null);
 
   const {
     control,
     handleSubmit,
+    getValues,
     formState: {
       errors
     }
@@ -52,6 +78,7 @@ export default function SignInScreen() {
   });
   const onSubmit = async (data: SignInFormData) => {
     setLoading(true);
+    setFormError(null);
     try {
       const res = await apiClient.post("/auth/login", data);
       if (res.data?.data?.session) {
@@ -69,13 +96,14 @@ export default function SignInScreen() {
         throw new Error("Invalid response from server");
       }
     } catch (err: any) {
-      Alert.alert("Sign In Failed", err?.response?.data?.error?.message || err?.response?.data?.message || err.message);
+      setFormError(readableAuthError(err?.response?.data?.error?.message || err?.response?.data?.message || err.message));
     } finally {
       setLoading(false);
     }
   };
   const handleGoogleAuth = async () => {
     setGoogleLoading(true);
+    setFormError(null);
     const isWeb = Platform.OS === "web";
     const redirectUri = Linking.createURL('/');
     const {
@@ -89,24 +117,41 @@ export default function SignInScreen() {
       }
     });
     if (error) {
-      Alert.alert("Google Auth Failed", error.message);
+      setFormError(error.message);
       setGoogleLoading(false);
       return;
     }
     if (!isWeb && data?.url) {
       try {
-        const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUri);
+        await WebBrowser.openAuthSessionAsync(data.url, redirectUri);
         // Supabase v2 will handle the session implicitly on redirect
       } catch (err: any) {
-        Alert.alert("Browser Error", err.message);
+        setFormError(err.message);
       }
     }
     setGoogleLoading(false);
   };
 
-  return <Screen scroll={true}>
-    <KeyboardAvoidingView 
-      style={{ flex: 1, width: '100%' }} 
+  // Sends the recovery code, then hands off to the OTP screen that already exists at /otp-reset.
+  const handleForgotPassword = async () => {
+    const email = getValues("email").trim();
+    if (!email || !z.string().email().safeParse(email).success) {
+      setFormError("Enter your email address above, then tap 'Forgot password?'.");
+      return;
+    }
+    setFormError(null);
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    if (error) {
+      setFormError(error.message);
+      return;
+    }
+    setResetSent(true);
+    router.push({ pathname: "/otp-reset", params: { email } } as any);
+  };
+
+  return <Screen scroll={true} refreshable={false}>
+    <KeyboardAvoidingView
+      style={{ flex: 1, width: '100%' }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       keyboardVerticalOffset={Platform.OS === "ios" ? 40 : 0}
     >
@@ -116,48 +161,115 @@ export default function SignInScreen() {
         <Text style={styles.tagline}>EVERYTHING. EVERYWHERE.</Text>
       </View>
 
-      <View style={styles.form}>
-        <Button variant="secondary" onPress={handleGoogleAuth} style={styles.googleButton}>
-          {googleLoading ? "Redirecting..." : "G  Continue with Google"}
-        </Button>
+      <View style={styles.intro}>
+        <Text style={styles.title}>Welcome back</Text>
+        <Text style={styles.subtitle}>
+          {role === "seller" ? "Sign in to manage your store." : "Sign in to pick up where you left off."}
+        </Text>
+      </View>
 
-        <View style={styles.divider}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>or</Text>
-          <View style={styles.dividerLine} />
+      <Button
+        variant="secondary"
+        onPress={handleGoogleAuth}
+        loading={googleLoading}
+        icon={<GoogleIcon size={20} />}
+        style={styles.googleButton}
+      >
+        {googleLoading ? "Opening Google..." : "Continue with Google"}
+      </Button>
+
+      <View style={styles.divider}>
+        <View style={styles.dividerLine} />
+        <Text style={styles.dividerText}>or sign in with email</Text>
+        <View style={styles.dividerLine} />
+      </View>
+
+      {formError ? (
+        <View accessibilityRole="alert" style={styles.banner}>
+          <Text style={styles.bannerText}>{formError}</Text>
         </View>
+      ) : null}
 
+      {/* Replaces the modal alert the sign-up screen used to fire: the confirmation lands on the
+          screen the user was sent to, instead of blocking it. */}
+      {resetSent || justSignedUp === "1" ? (
+        <View accessibilityRole="alert" style={styles.noticeBanner}>
+          <Text style={styles.noticeText}>
+            {resetSent
+              ? "We sent a reset code to your email."
+              : "Account created. Sign in to get started."}
+          </Text>
+        </View>
+      ) : null}
+
+      <View style={styles.form}>
         <Controller control={control} name="email" render={({
           field: {
             onChange,
+            onBlur,
             value
           }
-        }) => <View style={styles.inputGroup}>
-            <Input placeholder="Email" value={value} onChangeText={onChange} keyboardType="email-address" autoCapitalize="none" />
-            {errors.email && <Text style={styles.error}>{errors.email.message}</Text>}
-          </View>} />
+        }) => <FormField
+            label="Email"
+            placeholder="you@example.com"
+            value={value}
+            onChangeText={onChange}
+            onBlur={onBlur}
+            error={errors.email?.message}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="email"
+            textContentType="emailAddress"
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => passwordRef.current?.focus()}
+          />} />
 
         <Controller control={control} name="password" render={({
           field: {
             onChange,
+            onBlur,
             value
           }
-        }) => <View style={styles.inputGroup}>
-            <Input 
-              placeholder="Password" 
-              value={value} 
-              onChangeText={onChange} 
-              secureTextEntry={!showPassword}
-              rightIcon={
-                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={{ padding: 4 }}>
-                  {showPassword ? <EyeOffIcon color={colors.textSecondary} size={20} /> : <EyeIcon color={colors.textSecondary} size={20} />}
-                </TouchableOpacity>
-              }
-            />
-            {errors.password && <Text style={styles.error}>{errors.password.message}</Text>}
-          </View>} />
+        }) => <FormField
+            ref={passwordRef}
+            label="Password"
+            placeholder="Your password"
+            value={value}
+            onChangeText={onChange}
+            onBlur={onBlur}
+            error={errors.password?.message}
+            secureTextEntry={!showPassword}
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="current-password"
+            textContentType="password"
+            returnKeyType="go"
+            onSubmitEditing={handleSubmit(onSubmit)}
+            rightIcon={
+              <TouchableOpacity
+                onPress={() => setShowPassword(!showPassword)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                accessibilityRole="button"
+                accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+                style={{ padding: 4 }}
+              >
+                {showPassword ? <EyeOffIcon color={colors.textSecondary} size={20} /> : <EyeIcon color={colors.textSecondary} size={20} />}
+              </TouchableOpacity>
+            }
+          />} />
 
-        <Button onPress={handleSubmit(onSubmit)} style={styles.submitButton}>
+        <TouchableOpacity
+          onPress={handleForgotPassword}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityRole="button"
+          style={styles.forgotWrap}
+        >
+          <Text style={styles.forgot}>Forgot password?</Text>
+        </TouchableOpacity>
+
+        <Button onPress={handleSubmit(onSubmit)} loading={loading} style={styles.submitButton}>
           {loading ? "Signing in..." : "Sign In"}
         </Button>
       </View>
@@ -172,21 +284,23 @@ export default function SignInScreen() {
         } as any} style={styles.link}>Sign Up</Link>
       </View>
 
-      <Link href={"/(buyer)" as any} style={styles.skip}>Browse without signing in →</Link>
-      <Link href={"/admin-login" as any} style={styles.admin}>Admin portal</Link>
+      <View style={styles.secondaryActions}>
+        <Link href={"/(buyer)" as any} style={styles.skip}>Browse without signing in →</Link>
+        <Link href={"/admin-login" as any} style={styles.admin}>Admin portal</Link>
+      </View>
     </View>
     </KeyboardAvoidingView>
   </Screen>;
 }
 const getStyles = (colors: any) => StyleSheet.create({
   container: {
-    paddingTop: 40,
+    paddingTop: 32,
     paddingHorizontal: 20,
     paddingBottom: 40
   },
   hero: {
     alignItems: "center",
-    marginBottom: 40
+    marginBottom: 28
   },
   logo: {
     color: colors.textPrimary,
@@ -198,73 +312,116 @@ const getStyles = (colors: any) => StyleSheet.create({
   },
   tagline: {
     color: colors.textSecondary,
-    fontSize: 15,
-    fontWeight: "900",
-    letterSpacing: 2,
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 2.5,
     marginTop: 8
   },
-  form: {
-    gap: 20
+  intro: {
+    marginBottom: 22
+  },
+  title: {
+    ...typography.heading1,
+    color: colors.textPrimary
+  },
+  subtitle: {
+    ...typography.body,
+    color: colors.textSecondary,
+    marginTop: 6
   },
   googleButton: {
-    marginBottom: 10,
-    minHeight: 56
+    minHeight: 56,
+    borderRadius: 14
   },
   divider: {
     flexDirection: "row",
     alignItems: "center",
-    marginVertical: 10
+    marginVertical: 22
   },
   dividerLine: {
     flex: 1,
-    height: 1,
+    height: StyleSheet.hairlineWidth,
     backgroundColor: colors.border2
   },
   dividerText: {
+    ...typography.caption,
     color: colors.textMuted,
+    paddingHorizontal: 12
+  },
+  banner: {
+    backgroundColor: `${colors.danger}14`,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.danger,
+    borderRadius: 10,
+    paddingVertical: 12,
     paddingHorizontal: 14,
-    fontWeight: "600"
+    marginBottom: 18
   },
-  inputGroup: {
-    marginBottom: 4
-  },
-  error: {
+  bannerText: {
+    ...typography.caption,
     color: colors.danger,
-    fontSize: 13,
-    marginTop: 4,
-    marginLeft: 4
+    lineHeight: 19
+  },
+  noticeBanner: {
+    backgroundColor: `${colors.success}14`,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.success,
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 18
+  },
+  noticeText: {
+    ...typography.caption,
+    color: colors.success,
+    lineHeight: 19
+  },
+  form: {
+    gap: 16
+  },
+  forgotWrap: {
+    alignSelf: "flex-end",
+    marginTop: -4
+  },
+  forgot: {
+    ...typography.captionBold,
+    color: colors.accent
   },
   submitButton: {
-    marginTop: 10,
-    minHeight: 56
+    marginTop: 6,
+    minHeight: 56,
+    borderRadius: 14
   },
   footer: {
     flexDirection: "row",
     justifyContent: "center",
-    marginTop: 40,
-    marginBottom: 30
+    alignItems: "center",
+    marginTop: 30
   },
   footerText: {
-    color: colors.textSecondary,
-    fontSize: 16
+    ...typography.body,
+    color: colors.textSecondary
   },
   link: {
+    ...typography.bodyBold,
     color: colors.accent,
-    fontSize: 16,
     fontWeight: "700"
+  },
+  secondaryActions: {
+    marginTop: 28,
+    paddingTop: 20,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+    gap: 14
   },
   skip: {
+    ...typography.captionBold,
     color: colors.textSecondary,
-    textAlign: "center",
-    marginTop: 20,
-    fontSize: 13,
-    fontWeight: "600"
+    textAlign: "center"
   },
   admin: {
-    color: colors.accent,
-    textAlign: "center",
-    marginTop: 16,
-    fontSize: 13,
-    fontWeight: "700"
+    ...typography.caption,
+    color: colors.textMuted,
+    textAlign: "center"
   }
 });
