@@ -13,6 +13,7 @@ import { Screen } from "@/components/shared/Screen";
 import { BuyerHeader } from "@/components/buyer/BuyerHeader";
 import { useAppTheme } from "@/store/useThemeStore";
 import { useOrders } from "@/hooks/useOrders";
+import { sizedImageUrl } from "@/utils/imageUrl";
 import { formatCurrency } from "@/utils/formatCurrency";
 import { orderTotalOf } from "@/constants/delivery";
 import { Link } from "expo-router";
@@ -165,7 +166,9 @@ export default function BuyerOrdersScreen() {
                   const product = item.product;
                   const imageUrl = product?.images?.[0] || `https://picsum.photos/seed/${product?.id || item.product_id}/100`;
                   return <View key={item.id || index} style={styles.imageContainer}>
-                            <Image source={imageUrl} style={styles.image} contentFit="cover" transition={150} />
+                            {/* ⚡ PERFORMANCE: these render at 52dp, up to five per order. Left
+                                unsized they pulled the full-resolution original for each one. */}
+                            <Image source={sizedImageUrl(imageUrl, { width: 160, quality: 60 })} style={styles.image} contentFit="cover" transition={150} />
                           </View>;
                 })}
                       {order.order_items?.length > 5 && <View style={styles.moreItemsContainer}>

@@ -41,6 +41,8 @@ export const ProductCard = React.memo(function ProductCard({ product, index = 0,
                   thumbnailSource={product.thumbnail_url}
                   placeholder={product.blurhash}
                   style={styles.image}
+                  // Two cards per row on a ~390dp phone, less the container padding.
+                  displayWidth={170}
                   contentFit="contain"
                   priority={index < 4 ? "high" : "normal"}
                   transition={Platform.OS === 'web' ? 0 : 200}

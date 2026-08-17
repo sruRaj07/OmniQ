@@ -47,6 +47,7 @@ export const OrderCard = memo(function OrderCard({ order, isSeller, onPress }: O
           thumbnailSource={product?.thumbnail_url}
           placeholder={product?.blurhash}
           style={styles.image}
+          displayWidth={60}
           contentFit="cover"
           transition={150}
         />

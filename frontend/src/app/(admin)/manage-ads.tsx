@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Platform } from "react-native";
 import { Image } from "expo-image";
+import { sizedImageUrl } from "@/utils/imageUrl";
 import { Screen } from "@/components/shared/Screen";
 import { Input } from "@/components/ui/Input";
 import { useAppTheme } from "@/store/useThemeStore";
@@ -290,7 +291,7 @@ export default function ManageAdsScreen() {
                 </View>
               ) : (
                 <View style={styles.adRow}>
-                  <Image source={item.image_url} style={styles.adRowImage} contentFit="cover" transition={150} />
+                  <Image source={sizedImageUrl(item.image_url, { width: 180, quality: 65 })} style={styles.adRowImage} contentFit="cover" transition={150} />
                   <View style={styles.adRowContent}>
                     <Text style={styles.adRowTitle} numberOfLines={1}>
                       {item.title.replace("[OFFER] ", "")}

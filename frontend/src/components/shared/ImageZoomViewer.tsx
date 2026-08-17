@@ -4,6 +4,7 @@ import { Image } from 'expo-image';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { useThemeColors } from '@/store/useThemeStore';
+import { sizedImageUrl } from '@/utils/imageUrl';
 
 interface Props {
   visible: boolean;
@@ -103,10 +104,14 @@ export function ImageZoomViewer({ visible, imageUrl, onClose }: Props) {
         
         <GestureDetector gesture={composed}>
           <Animated.View style={[styles.imageContainer, animatedStyle]}>
-            <Image 
-              source={{ uri: imageUrl }} 
-              style={styles.image} 
-              contentFit="contain" 
+            {/* ⚡ PERFORMANCE: zoom needs real detail, so this asks for a much larger
+                rendition than the grid — but as WebP rather than the stored PNG. At
+                1600px it still resolves past what a pinch can show while costing a
+                fraction of the original to fetch and decode. */}
+            <Image
+              source={{ uri: sizedImageUrl(imageUrl, { width: 1600, quality: 82 }) as string }}
+              style={styles.image}
+              contentFit="contain"
             />
           </Animated.View>
         </GestureDetector>

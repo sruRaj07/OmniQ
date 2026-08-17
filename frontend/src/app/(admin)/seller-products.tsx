@@ -4,6 +4,7 @@
  */
 import { StyleSheet, Text, View, ActivityIndicator, Alert, TouchableOpacity, ScrollView, Platform, Modal } from "react-native";
 import { Image } from "expo-image";
+import { sizedImageUrl } from "@/utils/imageUrl";
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, runOnJS } from "react-native-reanimated";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -190,7 +191,7 @@ export default function AdminSellerProductsScreen() {
           {product.images && product.images.length > 0 && (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageScroll}>
               {product.images.map((uri: string, idx: number) => (
-                <Image key={idx} source={uri} style={styles.image} contentFit="cover" transition={150} />
+                <Image key={idx} source={sizedImageUrl(uri, { width: 240, quality: 65 })} style={styles.image} contentFit="cover" transition={150} />
               ))}
             </ScrollView>
           )}

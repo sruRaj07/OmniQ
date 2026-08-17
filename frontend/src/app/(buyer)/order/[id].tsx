@@ -5,6 +5,7 @@ import { useThemeColors } from "@/store/useThemeStore";
 import { useOrders } from "@/hooks/useOrders";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { formatCurrency } from "@/utils/formatCurrency";
+import { sizedImageUrl } from "@/utils/imageUrl";
 import { orderSubtotalOf, resolveOrderDeliveryFee } from "@/constants/delivery";
 import { Image } from "expo-image";
 export default function OrderDetailsScreen() {
@@ -118,7 +119,7 @@ export default function OrderDetailsScreen() {
         return <View key={item.id || index} style={[styles.itemRow, index !== order.order_items.length - 1 && styles.itemBorder]}>
               <View style={styles.itemImageContainer}>
                 <Image source={{
-              uri: imageUrl
+              uri: sizedImageUrl(imageUrl, { width: 200, quality: 60 }) as string
             }} style={styles.itemImage} contentFit="cover" transition={150} />
               </View>
               <View style={styles.itemDetails}>

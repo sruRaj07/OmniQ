@@ -39,6 +39,7 @@ export const CartItem = memo(function CartItem({
                 thumbnailSource={item.product.thumbnail_url}
                 placeholder={item.product.blurhash}
                 style={styles.image}
+                displayWidth={82}
                 contentFit="contain"
                 transition={150}
               />

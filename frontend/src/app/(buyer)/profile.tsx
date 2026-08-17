@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useRouter } from "expo-router";
 import { StyleSheet, Text, View, Alert, TouchableOpacity, ScrollView, Modal, TextInput } from "react-native";
 import { Image } from "expo-image";
+import { sizedImageUrl } from "@/utils/imageUrl";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -335,7 +336,7 @@ export default function ProfileScreen() {
           const product = order.order_items?.[0]?.product;
           const imageUrl = product?.images?.[0] || product?.imageUrl;
           return <TouchableOpacity key={order.id} style={styles.orderCard}>
-                  {imageUrl ? <Image source={imageUrl} style={styles.orderImage} contentFit="cover" transition={150} /> : <View style={styles.orderImagePlaceholder}>
+                  {imageUrl ? <Image source={sizedImageUrl(imageUrl, { width: 160, quality: 60 })} style={styles.orderImage} contentFit="cover" transition={150} /> : <View style={styles.orderImagePlaceholder}>
                       <BoxIcon color={colors.textMuted} size={40} />
                     </View>}
                 </TouchableOpacity>;

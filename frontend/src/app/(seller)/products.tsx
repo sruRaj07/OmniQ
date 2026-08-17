@@ -75,6 +75,7 @@ const SellerProductItem = React.memo(function SellerProductItem({
             thumbnailSource={product.thumbnail_url}
             placeholder={product.blurhash}
             style={styles.image}
+            displayWidth={72}
             contentFit="contain"
             transition={150}
           />

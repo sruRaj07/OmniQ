@@ -6,6 +6,7 @@ import { useThemeColors } from "@/store/useThemeStore";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/apiClient";
 import { useRouter } from "expo-router";
+import { sizedImageUrl } from "@/utils/imageUrl";
 
 type Advertisement = {
   id: string;
@@ -123,10 +124,12 @@ export function AdvertisementCarousel({ type = 'ads' }: { type?: 'ads' | 'offers
             onPress={() => handlePress(ad.target_url)} 
             style={[styles.card, { backgroundColor: colors.bgSecondary, width: CARD_WIDTH, height: Math.floor(CARD_WIDTH * (9 / 16)) }]}
           >
-            <Image 
-              source={ad.image_url} 
-              style={styles.image} 
-              contentFit="cover" 
+            {/* ⚡ PERFORMANCE: the banner is the first paint on the home screen, so it is
+                sized to the card rather than served at whatever resolution was uploaded. */}
+            <Image
+              source={sizedImageUrl(ad.image_url, { width: Math.ceil(CARD_WIDTH * 2), quality: 70 })}
+              style={styles.image}
+              contentFit="cover"
               transition={150}
               priority="high"
             />
