@@ -26,6 +26,13 @@ export const ProductCard = React.memo(function ProductCard({ product, index = 0,
   const imageUrl = product.images && product.images.length > 0 ? product.images[0] : null;
   const rating = Math.min(5, Math.max(0, Number(product.rating) || 0));
   const reviewCount = Number(product.reviews) || 0;
+  // Shown only when the M.R.P. genuinely exceeds the selling price, so a card never
+  // advertises a discount that isn't there.
+  const comparePrice = Number(product.compare_price) || 0;
+  const discountPercent =
+    comparePrice > product.price
+      ? Math.round(((comparePrice - product.price) / comparePrice) * 100)
+      : 0;
 
   return (
     <View style={[styles.column, style]}>
@@ -41,8 +48,9 @@ export const ProductCard = React.memo(function ProductCard({ product, index = 0,
                   thumbnailSource={product.thumbnail_url}
                   placeholder={product.blurhash}
                   style={styles.image}
-                  // Two cards per row on a ~390dp phone, less the container padding.
-                  displayWidth={170}
+                  // The well is now square and full-bleed, so it asks for the card's
+                  // full width rather than the old letterboxed strip.
+                  displayWidth={190}
                   contentFit="contain"
                   priority={index < 4 ? "high" : "normal"}
                   transition={Platform.OS === 'web' ? 0 : 200}
@@ -54,7 +62,10 @@ export const ProductCard = React.memo(function ProductCard({ product, index = 0,
 
             {/* Details */}
             <View style={styles.meta}>
-              <Text style={styles.title} numberOfLines={1}>
+              {/* Two lines, like Amazon. These titles carry the pack size ("5x100g +
+                  1 Kg Sargam") which is exactly what separates one listing from the
+                  next here — truncating at one line cut it off on every card. */}
+              <Text style={styles.title} numberOfLines={2}>
                 {product.title}
               </Text>
 
@@ -68,15 +79,18 @@ export const ProductCard = React.memo(function ProductCard({ product, index = 0,
               ) : null}
 
               <View style={styles.priceRow}>
+                {discountPercent > 0 ? (
+                  <Text style={styles.discount}>-{discountPercent}%</Text>
+                ) : null}
                 <Text style={styles.newPrice}>
                   {formatCurrency(product.price)}
                 </Text>
-                {product.compare_price ? (
-                  <Text style={styles.oldPrice}>
-                    M.R.P: {formatCurrency(product.compare_price)}
-                  </Text>
-                ) : null}
               </View>
+              {product.compare_price ? (
+                <Text style={styles.oldPrice}>
+                  M.R.P: <Text style={styles.oldPriceStrike}>{formatCurrency(product.compare_price)}</Text>
+                </Text>
+              ) : null}
 
               {/* The fee depends on the whole cart, so the card states the rule rather than
                   promising free delivery on an item that would not qualify on its own. */}
@@ -95,6 +109,10 @@ export const ProductCard = React.memo(function ProductCard({ product, index = 0,
   return (
     prev.product.id === next.product.id &&
     prev.product.price === next.product.price &&
+    // The card now derives a discount badge from compare_price and renders images[0],
+    // so both have to be compared or an edited price or replaced photo would not repaint.
+    prev.product.compare_price === next.product.compare_price &&
+    prev.product.images?.[0] === next.product.images?.[0] &&
     prev.product.title === next.product.title &&
     prev.product.rating === next.product.rating &&
     prev.product.reviews === next.product.reviews &&
@@ -119,12 +137,20 @@ const getStyles = (colors: any) => StyleSheet.create({
     width: "100%",
   },
   imageContainer: {
-    height: 140, // Slightly reduced height to fit two products better on narrow screens
+    // ⚡ A square image well, sized off the card's own width rather than a fixed
+    // height. 103 of the 107 catalogue photos are square, so this matches their
+    // native shape exactly: the product fills the well instead of being letterboxed
+    // into a 140dp-tall strip that left most of the card empty. Roughly 2.7x the
+    // on-screen image area, which is the difference between squinting at a card
+    // and recognising the product at a glance.
     width: "100%",
+    aspectRatio: 1,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.card,
-    padding: 12,
+    // Product shots carry their own whitespace; the well adds only enough to keep
+    // the image off the card border.
+    padding: 6,
     position: "relative",
   },
   image: {
@@ -146,6 +172,9 @@ const getStyles = (colors: any) => StyleSheet.create({
     fontWeight: "400",
     marginBottom: 4,
     lineHeight: 18,
+    // Two lines' worth, reserved whether or not the title wraps, so the price and
+    // delivery lines sit at the same height across a row of mismatched titles.
+    minHeight: 36,
   },
   ratingRow: {
     flexDirection: "row",
@@ -170,12 +199,22 @@ const getStyles = (colors: any) => StyleSheet.create({
   },
   newPrice: {
     color: colors.textPrimary,
-    fontSize: 16,
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  discount: {
+    color: "#CC0C39", // Amazon's deal red
+    fontSize: 14,
     fontWeight: "700",
   },
   oldPrice: {
     color: colors.textMuted,
     fontSize: 11,
+    marginBottom: 2,
+  },
+  // Only the number is struck through — striking "M.R.P:" as well reads as though
+  // the label itself were cancelled.
+  oldPriceStrike: {
     textDecorationLine: "line-through",
   },
   deliveryText: {

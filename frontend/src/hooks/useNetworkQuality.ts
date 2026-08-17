@@ -4,10 +4,42 @@
  * Author: OmniQ Team
  */
 import { useEffect, useMemo, useState } from "react";
+import { Platform } from "react-native";
 import NetInfo, { type NetInfoState } from "@react-native-community/netinfo";
 import { setNetworkQuality } from "@/lib/queryClient";
 
 export type NetworkQuality = "offline" | "2g" | "3g" | "4g" | "wifi";
+
+/**
+ * Browsers do not report a connection *type*, so NetInfo hands back "unknown" for
+ * every web visitor — which used to drop them all onto the cautious 3g tier and a
+ * 300px image budget, however fast their link actually was. The Network
+ * Information API reports an *effective* tier instead, which is the better signal
+ * where it exists. Where it does not (Safari, Firefox) a desktop browser is
+ * assumed to be on a good connection, matching what the tier is used for.
+ */
+function webQuality(): NetworkQuality {
+  const connection =
+    typeof navigator !== "undefined"
+      ? (navigator as any).connection ??
+        (navigator as any).mozConnection ??
+        (navigator as any).webkitConnection
+      : undefined;
+
+  if (connection?.saveData === true) return "2g";
+
+  switch (connection?.effectiveType) {
+    case "slow-2g":
+    case "2g":
+      return "2g";
+    case "3g":
+      return "3g";
+    case "4g":
+      return "wifi";
+    default:
+      return "wifi";
+  }
+}
 
 /**
  * Maps a NetInfo state onto an OmniQ network tier.
@@ -40,6 +72,10 @@ export function qualityFromState(state: NetInfoState): NetworkQuality {
   }
 
   if (state.type === "none") return "offline";
+
+  // Web reaches here for essentially every visitor, so it gets the browser's own
+  // reading rather than the blanket mid-tier assumption below.
+  if (Platform.OS === "web") return webQuality();
 
   // bluetooth / wimax / vpn / unknown — assume mid-tier.
   return "3g";

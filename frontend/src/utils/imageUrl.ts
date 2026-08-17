@@ -19,8 +19,15 @@ const SUPABASE_RENDER_PATH = "/storage/v1/render/image/public/";
 const MAX_WIDTH = 2500;
 
 export type ImageSizing = {
-  /** Longest edge to request, in device pixels. */
+  /** Width of the box to fit the image into, in device pixels. */
   width: number;
+  /**
+   * Height of that box. Defaults to `width`, i.e. a square bounding box, which
+   * suits every well in the app: `contain` never crops, so a square photo comes
+   * back square, a wide banner keeps the full width and loses height, and a tall
+   * photo keeps the full height and loses width.
+   */
+  height?: number;
   /** WebP quality, 20-100. */
   quality?: number;
 };
@@ -63,6 +70,7 @@ export function sizedImageUrl(
   if (!url || typeof url !== "string") return url;
 
   const width = clampWidth(sizing.width);
+  const height = clampWidth(sizing.height ?? sizing.width);
   const quality = clampQuality(sizing.quality);
 
   // Supabase Storage — the source of 446 of the 450 product images in the catalogue.
@@ -72,7 +80,13 @@ export function sizedImageUrl(
       // An already-rendered URL is re-sized rather than double-suffixed, so a
       // value that round-trips through here twice stays valid.
       .split("?")[0];
-    return `${base}?width=${width}&quality=${quality}&format=webp`;
+    // `resize=contain` with an explicit height is load-bearing, not decoration.
+    // Given `width` alone Supabase does NOT scale proportionally — it stretches
+    // the image to width x ORIGINAL height, so a 896x896 photo comes back as
+    // 300x896 and renders as a squashed vertical sliver. Passing both bounds with
+    // `contain` is what preserves the aspect ratio. It is also cheaper: the
+    // correctly scaled 300x300 rendition is 7KB against 14KB for the stretched one.
+    return `${base}?width=${width}&height=${height}&resize=contain&quality=${quality}&format=webp`;
   }
 
   // Unsplash backs the advertisement banners and a handful of seeded products,
