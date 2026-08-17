@@ -105,6 +105,21 @@ export default function AdminOrdersScreen() {
       };
     }
     const pickups = Object.values(sellerMap);
+
+    // Delivery details come from the order's own snapshot, which is what the buyer confirmed at
+    // checkout. `order.buyer` mirrors the `profiles` row: it can be blank, it can be stale, and it
+    // never reflects a one-off address, so it is a fallback only - never the primary source.
+    const deliveryAddress = order.delivery_address || {};
+    const deliveryPhone = deliveryAddress.phone || order.buyer?.phone_number;
+    // Built by filtering, so a missing line2 or state cannot leave a dangling ", " in the output.
+    const deliveryLine = [
+      deliveryAddress.street || deliveryAddress.line1,
+      deliveryAddress.line2,
+      deliveryAddress.city,
+      deliveryAddress.state
+    ].filter(Boolean).join(", ");
+    const deliveryPincode = deliveryAddress.zip || deliveryAddress.pincode;
+
     const itemsSubtotal = orderSubtotalOf(order);
     const deliveryFee = resolveOrderDeliveryFee(itemsSubtotal, order.total);
     const orderTotal = itemsSubtotal + deliveryFee;
@@ -176,17 +191,13 @@ export default function AdminOrdersScreen() {
               <View style={[styles.infoDot, { backgroundColor: "#34A853" }]} />
               <Text style={styles.infoLabel}>DELIVER TO</Text>
             </View>
-            {order.buyer && (
-              <>
-                <Text style={styles.infoName}>{order.buyer.full_name || "Unknown Buyer"}</Text>
-                {order.buyer.phone_number && <Text style={styles.infoDetail}>{order.buyer.phone_number}</Text>}
-              </>
-            )}
-            {order.delivery_address && (
+            <Text style={styles.infoName}>{order.buyer?.full_name || "Unknown Buyer"}</Text>
+            {deliveryPhone ? <Text style={styles.infoDetail}>{deliveryPhone}</Text> : null}
+            {deliveryLine ? (
               <Text style={styles.infoDetail}>
-                {order.delivery_address.street || order.delivery_address.line1}, {order.delivery_address.city} — {order.delivery_address.zip || order.delivery_address.pincode}
+                {deliveryLine}{deliveryPincode ? ` — ${deliveryPincode}` : ""}
               </Text>
-            )}
+            ) : null}
           </View>
         </View>
 

@@ -2,7 +2,7 @@
  * OmniQ admin service - admin analytics logic.
  * Author: OmniQ Team
  */
-import { moderationSchema, zoneSchema } from "../validators/adminValidator";
+import { moderationSchema, zoneIdSchema, zoneSchema } from "../validators/adminValidator";
 import { resolveOrderTotal } from "../../../../shared/constants/delivery";
 import { supabaseAdmin } from "../../../../shared/utils/supabaseClient";
 import { deleteUserAccount } from "../../../../shared/utils/accountDeletion";
@@ -121,9 +121,13 @@ export async function upsertZone(input: unknown) {
         supported_pincodes: parsed.pinCodes
       })
       .eq("id", parsed.id)
+      // Scoped to live rows: an edit must not resurrect a zone another admin just removed, which
+      // would quietly make its pincodes serviceable again.
+      .is("deleted_at", null)
       .select()
-      .single();
+      .maybeSingle();
     if (error) throw new Error(`Failed to update zone: ${error.message}`);
+    if (!data) throw new Error("Zone not found. It may have been deleted by another admin.");
     return data;
   } else {
     const { data, error } = await supabaseAdmin
@@ -142,8 +146,51 @@ export async function upsertZone(input: unknown) {
   }
 }
 
+/**
+ * Removes a zone. This is a soft delete: `delivery_zones` already carries both `active` and
+ * `deleted_at`, and the RLS policy in 007/011 keys off them, so removal is a flag flip rather than
+ * a DELETE. That keeps an accidental removal recoverable (a single SQL update restores it) and
+ * leaves the row intact for any historic record that refers to the zone it was placed under.
+ *
+ * Both columns move together: `active` is what checkZone filters on, `deleted_at` records intent.
+ */
+export async function deleteZone(id: unknown) {
+  // safeParse, not parse: a ZodError's `.message` is a serialised JSON array, and the controller
+  // puts that straight into the API error the admin console displays.
+  const parsedId = zoneIdSchema.safeParse(id);
+  if (!parsedId.success) throw new Error("Zone id must be a valid uuid.");
+  const zoneId = parsedId.data;
+
+  const { data, error } = await supabaseAdmin
+    .from("delivery_zones")
+    .update({ active: false, deleted_at: new Date().toISOString() })
+    .eq("id", zoneId)
+    // Matching only live rows is what makes this idempotent - see below.
+    .is("deleted_at", null)
+    .select("id, name, supported_pincodes")
+    .maybeSingle();
+
+  if (error) throw new Error(`Failed to delete zone: ${error.message}`);
+
+  // Deleting an already-deleted zone matches no row. That is the desired end state, so a double-tap
+  // or a retried request reports success instead of a spurious failure. `alreadyDeleted` lets the
+  // caller tell the two apart without having to re-read the table.
+  if (!data) return { id: zoneId, deleted: true, alreadyDeleted: true };
+  return { ...data, deleted: true, alreadyDeleted: false };
+}
+
 export async function listZones() {
-  const { data, error } = await supabaseAdmin.from("delivery_zones").select("*");
+  // Soft-deleted zones stay in the table for recovery and must never reach the console.
+  //
+  // ⚡ PERFORMANCE: explicit columns rather than `*` (drops created_by/deleted_at from the payload),
+  // and an explicit order. Postgres gives no ordering guarantee without ORDER BY, so the zone cards
+  // could reshuffle on any refetch - the admin would watch the list reorder itself after every
+  // pincode edit. Ordering server-side also keeps the client off a sort on every render.
+  const { data, error } = await supabaseAdmin
+    .from("delivery_zones")
+    .select("id, name, lat, lng, radius_km, supported_pincodes, active, created_at")
+    .is("deleted_at", null)
+    .order("created_at", { ascending: true });
   if (error) throw new Error(`Failed to fetch zones: ${error.message}`);
   return data;
 }

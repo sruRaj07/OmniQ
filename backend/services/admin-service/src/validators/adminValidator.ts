@@ -17,3 +17,8 @@ export const zoneSchema = z.object({
   radiusKm: z.number().positive(),
   pinCodes: z.array(z.string()).default([])
 });
+
+// Zone ids arrive as a path parameter, so they are unvalidated strings until this runs. Without the
+// uuid check a malformed id reaches Postgres and comes back as a raw cast error ("invalid input
+// syntax for type uuid"), which is both a poor message and needless database work.
+export const zoneIdSchema = z.string().uuid("Zone id must be a valid uuid.");

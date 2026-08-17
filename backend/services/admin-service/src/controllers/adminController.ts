@@ -4,7 +4,7 @@
  */
 import type { Request, Response } from "express";
 import { fail, ok } from "../../../../shared/utils/responseFormatter";
-import { getAnalytics, getDashboard, moderateProduct, upsertZone, listZones, listAllOrders, listUserRequests, actionUserRequest } from "../services/adminService";
+import { getAnalytics, getDashboard, moderateProduct, upsertZone, deleteZone, listZones, listAllOrders, listUserRequests, actionUserRequest } from "../services/adminService";
 
 export async function dashboardController(_request: Request, response: Response): Promise<void> {
   try {
@@ -34,6 +34,15 @@ export async function zoneController(request: Request, response: Response): Prom
     response.status(201).json(ok(zone));
   } catch (error: any) {
     response.status(400).json(fail("ZONE_VALIDATION_FAILED", error.message));
+  }
+}
+
+export async function deleteZoneController(request: Request, response: Response): Promise<void> {
+  try {
+    const result = await deleteZone(request.params.id);
+    response.json(ok(result));
+  } catch (error: any) {
+    response.status(400).json(fail("ZONE_DELETE_FAILED", error.message));
   }
 }
 

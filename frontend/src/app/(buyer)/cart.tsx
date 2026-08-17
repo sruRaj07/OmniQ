@@ -3,7 +3,7 @@
  * Author: OmniQ Team
  */
 import { useState, useRef, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useRouter } from "expo-router";
 import { StyleSheet, Text, View, Alert, ActivityIndicator, Modal, Pressable, ScrollView, TextInput } from "react-native";
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, runOnJS } from "react-native-reanimated";
@@ -99,12 +99,19 @@ export default function CartScreen() {
   // Remembers what the pincode lookup last filled in, so we only overwrite our own suggestion
   // and never clobber a city/state the buyer typed by hand.
   const autoFilledRef = useRef({ city: "", state: "" });
+  // Fields the buyer has typed into. The profile prefill below re-runs on every refetch of
+  // /users/me (queryClient sets refetchOnReconnect: "always", and placing an order invalidates
+  // the key), and without this it would overwrite the buyer's fresh input with the stale profile
+  // copy - the address they just corrected would silently revert while the modal was open.
+  const touchedFieldsRef = useRef<Set<AddressField>>(new Set());
 
   const updateField = (field: AddressField, value: string) => {
+    touchedFieldsRef.current.add(field);
     setAddress(prev => ({ ...prev, [field]: value }));
     setErrors(prev => (prev[field] ? { ...prev, [field]: undefined } : prev));
   };
 
+  const queryClient = useQueryClient();
   const { data: profile } = useQuery({
     queryKey: ["userProfile"],
     queryFn: async () => {
@@ -114,14 +121,18 @@ export default function CartScreen() {
   });
 
   useEffect(() => {
-    if (profile) {
-      setAddress(prev => ({
+    if (!profile) return;
+    const touched = touchedFieldsRef.current;
+    setAddress(prev => {
+      const next = {
         ...prev,
-        line1: profile.address || prev.line1,
-        pincode: profile.pincode || prev.pincode,
-        phone: profile.phone_number || prev.phone
-      }));
-    }
+        line1: touched.has("line1") ? prev.line1 : profile.address || prev.line1,
+        pincode: touched.has("pincode") ? prev.pincode : profile.pincode || prev.pincode,
+        phone: touched.has("phone") ? prev.phone : profile.phone_number || prev.phone
+      };
+      if (next.line1 === prev.line1 && next.pincode === prev.pincode && next.phone === prev.phone) return prev;
+      return next;
+    });
   }, [profile]);
 
   // City and State are not stored on the profile, so they arrive empty at checkout. Resolve them
@@ -240,6 +251,28 @@ export default function CartScreen() {
         paymentMethod: "CASH_ON_DELIVERY"
       };
       await apiClient.post("/orders", payload, { headers: { "Idempotency-Key": idempotencyKey } });
+
+      // Most buyers never open Account Information - this modal is the only place they ever type
+      // an address, so what they confirm here is the freshest copy we hold. Mirror it back onto
+      // the profile. Without this the profile row stays blank forever: the Account Information
+      // card shows nothing, the next checkout has nothing to prefill, and admin - which reads the
+      // buyer's name and phone from `profiles` - never sees the details this buyer actually gave.
+      //
+      // Deliberately non-fatal and deliberately after the order call: the order is already
+      // committed, so a failed profile write must not surface to the buyer as a checkout failure.
+      // Only line1 goes into `profiles.address` (the column is a single line, and the prefill
+      // above reads it straight back into line1) - city/state/line2 live on the order itself.
+      try {
+        await apiClient.patch("/users/me", {
+          phoneNumber: deliveryAddress.phone,
+          address: deliveryAddress.line1,
+          pincode: deliveryAddress.pincode
+        });
+        queryClient.invalidateQueries({ queryKey: ["userProfile"] });
+      } catch (profileError) {
+        console.warn("Order placed, but the profile could not be updated:", profileError);
+      }
+
       clearCart();
       triggerSuccessAnimation();
     } catch (error: any) {

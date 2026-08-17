@@ -57,11 +57,21 @@ export async function lookupPincode(input: unknown): Promise<PincodeLocation | n
 export async function checkZone(input: unknown) {
   const parsed = zoneCheckSchema.parse(input);
   
-  // Fetch all active delivery zones from Supabase
+  // Fetch all active delivery zones from Supabase.
+  //
+  // `deleted_at` is checked as well as `active`, not instead of it. Admin removal sets both, so
+  // either filter alone would do today - but they are independent columns, and a zone left with
+  // active = true and a deleted_at stamp (a partial write, a manual SQL fix, a restore that only
+  // touched one column) would otherwise keep accepting orders for pincodes an admin has removed.
+  // Serviceability is the wrong place to be lenient.
+  //
+  // ⚡ PERFORMANCE: only the columns this function reads. Zones are fetched on every checkout, so
+  // dropping the unused ones (created_by, created_at, deleted_at) shrinks the hot path's payload.
   const { data: zones, error } = await supabaseAdmin
     .from("delivery_zones")
-    .select("*")
-    .eq("active", true);
+    .select("name, lat, lng, radius_km, supported_pincodes")
+    .eq("active", true)
+    .is("deleted_at", null);
 
   if (error) throw new Error(`Failed to fetch delivery zones: ${error.message}`);
   
