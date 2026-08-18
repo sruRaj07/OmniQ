@@ -1,9 +1,14 @@
 /**
  * OmniQ mobile app - seller product form.
+ *
+ * Fields are grouped and labelled rather than relying on placeholders, which vanish the
+ * moment a seller starts typing and leave them guessing which box held the M.R.P. Saving no
+ * longer raises its own modal — the parent screen gets an `onSaved` callback and shows a toast.
+ *
  * Author: OmniQ Team
  */
 import React, { useState, useEffect } from "react";
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Platform, Modal } from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Platform, Pressable } from "react-native";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { Button } from "@/components/ui/Button";
@@ -12,6 +17,8 @@ import { useThemeColors } from "@/store/useThemeStore";
 import { apiClient } from "@/lib/apiClient";
 import { useQueryClient } from "@tanstack/react-query";
 import { CategorySvgIcon } from "@/components/ui/CategorySvgIcon";
+import { RADIUS, SPACE, withAlpha } from "@/constants/sellerTheme";
+import { CameraIcon, CheckIcon, InfoIcon, XIcon } from "@/components/ui/SellerIcons";
 import {
   compressProductImage,
   formatBytes,
@@ -21,6 +28,8 @@ import {
 export type ProductFormProps = {
   initialData?: any;
   onCloseEdit?: () => void;
+  /** Fired after a successful save so the host screen can close the sheet and confirm. */
+  onSaved?: (mode: "created" | "updated") => void;
 };
 
 /**
@@ -38,7 +47,28 @@ function existingImage(uri: string): PickedImage {
   return { uri, blurhash: null, originalSize: 0, compressedSize: 0 };
 }
 
-export function ProductForm({ initialData, onCloseEdit }: ProductFormProps) {
+/** Label + optional hint above a field. Keeps the six field groups visually identical. */
+function Field({
+  label,
+  hint,
+  required,
+  children,
+  colors,
+}: React.PropsWithChildren<{ label: string; hint?: string; required?: boolean; colors: any }>) {
+  const styles = getStyles(colors);
+  return (
+    <View style={styles.field}>
+      <View style={styles.fieldLabelRow}>
+        <Text style={styles.fieldLabel}>{label}</Text>
+        {required ? <Text style={styles.requiredMark}>*</Text> : <Text style={styles.optionalMark}>Optional</Text>}
+      </View>
+      {children}
+      {hint ? <Text style={styles.fieldHint}>{hint}</Text> : null}
+    </View>
+  );
+}
+
+export function ProductForm({ initialData, onCloseEdit, onSaved }: ProductFormProps) {
   const colors = useThemeColors();
   const styles = getStyles(colors);
   const isEditing = !!initialData;
@@ -88,7 +118,6 @@ export function ProductForm({ initialData, onCloseEdit }: ProductFormProps) {
     }
   }, [initialData]);
   const [isLoading, setIsLoading] = useState(false);
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
   const queryClient = useQueryClient();
   const handlePickImage = async () => {
     if (images.length >= 5) {
@@ -205,7 +234,7 @@ export function ProductForm({ initialData, onCloseEdit }: ProductFormProps) {
         });
       }
       queryClient.invalidateQueries({ queryKey: ["products"] });
-      setShowSuccessModal(true);
+      onSaved?.(isEditing ? "updated" : "created");
     } catch (error: any) {
       console.log("API Error caught:", error?.response?.data || error.message);
       const errorMessage = error?.response?.data?.error?.message || error?.message || "Failed to save product.";
@@ -226,66 +255,126 @@ export function ProductForm({ initialData, onCloseEdit }: ProductFormProps) {
     return `Compressed from ${formatBytes(before)} to ${formatBytes(after)} (${savingsPercent(before, after)}% saved)`;
   }, [images]);
 
-  const handleCloseSuccess = () => {
-    setShowSuccessModal(false);
-    if (onCloseEdit) {
-      onCloseEdit();
-    }
-  };
-  return <View style={styles.stack}>
-      <Input placeholder="Product title" value={title} onChangeText={setTitle} />
-      <Input placeholder="Selling Price (Your Price)" keyboardType="numeric" value={price} onChangeText={setPrice} />
-      <Input placeholder="Market Price (M.R.P.)" keyboardType="numeric" value={comparePrice} onChangeText={setComparePrice} />
-      <Input placeholder="Stock (Optional - Defaults to 10)" keyboardType="numeric" value={stock} onChangeText={setStock} />
-      
-      <View style={styles.categoryContainer}>
-        <Input 
-          placeholder="Category (e.g. grocery, kitchen)" 
-          value={category} 
-          onChangeText={(text) => setCategory(text.toLowerCase())} 
+  // The buyer sees the saving as a percentage badge, so show the seller the same number
+  // while they are still choosing the price rather than after the listing goes live.
+  const discountPreview = React.useMemo(() => {
+    const sell = Number(price);
+    const mrp = Number(comparePrice);
+    if (!Number.isFinite(sell) || !Number.isFinite(mrp) || sell <= 0 || mrp <= 0) return null;
+    if (mrp <= sell) return { invalid: true, percent: 0 };
+    return { invalid: false, percent: Math.round(((mrp - sell) / mrp) * 100) };
+  }, [comparePrice, price]);
+
+  return (
+    <View style={styles.stack}>
+      <Field label="Product title" required colors={colors}>
+        <Input
+          placeholder="e.g. Aashirvaad Atta 5kg"
+          value={title}
+          onChangeText={setTitle}
+          maxLength={120}
+        />
+      </Field>
+
+      <View style={styles.priceRow}>
+        <View style={styles.priceCol}>
+          <Field label="Selling price" required colors={colors}>
+            <Input placeholder="₹0" keyboardType="numeric" value={price} onChangeText={setPrice} />
+          </Field>
+        </View>
+        <View style={styles.priceCol}>
+          <Field label="M.R.P." required colors={colors}>
+            <Input placeholder="₹0" keyboardType="numeric" value={comparePrice} onChangeText={setComparePrice} />
+          </Field>
+        </View>
+      </View>
+
+      {discountPreview ? (
+        <View
+          style={[
+            styles.discountBanner,
+            {
+              backgroundColor: withAlpha(discountPreview.invalid ? colors.warning : colors.success, 0.1),
+              borderColor: withAlpha(discountPreview.invalid ? colors.warning : colors.success, 0.3),
+            },
+          ]}
+        >
+          <InfoIcon size={15} color={discountPreview.invalid ? colors.warning : colors.success} strokeWidth={2.2} />
+          <Text style={[styles.discountText, { color: discountPreview.invalid ? colors.warning : colors.success }]}>
+            {discountPreview.invalid
+              ? "M.R.P. should be higher than your selling price"
+              : `Buyers will see a ${discountPreview.percent}% off badge`}
+          </Text>
+        </View>
+      ) : null}
+
+      <Field label="Stock" hint="Left blank, we start you at 10 units." colors={colors}>
+        <Input placeholder="10" keyboardType="numeric" value={stock} onChangeText={setStock} />
+      </Field>
+
+      <Field label="Category" required colors={colors}>
+        <Input
+          placeholder="e.g. grocery, kitchen"
+          value={category}
+          onChangeText={(text) => setCategory(text.toLowerCase())}
           autoCapitalize="none"
         />
-        
-        {/* Facebook-Style Category Tagging Section */}
         <View style={styles.tagSection}>
           {hasActiveTag ? (
             <View>
-              <Text style={styles.tagHelperText}>Selected Category Tag (Only 1 category allowed per item):</Text>
+              <Text style={styles.tagHelperText}>Tagged category — one per listing</Text>
               <View style={styles.activeTagRow}>
                 <TouchableOpacity style={styles.selectedTagPill} onPress={handleRemoveTag} activeOpacity={0.8}>
                   <CategorySvgIcon category={normalizedCat} size={16} showBackground={false} style={{ marginRight: 6 }} />
                   <Text style={styles.selectedTagText}>{normalizedCat}</Text>
                   <View style={styles.tagCloseBtn}>
-                    <Text style={styles.tagCloseText}>✕</Text>
+                    <XIcon size={11} color="#FFFFFF" strokeWidth={3} />
                   </View>
                 </TouchableOpacity>
               </View>
             </View>
           ) : (
             <View>
-              <Text style={styles.tagHelperText}>Suggested Category Tags (Click to tag):</Text>
+              <Text style={styles.tagHelperText}>Tap to tag</Text>
               <View style={styles.tagsGrid}>
                 {availableTags.map((tag) => (
                   <TouchableOpacity key={tag} style={styles.suggestedTagPill} onPress={() => handleSelectTag(tag)} activeOpacity={0.7}>
                     <CategorySvgIcon category={tag} size={16} showBackground={false} style={{ marginRight: 6 }} />
                     <Text style={styles.suggestedTagText}>{tag}</Text>
-                    <Text style={styles.tagAddText}> +</Text>
+                    <Text style={styles.tagAddText}>+</Text>
                   </TouchableOpacity>
                 ))}
               </View>
             </View>
           )}
         </View>
-      </View>
-      <View>
-        <Input placeholder="Description" multiline style={styles.textArea} value={description} onChangeText={setDescription} maxLength={500} />
-        <Text style={styles.charCounter}>{description.length}/500 characters</Text>
-      </View>
-      
+      </Field>
+
+      <Field label="Description" required colors={colors}>
+        <Input
+          placeholder="Weight, pack size, brand, what makes it worth buying…"
+          multiline
+          style={styles.textArea}
+          value={description}
+          onChangeText={setDescription}
+          maxLength={500}
+        />
+        <View style={styles.counterRow}>
+          <Text style={[styles.fieldHint, description.length > 0 && description.length < 10 && { color: colors.warning }]}>
+            {description.length > 0 && description.length < 10 ? "At least 10 characters" : "Minimum 10 characters"}
+          </Text>
+          <Text style={styles.charCounter}>{description.length}/500</Text>
+        </View>
+      </Field>
+
       <View style={styles.imageSection}>
-        <Text style={styles.imageTitle}>Product Images ({images.length}/5)</Text>
+        <View style={styles.fieldLabelRow}>
+          <Text style={styles.fieldLabel}>Product images</Text>
+          <Text style={styles.imageCount}>{images.length}/5</Text>
+        </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.imageScroll}>
-          {images.map((image, index) => <TouchableOpacity key={index} onPress={() => removeImage(index)} style={styles.imageBoxSelected}>
+          {images.map((image, index) => (
+            <View key={index} style={styles.imageBoxSelected}>
               <Image
                 source={image.uri}
                 placeholder={image.blurhash ?? undefined}
@@ -293,52 +382,120 @@ export function ProductForm({ initialData, onCloseEdit }: ProductFormProps) {
                 contentFit="cover"
                 transition={150}
               />
-              <View style={styles.removeOverlay}>
-                <Text style={styles.removeText}>✕</Text>
-              </View>
-            </TouchableOpacity>)}
-          {isCompressing && <View style={[styles.imageBox, styles.imageBoxBusy]}>
+              {index === 0 ? (
+                <View style={styles.coverBadge}>
+                  <Text style={styles.coverText}>Cover</Text>
+                </View>
+              ) : null}
+              <Pressable
+                onPress={() => removeImage(index)}
+                hitSlop={6}
+                accessibilityLabel={`Remove image ${index + 1}`}
+                style={styles.removeOverlay}
+              >
+                <XIcon size={12} color="#FFFFFF" strokeWidth={3} />
+              </Pressable>
+            </View>
+          ))}
+          {isCompressing && (
+            <View style={[styles.imageBox, styles.imageBoxBusy]}>
               <ActivityIndicator size="small" color={colors.accent} />
               <Text style={styles.compressingText}>Optimising…</Text>
-            </View>}
-          {images.length < 5 && !isCompressing && <TouchableOpacity onPress={handlePickImage} style={styles.imageBox}>
-              <Text style={styles.plusIcon}>+</Text>
-            </TouchableOpacity>}
+            </View>
+          )}
+          {images.length < 5 && !isCompressing && (
+            <TouchableOpacity onPress={handlePickImage} style={styles.imageBox} activeOpacity={0.7}>
+              <CameraIcon size={20} color={colors.textMuted} strokeWidth={1.8} />
+              <Text style={styles.addImageText}>Add</Text>
+            </TouchableOpacity>
+          )}
         </ScrollView>
-        {compressionSummary && <Text style={styles.compressionStats}>{compressionSummary}</Text>}
+        {compressionSummary ? (
+          <View style={styles.compressionRow}>
+            <CheckIcon size={13} color={colors.success} strokeWidth={2.6} />
+            <Text style={styles.compressionStats}>{compressionSummary}</Text>
+          </View>
+        ) : (
+          <Text style={styles.fieldHint}>The first image is what buyers see in search. Square photos work best.</Text>
+        )}
       </View>
 
-      {isEditing && (
-        <Button onPress={onCloseEdit} variant="secondary" style={styles.cancelBtn}>
-          Cancel Edit
+      <View style={styles.actions}>
+        <Button onPress={handleSave} disabled={isLoading} loading={isLoading}>
+          {isEditing ? "Update product" : "List product"}
         </Button>
-      )}
-      <Button onPress={handleSave} style={styles.saveBtn} disabled={isLoading}>
-        {isLoading ? <ActivityIndicator color="#fff" /> : (isEditing ? "Update Product" : "List Product")}
-      </Button>
-
-      <Modal visible={showSuccessModal} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.successIconContainer}>
-              <Text style={styles.successIcon}>✓</Text>
-            </View>
-            <Text style={styles.modalTitle}>Success!</Text>
-            <Text style={styles.modalText}>{isEditing ? "Product successfully updated and sent for admin approval!" : "Successfully listing done!"}</Text>
-            <Button onPress={handleCloseSuccess} style={{
-            width: "100%",
-            marginTop: 10
-          }}>
-              Done
-            </Button>
-          </View>
-        </View>
-      </Modal>
-    </View>;
+        {isEditing && (
+          <Button onPress={onCloseEdit} variant="secondary" disabled={isLoading}>
+            Cancel
+          </Button>
+        )}
+        <Text style={styles.approvalNote}>
+          {isEditing
+            ? "Edited listings go back through admin approval before buyers see them."
+            : "New listings are reviewed by an admin, usually within 24 hours."}
+        </Text>
+      </View>
+    </View>
+  );
 }
 const getStyles = (colors: any) => StyleSheet.create({
   stack: {
-    gap: 14
+    gap: SPACE.lg
+  },
+  field: {
+    gap: SPACE.sm
+  },
+  fieldLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 6,
+    marginLeft: 2
+  },
+  fieldLabel: {
+    color: colors.textPrimary,
+    fontSize: 13,
+    fontWeight: "800",
+    letterSpacing: 0.1
+  },
+  requiredMark: {
+    color: colors.danger,
+    fontSize: 13,
+    fontWeight: "900"
+  },
+  optionalMark: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: "600"
+  },
+  fieldHint: {
+    color: colors.textMuted,
+    fontSize: 11.5,
+    fontWeight: "500",
+    marginLeft: 2
+  },
+  priceRow: {
+    flexDirection: "row",
+    gap: SPACE.md
+  },
+  priceCol: {
+    flex: 1,
+    minWidth: 0
+  },
+  discountBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACE.sm,
+    paddingHorizontal: SPACE.md,
+    paddingVertical: 10,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    marginTop: -SPACE.sm
+  },
+  discountText: {
+    flex: 1,
+    fontSize: 12.5,
+    fontWeight: "700"
   },
   textArea: {
     minHeight: 120,
@@ -346,37 +503,45 @@ const getStyles = (colors: any) => StyleSheet.create({
     paddingTop: 18,
     paddingBottom: 18
   },
+  counterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between"
+  },
   charCounter: {
     color: colors.textMuted,
     fontSize: 11,
-    textAlign: "right",
-    marginTop: 4,
-    marginRight: 4
+    fontWeight: "600",
+    marginRight: 2
   },
   imageSection: {
-    marginTop: 4,
-    marginBottom: 8
+    gap: SPACE.md
   },
-  imageTitle: {
-    color: colors.textSecondary,
-    fontSize: 13,
-    fontWeight: "700",
-    marginBottom: 12,
-    marginLeft: 4
+  imageCount: {
+    color: colors.textMuted,
+    fontSize: 11.5,
+    fontWeight: "700"
   },
   imageScroll: {
-    gap: 12
+    gap: SPACE.md,
+    paddingVertical: 2
   },
   imageBox: {
-    width: 80,
-    height: 80,
-    borderRadius: 14,
+    width: 84,
+    height: 84,
+    borderRadius: RADIUS.lg,
     backgroundColor: colors.bgSecondary,
     borderWidth: 1.5,
     borderColor: colors.border2,
     borderStyle: "dashed",
     alignItems: "center",
-    justifyContent: "center"
+    justifyContent: "center",
+    gap: 4
+  },
+  addImageText: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: "700"
   },
   imageBoxBusy: {
     borderStyle: "solid",
@@ -387,17 +552,21 @@ const getStyles = (colors: any) => StyleSheet.create({
     fontSize: 10,
     fontWeight: "600"
   },
+  compressionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginLeft: 2
+  },
   compressionStats: {
-    color: colors.success || "#2ecc71",
+    color: colors.success,
     fontSize: 12,
-    fontWeight: "700",
-    marginTop: 10,
-    marginLeft: 4
+    fontWeight: "700"
   },
   imageBoxSelected: {
-    width: 80,
-    height: 80,
-    borderRadius: 14,
+    width: 84,
+    height: 84,
+    borderRadius: RADIUS.lg,
     overflow: "hidden",
     borderWidth: 1,
     borderColor: colors.border2
@@ -406,117 +575,78 @@ const getStyles = (colors: any) => StyleSheet.create({
     width: "100%",
     height: "100%"
   },
+  coverBadge: {
+    position: "absolute",
+    left: 0,
+    bottom: 0,
+    right: 0,
+    backgroundColor: "rgba(20,19,17,0.62)",
+    paddingVertical: 3,
+    alignItems: "center"
+  },
+  coverText: {
+    color: "#FFFFFF",
+    fontSize: 9.5,
+    fontWeight: "800",
+    letterSpacing: 0.3
+  },
   removeOverlay: {
     position: "absolute",
     top: 4,
     right: 4,
-    backgroundColor: "rgba(0,0,0,0.6)",
+    backgroundColor: "rgba(20,19,17,0.7)",
     borderRadius: 12,
-    width: 24,
-    height: 24,
+    width: 22,
+    height: 22,
     alignItems: "center",
     justifyContent: "center"
   },
-  removeText: {
-    color: "#fff",
-    fontSize: 11,
-    fontWeight: "900"
+  actions: {
+    gap: SPACE.md,
+    marginTop: SPACE.xs
   },
-  plusIcon: {
+  approvalNote: {
     color: colors.textMuted,
-    fontSize: 28,
-    fontWeight: "300",
-    marginTop: -4
-  },
-  saveBtn: {
-    marginTop: 8
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 20
-  },
-  modalContent: {
-    backgroundColor: colors.card,
-    borderRadius: 24,
-    padding: 30,
-    width: "100%",
-    maxWidth: 400,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: colors.border
-  },
-  successIconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "rgba(46, 204, 113, 0.15)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16
-  },
-  successIcon: {
-    color: "#2ecc71",
-    fontSize: 28,
-    fontWeight: "900"
-  },
-  modalTitle: {
-    color: colors.textPrimary,
-    fontSize: 22,
-    fontWeight: "900",
-    marginBottom: 8
-  },
-  modalText: {
-    color: colors.textSecondary,
-    fontSize: 16,
-    marginBottom: 24,
-    textAlign: "center"
-  },
-  cancelBtn: {
-    marginTop: 8,
-    marginBottom: 4
-  },
-  categoryContainer: {
-    gap: 8
+    fontSize: 11.5,
+    fontWeight: "500",
+    textAlign: "center",
+    lineHeight: 16
   },
   tagSection: {
-    marginTop: -2,
-    marginBottom: 4,
-    paddingHorizontal: 4
+    marginTop: SPACE.xs,
+    paddingHorizontal: 2
   },
   tagHelperText: {
     color: colors.textSecondary,
     fontSize: 12,
     fontWeight: "600",
-    marginBottom: 8
+    marginBottom: SPACE.sm
   },
   tagsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10
+    gap: SPACE.sm
   },
   suggestedTagPill: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: colors.bgSecondary,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: SPACE.md,
+    paddingVertical: 7,
+    borderRadius: RADIUS.pill,
     borderWidth: 1,
     borderColor: colors.border2
   },
   suggestedTagText: {
     color: colors.textPrimary,
     fontWeight: "700",
-    fontSize: 14
+    fontSize: 13.5
   },
   tagAddText: {
     color: colors.accent,
     fontWeight: "900",
-    fontSize: 16,
-    marginLeft: 4
+    fontSize: 15,
+    marginLeft: 5
   },
   activeTagRow: {
     flexDirection: "row"
@@ -524,31 +654,26 @@ const getStyles = (colors: any) => StyleSheet.create({
   selectedTagPill: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(79, 70, 229, 0.15)", // Brand Indigo tint
-    paddingLeft: 14,
-    paddingRight: 10,
-    paddingVertical: 8,
-    borderRadius: 20,
+    backgroundColor: withAlpha(colors.accent, 0.13),
+    paddingLeft: SPACE.md,
+    paddingRight: SPACE.sm,
+    paddingVertical: 7,
+    borderRadius: RADIUS.pill,
     borderWidth: 1.5,
-    borderColor: "#4F46E5"
+    borderColor: colors.accent
   },
   selectedTagText: {
-    color: "#4F46E5",
+    color: colors.accent,
     fontWeight: "800",
-    fontSize: 14,
-    marginRight: 8
+    fontSize: 13.5,
+    marginRight: SPACE.sm
   },
   tagCloseBtn: {
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: "#4F46E5",
+    backgroundColor: colors.accent,
     alignItems: "center",
     justifyContent: "center"
-  },
-  tagCloseText: {
-    color: "#FFFFFF",
-    fontSize: 11,
-    fontWeight: "900"
   }
 });

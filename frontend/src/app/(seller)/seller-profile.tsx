@@ -1,48 +1,69 @@
-import { useState } from "react";
+/**
+ * OmniQ mobile app - seller profile and store settings.
+ *
+ * The old screen nested its own ScrollView inside Screen's, which double-handles every
+ * scroll gesture on Android. It scrolls once now, and the store details read as a store
+ * card rather than a wall of uppercase labels.
+ *
+ * Author: OmniQ Team
+ */
+import React, { useCallback, useMemo, useState } from "react";
 import { Link, useRouter } from "expo-router";
-import { StyleSheet, Text, View, ScrollView, ActivityIndicator, TextInput, TouchableOpacity } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
 import { Screen } from "@/components/shared/Screen";
-import { useAppTheme } from "@/store/useThemeStore";
+import { SELLER_NAV_ITEMS } from "@/components/seller/sellerNav";
+import { Avatar, InfoRow, SectionHeader, SkeletonRows, StatusPill, Surface } from "@/components/seller/SellerUI";
+import { useThemeColors } from "@/store/useThemeStore";
 import { useAuthStore } from "@/store/authStore";
 import { supabase } from "@/lib/supabase";
-import { HomeIcon } from "@/components/ui/HomeIcon";
-import { ListIcon } from "@/components/ui/ListIcon";
-import { BoxIcon } from "@/components/ui/BoxIcon";
-import { UserIcon } from "@/components/ui/UserIcon";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/apiClient";
+import { RADIUS, SPACE, withAlpha } from "@/constants/sellerTheme";
+import {
+  InfoIcon,
+  LogOutIcon,
+  MailIcon,
+  MapPinIcon,
+  PhoneIcon,
+  ShieldCheckIcon,
+  StoreIcon,
+  SwapIcon,
+  TagIcon,
+} from "@/components/ui/SellerIcons";
+
+/** Approval state drives the badge colour on the hero card. */
+function statusTone(status: string | undefined, colors: any) {
+  switch (String(status ?? "").toLowerCase()) {
+    case "approved":
+      return { label: "Approved seller", color: colors.success };
+    case "pending":
+      return { label: "Awaiting approval", color: colors.warning };
+    case "suspended":
+      return { label: "Suspended", color: colors.danger };
+    case "rejected":
+      return { label: "Rejected", color: colors.danger };
+    default:
+      return { label: "Status unknown", color: colors.textMuted };
+  }
+}
+
 export default function SellerProfileScreen() {
-  const {
-    colors,
-    mode,
-    setMode
-  } = useAppTheme();
-  const styles = getStyles(colors, mode);
-  const {
-    user
-  } = useAuthStore();
+  const colors = useThemeColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
+  const { user } = useAuthStore();
   const queryClient = useQueryClient();
+  const router = useRouter();
+
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [editDescriptionValue, setEditDescriptionValue] = useState("");
-  const router = useRouter();
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    useAuthStore.getState().setSession(null);
-    router.replace("/");
-  };
-  const {
-    data: sellerData,
-    isLoading
-  } = useQuery({
+
+  const { data: sellerData, isLoading } = useQuery({
     queryKey: ["seller-profile"],
     queryFn: async () => {
-      const {
-        data
-      } = await apiClient.get("/sellers/me");
+      const { data } = await apiClient.get("/sellers/me");
       return data.data;
-    }
+    },
   });
 
   const { data: userProfileData } = useQuery({
@@ -51,375 +72,220 @@ export default function SellerProfileScreen() {
       const res = await apiClient.get("/users/me");
       return res.data;
     },
-    enabled: !!user
+    enabled: !!user,
   });
   const userProfile = userProfileData?.data;
 
   const updateProfileMutation = useMutation({
     mutationFn: async (newDescription: string) => {
-      await apiClient.patch("/sellers/me", {
-        description: newDescription
-      });
+      await apiClient.patch("/sellers/me", { description: newDescription });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["seller-profile"]
-      });
+      queryClient.invalidateQueries({ queryKey: ["seller-profile"] });
       setIsEditingDescription(false);
-    }
+    },
   });
-  const handleEditDescription = () => {
+
+  const handleEditDescription = useCallback(() => {
     setEditDescriptionValue(sellerData?.description || "");
     setIsEditingDescription(true);
-  };
-  const handleSaveDescription = () => {
+  }, [sellerData?.description]);
+
+  const handleSaveDescription = useCallback(() => {
     updateProfileMutation.mutate(editDescriptionValue);
-  };
-  const displayFullName = sellerData?.business_name || user?.user_metadata?.full_name || "OmniQ Seller";
-  const initial = displayFullName.charAt(0).toUpperCase();
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'approved':
-        return colors.success;
-      case 'pending':
-        return colors.warning;
-      case 'suspended':
-        return colors.danger;
-      case 'rejected':
-        return colors.danger;
-      default:
-        return colors.accent;
-    }
-  };
-  return <>
-      <Screen bottomNavItems={[{
-      href: "/(seller)/dashboard" as any,
-      icon: HomeIcon,
-      label: "Home"
-    }, {
-      href: "/(seller)/products" as any,
-      icon: ListIcon,
-      label: "Products"
-    }, {
-      href: "/(seller)/seller-orders" as any,
-      icon: BoxIcon,
-      label: "Orders"
-    }, {
-      href: "/(seller)/seller-profile" as any,
-      icon: UserIcon,
-      label: "Profile"
-    }]}>
-        {isLoading ? <View style={{
-        flex: 1,
-        justifyContent: "center",
-        alignItems: "center"
-      }}>
-            <ActivityIndicator size="large" color={colors.accent} />
-          </View> : <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{
-        paddingBottom: 100
-      }}>
-            <View style={styles.header}>
-              <View style={styles.profileHeader}>
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>{initial}</Text>
-                </View>
-                <View style={styles.headerInfo}>
-                  <Text style={styles.name}>{displayFullName}</Text>
-                  <Text style={styles.email}>{user?.email || "Seller account"}</Text>
-                  <View style={[styles.roleBadge, { backgroundColor: getStatusColor(sellerData?.status) }]}>
-                    <Text style={styles.roleBadgeText}>{(sellerData?.status || "UNKNOWN").toUpperCase()}</Text>
-                  </View>
-                </View>
+  }, [editDescriptionValue, updateProfileMutation]);
+
+  // Signing out drops the session and any cached seller data; worth one confirmation tap
+  // rather than losing the screen to a mis-tap next to "Switch to Buyer App".
+  const handleSignOut = useCallback(() => {
+    Alert.alert("Sign out?", "You will need to log in again to manage your store.", [
+      { text: "Stay signed in", style: "cancel" },
+      {
+        text: "Sign out",
+        style: "destructive",
+        onPress: async () => {
+          await supabase.auth.signOut();
+          useAuthStore.getState().setSession(null);
+          router.replace("/");
+        },
+      },
+    ]);
+  }, [router]);
+
+  const displayName = sellerData?.business_name || user?.user_metadata?.full_name || "OmniQ Seller";
+  const status = statusTone(sellerData?.status, colors);
+
+  return (
+    <Screen bottomNavItems={SELLER_NAV_ITEMS}>
+      {isLoading ? (
+        <SkeletonRows count={5} />
+      ) : (
+        <>
+          <Surface style={styles.hero} elevation="md">
+            <View style={styles.heroTop}>
+              <Avatar name={displayName} size={58} />
+              <View style={styles.heroText}>
+                <Text style={styles.heroName} numberOfLines={2}>
+                  {displayName}
+                </Text>
+                <Text style={styles.heroEmail} numberOfLines={1}>
+                  {user?.email || "Seller account"}
+                </Text>
               </View>
             </View>
+            <View style={styles.heroBadges}>
+              <StatusPill
+                label={status.label}
+                color={status.color}
+                tint={withAlpha(status.color, 0.12)}
+                icon={ShieldCheckIcon}
+                size="md"
+              />
+              {sellerData?.category ? (
+                <StatusPill
+                  label={String(sellerData.category)}
+                  color={colors.textSecondary}
+                  tint={colors.bgTertiary}
+                  icon={TagIcon}
+                  size="md"
+                />
+              ) : null}
+            </View>
+          </Surface>
 
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Business Information</Text>
-              <Card style={styles.infoCard}>
-                
-                {/* Description */}
-                <View style={styles.infoRow}>
-                  <View style={styles.rowHeader}>
-                    <Text style={styles.infoLabel}>Description</Text>
-                    {!isEditingDescription ? (
-                      <TouchableOpacity onPress={handleEditDescription}>
-                        <Text style={styles.editText}>Edit</Text>
-                      </TouchableOpacity>
-                    ) : null}
+          <SectionHeader
+            title="Your store"
+            caption="What buyers see on your storefront"
+            style={styles.sectionHeader}
+          />
+          <Surface style={styles.card}>
+            <View style={styles.descriptionBlock}>
+              <View style={styles.descriptionHeader}>
+                <Text style={styles.descriptionLabel}>About the store</Text>
+                {!isEditingDescription ? (
+                  <Pressable onPress={handleEditDescription} hitSlop={8} accessibilityRole="button">
+                    <Text style={styles.editLink}>Edit</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+
+              {isEditingDescription ? (
+                <View>
+                  <TextInput
+                    style={styles.textInput}
+                    value={editDescriptionValue}
+                    onChangeText={setEditDescriptionValue}
+                    placeholder="Tell buyers what you sell and what makes your store worth ordering from."
+                    placeholderTextColor={colors.textMuted}
+                    multiline
+                    autoFocus
+                    maxLength={400}
+                  />
+                  <View style={styles.editActions}>
+                    <Pressable
+                      onPress={() => setIsEditingDescription(false)}
+                      style={({ pressed }) => [styles.ghostBtn, pressed && styles.pressed]}
+                    >
+                      <Text style={styles.ghostLabel}>Cancel</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={handleSaveDescription}
+                      disabled={updateProfileMutation.isPending}
+                      style={({ pressed }) => [styles.solidBtn, pressed && styles.pressed]}
+                    >
+                      <Text style={styles.solidLabel}>
+                        {updateProfileMutation.isPending ? "Saving…" : "Save"}
+                      </Text>
+                    </Pressable>
                   </View>
-                  {isEditingDescription ? (
-                    <View style={styles.editContainer}>
-                      <TextInput 
-                        style={styles.textInput} 
-                        value={editDescriptionValue} 
-                        onChangeText={setEditDescriptionValue} 
-                        multiline 
-                        autoFocus 
-                      />
-                      <View style={styles.editActions}>
-                        <TouchableOpacity onPress={() => setIsEditingDescription(false)} style={styles.cancelBtn}>
-                          <Text style={styles.cancelText}>Cancel</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity 
-                          onPress={handleSaveDescription} 
-                          style={styles.saveBtn} 
-                          disabled={updateProfileMutation.isPending}
-                        >
-                          <Text style={styles.saveText}>
-                            {updateProfileMutation.isPending ? "Saving..." : "Save"}
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  ) : (
-                    <Text style={styles.infoValue}>{sellerData?.description || "No description provided."}</Text>
-                  )}
                 </View>
-
-                <View style={styles.divider} />
-                
-                {/* Category */}
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Category</Text>
-                  <Text style={styles.infoValue}>{sellerData?.category || "N/A"}</Text>
-                </View>
-                
-                <View style={styles.divider} />
-
-                {/* City */}
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>City</Text>
-                  <Text style={styles.infoValue}>{sellerData?.city || "N/A"}</Text>
-                </View>
-
-                <View style={styles.divider} />
-
-                {/* GST */}
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>GST Number</Text>
-                  <Text style={styles.infoValue}>{sellerData?.gst_number || "N/A"}</Text>
-                </View>
-
-              </Card>
+              ) : (
+                <Text style={[styles.descriptionValue, !sellerData?.description && styles.descriptionEmpty]}>
+                  {sellerData?.description || "No description yet — buyers trust stores that introduce themselves."}
+                </Text>
+              )}
             </View>
 
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Contact Information</Text>
-              <Card style={styles.infoCard}>
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Email</Text>
-                  <Text style={styles.infoValue}>{user?.email || "N/A"}</Text>
-                </View>
-                <View style={styles.divider} />
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Phone Number</Text>
-                  <Text style={styles.infoValue}>{userProfile?.phone_number || "Not provided"}</Text>
-                </View>
-                <View style={styles.divider} />
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Address</Text>
-                  <Text style={styles.infoValue}>{userProfile?.address || "Not provided"}</Text>
-                </View>
-                {userProfile?.pincode && (
-                  <>
-                    <View style={styles.divider} />
-                    <View style={styles.infoRow}>
-                      <Text style={styles.infoLabel}>Pincode</Text>
-                      <Text style={styles.infoValue}>{userProfile.pincode}</Text>
-                    </View>
-                  </>
-                )}
-              </Card>
-            </View>
+            <View style={styles.divider} />
+            <InfoRow icon={StoreIcon} label="Business name" value={sellerData?.business_name} />
+            <InfoRow icon={MapPinIcon} label="City" value={sellerData?.city} />
+            <InfoRow icon={InfoIcon} label="GST number" value={sellerData?.gst_number} fallback="Not registered" />
+          </Surface>
 
+          <SectionHeader title="Contact" caption="Used for order and payout updates" style={styles.sectionHeader} />
+          <Surface style={styles.card}>
+            <InfoRow icon={MailIcon} label="Email" value={user?.email} />
+            <InfoRow icon={PhoneIcon} label="Phone number" value={userProfile?.phone_number} />
+            <InfoRow icon={MapPinIcon} label="Address" value={userProfile?.address} multiline />
+            {userProfile?.pincode ? (
+              <InfoRow icon={MapPinIcon} label="Pincode" value={String(userProfile.pincode)} />
+            ) : null}
+          </Surface>
 
-            <View style={styles.actionsContainer}>
-              <Link href="/(buyer)" asChild>
-                <Button variant="secondary" style={styles.actionButton}>Switch to Buyer App</Button>
-              </Link>
-              <Button variant="secondary" onPress={handleSignOut} style={styles.actionButton}>
-                Sign Out
+          <View style={styles.actions}>
+            <Link href="/(buyer)" asChild>
+              <Button variant="secondary" icon={<SwapIcon size={17} color={colors.accent} strokeWidth={2.2} />}>
+                Switch to buyer app
               </Button>
-            </View>
-          </ScrollView>
-        }
-      </Screen>
-    </>;
+            </Link>
+            <Button
+              variant="secondary"
+              onPress={handleSignOut}
+              icon={<LogOutIcon size={17} color={colors.accent} strokeWidth={2.2} />}
+            >
+              Sign out
+            </Button>
+          </View>
+        </>
+      )}
+    </Screen>
+  );
 }
 
-const getStyles = (colors: any, mode?: string) => StyleSheet.create({
-  header: {
-    marginBottom: 24,
-  },
-  profileHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-  },
-  avatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 8,
-    backgroundColor: colors.border,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  avatarText: {
-    color: colors.textPrimary,
-    fontSize: 28,
-    fontWeight: "900",
-  },
-  headerInfo: {
-    flex: 1,
-  },
-  name: {
-    color: colors.textPrimary,
-    fontSize: 22,
-    fontWeight: "800",
-    marginBottom: 2,
-  },
-  email: {
-    color: colors.textSecondary,
-    fontSize: 13,
-    marginBottom: 6,
-  },
-  roleBadge: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 4,
-  },
-  roleBadgeText: {
-    color: "#fff",
-    fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 0.5,
-  },
-  section: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    color: colors.textPrimary,
-    fontSize: 16,
-    fontWeight: "800",
-    marginBottom: 12,
-  },
-  infoCard: {
-    padding: 16,
-    backgroundColor: colors.card,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  infoRow: {
-    paddingVertical: 12,
-  },
-  rowHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 6,
-  },
-  infoLabel: {
-    color: colors.textSecondary,
-    fontSize: 11,
-    fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  infoValue: {
-    color: colors.textPrimary,
-    fontSize: 15,
-    fontWeight: "500",
-    lineHeight: 22,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: colors.border,
-  },
-  editText: {
-    color: colors.textPrimary,
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  editContainer: {
-    marginTop: 8,
-  },
-  textInput: {
-    backgroundColor: colors.background,
-    color: colors.textPrimary,
-    borderRadius: 6,
-    padding: 12,
-    fontSize: 13,
-    minHeight: 80,
-    textAlignVertical: "top",
-    borderColor: colors.border,
-    borderWidth: 1,
-  },
-  editActions: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    gap: 12,
-    marginTop: 12,
-  },
-  cancelBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-  },
-  cancelText: {
-    color: colors.textSecondary,
-    fontWeight: "600",
-  },
-  saveBtn: {
-    backgroundColor: colors.accent,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 6,
-  },
-  saveText: {
-    color: "#FFFFFF",
-    fontWeight: "700",
-  },
-  actionsContainer: {
-    marginTop: 10,
-    gap: 12,
-  },
-  actionButton: {
-    width: "100%",
-  },
-  themeToggleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.card,
-    padding: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  themeButtons: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  themeButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.background,
-  },
-  themeButtonActive: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
-  },
-  themeButtonText: {
-    color: colors.textSecondary,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  themeButtonTextActive: {
-    color: "#FFFFFF",
-  },
-});
+const getStyles = (colors: any) =>
+  StyleSheet.create({
+    hero: { padding: SPACE.xl, gap: SPACE.lg },
+    heroTop: { flexDirection: "row", alignItems: "center", gap: SPACE.lg },
+    heroText: { flex: 1, minWidth: 0 },
+    heroName: { color: colors.textPrimary, fontSize: 20, fontWeight: "800", letterSpacing: -0.3 },
+    heroEmail: { color: colors.textMuted, fontSize: 13, fontWeight: "500", marginTop: 3 },
+    heroBadges: { flexDirection: "row", flexWrap: "wrap", gap: SPACE.sm },
+    sectionHeader: { marginTop: SPACE.xxl, marginBottom: SPACE.md },
+    card: { paddingHorizontal: SPACE.lg, paddingVertical: SPACE.sm },
+    descriptionBlock: { paddingVertical: SPACE.md, gap: SPACE.sm },
+    descriptionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+    descriptionLabel: {
+      color: colors.textMuted,
+      fontSize: 11,
+      fontWeight: "700",
+      letterSpacing: 0.4,
+      textTransform: "uppercase",
+    },
+    editLink: { color: colors.accent, fontSize: 13.5, fontWeight: "700" },
+    descriptionValue: { color: colors.textPrimary, fontSize: 14.5, fontWeight: "500", lineHeight: 21 },
+    descriptionEmpty: { color: colors.textMuted, fontStyle: "italic" },
+    textInput: {
+      backgroundColor: colors.bgSecondary,
+      color: colors.textPrimary,
+      borderRadius: RADIUS.md,
+      padding: SPACE.md,
+      fontSize: 14,
+      minHeight: 96,
+      textAlignVertical: "top",
+      borderColor: colors.border,
+      borderWidth: 1,
+    },
+    editActions: { flexDirection: "row", justifyContent: "flex-end", gap: SPACE.sm, marginTop: SPACE.md },
+    ghostBtn: { paddingVertical: 9, paddingHorizontal: SPACE.lg, borderRadius: RADIUS.pill },
+    ghostLabel: { color: colors.textSecondary, fontWeight: "700", fontSize: 13.5 },
+    solidBtn: {
+      backgroundColor: colors.accent,
+      paddingVertical: 9,
+      paddingHorizontal: SPACE.xl,
+      borderRadius: RADIUS.pill,
+    },
+    solidLabel: { color: "#FFFFFF", fontWeight: "800", fontSize: 13.5 },
+    pressed: { opacity: 0.82 },
+    divider: { height: 1, backgroundColor: colors.border },
+    actions: { marginTop: SPACE.xxl, gap: SPACE.md },
+  });
