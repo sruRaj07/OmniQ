@@ -3,6 +3,9 @@
  * Smooth slide transitions for admin panel navigation.
  * Author: OmniQ Team
  */
+// Explicit React import: this tsconfig uses the classic JSX transform, so a file rendering JSX
+// without it resolves `React` to a UMD global and TypeScript reports TS2686 on every element.
+import React from "react";
 import { Stack } from "expo-router";
 import { View, Platform } from "react-native";
 import { BottomNavBar } from "@/components/ui/BottomNavBar";

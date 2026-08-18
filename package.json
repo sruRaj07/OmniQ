@@ -13,7 +13,8 @@
     "preview:web": "pnpm --filter frontend preview:web",
     "typecheck": "pnpm --recursive typecheck",
     "test": "pnpm --recursive test",
-    "lint": "pnpm --recursive lint"
+    "lint": "pnpm --recursive lint",
+    "admin:check": "tsx backend/scripts/checkAdminRole.ts"
   },
   "engines": {
     "node": ">=20.0.0",

@@ -1,35 +1,82 @@
 /**
- * OmniQ mobile app - admin orders screen.
+ * OmniQ mobile app - admin order list.
+ *
+ * Two things changed the shape of this screen:
+ *
+ *  - The API now filters and pages in Postgres instead of returning every order on the platform.
+ *    So the tab is a server-side filter, not a client-side `.filter()`, and this uses an infinite
+ *    query - which also means the list no longer silently stopped at PostgREST's 1000-row cap.
+ *  - Each card opens collapsed. A full order card is roughly 400px of addresses, line items and
+ *    fee breakdown; ten of them is a wall of text to scroll past when the usual task is "find this
+ *    order, mark it delivered". The summary answers that, and the detail is one tap away.
+ *
  * Author: OmniQ Team
  */
-import { StyleSheet, Text, View, ActivityIndicator, TouchableOpacity } from "react-native";
-import { useState, useCallback } from "react";
+// Explicit React import: this tsconfig uses the classic JSX transform, so a file rendering JSX
+// without it resolves `React` to a UMD global and TypeScript reports TS2686 on every element.
+import React, { useCallback, useMemo, useState } from "react";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { FlashList } from "@shopify/flash-list";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { Screen } from "@/components/shared/Screen";
-import { ShieldIcon } from "@/components/ui/ShieldIcon";
 import { useThemeColors } from "@/store/useThemeStore";
 import { apiClient } from "@/lib/apiClient";
 import { formatCurrency } from "@/utils/formatCurrency";
 import { orderSubtotalOf, resolveOrderDeliveryFee } from "@/constants/delivery";
 import { useRefreshControl } from "@/hooks/useRefreshControl";
+import { RADIUS, SHADOW, SPACE, adminOrderStatusMeta, withAlpha } from "@/constants/adminTheme";
+import {
+  AdminHeader,
+  EmptyState,
+  QueryBoundary,
+  SegmentedTabs,
+  SkeletonRows,
+  StatusPill,
+  type SegmentItem
+} from "@/components/admin/AdminUI";
+import { ChevronDownIcon, ChevronRightIcon, ReceiptIcon } from "@/components/ui/SellerIcons";
+
+type TabKey = "active" | "delivered" | "cancelled";
+
+const PAGE_SIZE = 25;
+
+const TABS: SegmentItem[] = [
+  { key: "active", label: "Active" },
+  { key: "delivered", label: "Delivered" },
+  { key: "cancelled", label: "Cancelled" }
+];
 
 export default function AdminOrdersScreen() {
   const colors = useThemeColors();
-  const styles = getStyles(colors);
+  const styles = useMemo(() => getStyles(colors), [colors]);
   // Pull-to-refresh for this list. `Screen` owns it for scrolling screens; this one
   // passes scroll={false}, so the list attaches it itself.
   const refreshControl = useRefreshControl();
-  const [activeTab, setActiveTab] = useState<'new' | 'delivered'>('new');
+  const [activeTab, setActiveTab] = useState<TabKey>("active");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const { data: orders, isLoading } = useQuery({
-    queryKey: ["adminOrders"],
-    queryFn: async () => {
-      const res = await apiClient.get("/admin/orders");
-      return res.data.data;
+  const ordersQuery = useInfiniteQuery({
+    queryKey: ["adminOrders", activeTab],
+    initialPageParam: 0,
+    queryFn: async ({ pageParam }) => {
+      const res = await apiClient.get("/admin/orders", {
+        params: { status: activeTab, limit: PAGE_SIZE, offset: pageParam }
+      });
+      // Paging figures ride in `meta`; the page itself stays in `data`.
+      return { rows: res.data?.data ?? [], meta: res.data?.meta ?? {} };
+    },
+    getNextPageParam: (lastPage, allPages) => {
+      if (!lastPage?.meta?.hasMore) return undefined;
+      return allPages.reduce((count, page) => count + (page?.rows?.length ?? 0), 0);
     }
-  }, queryClient);
+  });
+
+  const orders: any[] = useMemo(
+    () => (ordersQuery.data?.pages ?? []).flatMap((page: any) => page.rows ?? []),
+    [ordersQuery.data]
+  );
+  const total: number = ordersQuery.data?.pages?.[0]?.meta?.total ?? orders.length;
 
   const updateStatusMutation = useMutation({
     mutationFn: async ({ orderId, status }: { orderId: string; status: string }) => {
@@ -37,437 +84,392 @@ export default function AdminOrdersScreen() {
       return data;
     },
     onSuccess: () => {
+      // Every tab's cached pages are now wrong: the order moved between them.
       queryClient.invalidateQueries({ queryKey: ["adminOrders"] });
+      queryClient.invalidateQueries({ queryKey: ["adminDashboard"] });
     },
-  }, queryClient);
+    // This mutation previously had no onError at all, so a failed status change looked exactly like
+    // a successful one - the button stopped spinning and the order simply did not move.
+    onError: (err: any) => {
+      Alert.alert(
+        "Couldn't update the order",
+        err?.response?.data?.error?.message || err?.message || "The order was not changed. Please try again."
+      );
+    }
+  });
 
-  const handleMarkDelivered = (orderId: string) => {
-    updateStatusMutation.mutate({ orderId, status: "delivered" });
-  };
-
-  const filteredOrders = (orders || []).filter((o: any) =>
-    activeTab === 'new'
-      ? o.status !== 'delivered' && o.status !== 'cancelled'
-      : o.status === 'delivered'
+  const handleMarkDelivered = useCallback(
+    (orderId: string) => {
+      Alert.alert("Mark as delivered?", "This closes the order and it moves to the Delivered tab.", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Mark delivered", onPress: () => updateStatusMutation.mutate({ orderId, status: "delivered" }) }
+      ]);
+    },
+    [updateStatusMutation]
   );
 
-  const formatDate = (dateString: string) => {
-    if (!dateString) return "N/A";
-    return new Date(dateString).toLocaleString('en-GB', {
-      day: 'numeric', month: 'short', year: 'numeric',
-      hour: '2-digit', minute: '2-digit'
-    });
-  };
+  const formatDate = useCallback(
+    (value: string) =>
+      value
+        ? new Date(value).toLocaleString("en-IN", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit"
+          })
+        : "Unknown",
+    []
+  );
 
-
-  const renderHeader = useCallback(() => (
-    <>
-      <View style={styles.header}>
-        <Text style={styles.title}>All Orders</Text>
-        <Text style={styles.subtitle}>
-          {filteredOrders.length} {activeTab === 'new' ? 'active' : 'delivered'} order{filteredOrders.length !== 1 ? 's' : ''}
-        </Text>
+  const renderHeader = useCallback(
+    () => (
+      <View style={styles.headerBlock}>
+        <AdminHeader
+          title="Orders"
+          subtitle={
+            ordersQuery.isSuccess
+              ? `Showing ${orders.length} of ${total} ${activeTab} order${total === 1 ? "" : "s"}`
+              : "Every order across the platform"
+          }
+        />
+        <SegmentedTabs
+          items={TABS}
+          value={activeTab}
+          onChange={(key) => {
+            setActiveTab(key as TabKey);
+            setExpandedId(null);
+          }}
+        />
       </View>
+    ),
+    [styles, ordersQuery.isSuccess, orders.length, total, activeTab]
+  );
 
-      <View style={styles.tabContainer}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'new' && styles.activeTab]}
-          onPress={() => setActiveTab('new')}
-        >
-          <Text style={[styles.tabText, activeTab === 'new' && styles.activeTabText]}>New Orders</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'delivered' && styles.activeTab]}
-          onPress={() => setActiveTab('delivered')}
-        >
-          <Text style={[styles.tabText, activeTab === 'delivered' && styles.activeTabText]}>Delivered</Text>
-        </TouchableOpacity>
-      </View>
-    </>
-  ), [activeTab, filteredOrders.length, styles]);
+  const renderItem = useCallback(
+    ({ item: order }: { item: any }) => {
+      const meta = adminOrderStatusMeta(order.status, colors);
+      const isOpen = expandedId === order.id;
+      const busy = updateStatusMutation.isPending && updateStatusMutation.variables?.orderId === order.id;
 
-  const renderItem = useCallback(({ item: order }: { item: any }) => {
-    // Extract unique sellers from all items in this order
-    const sellerMap: Record<string, { name: string; city: string }> = {};
-    if (order.order_items) {
-      order.order_items.forEach((item: any) => {
-        const s = item.product?.seller;
-        if (s && s.id && !sellerMap[s.id]) {
-          sellerMap[s.id] = { name: s.business_name, city: s.city };
+      const itemsSubtotal = orderSubtotalOf(order);
+      const deliveryFee = resolveOrderDeliveryFee(itemsSubtotal, order.total);
+      const orderTotal = itemsSubtotal + deliveryFee;
+      const lineCount = order.order_items?.length ?? 0;
+
+      // Sellers to collect from. An order can span more than one, so they are de-duplicated by id.
+      const sellerMap: Record<string, { name: string; city: string }> = {};
+      for (const item of order.order_items ?? []) {
+        const seller = item.product?.seller;
+        if (seller?.id && !sellerMap[seller.id]) {
+          sellerMap[seller.id] = { name: seller.business_name, city: seller.city };
         }
-      });
-    }
-    // Fallback to order-level seller if no item-level data
-    if (Object.keys(sellerMap).length === 0 && order.seller) {
-      sellerMap[order.seller_id] = {
-        name: order.seller.business_name,
-        city: order.seller.city
-      };
-    }
-    const pickups = Object.values(sellerMap);
+      }
+      if (Object.keys(sellerMap).length === 0 && order.seller) {
+        sellerMap[order.seller_id] = { name: order.seller.business_name, city: order.seller.city };
+      }
+      const pickups = Object.values(sellerMap);
 
-    // Delivery details come from the order's own snapshot, which is what the buyer confirmed at
-    // checkout. `order.buyer` mirrors the `profiles` row: it can be blank, it can be stale, and it
-    // never reflects a one-off address, so it is a fallback only - never the primary source.
-    const deliveryAddress = order.delivery_address || {};
-    const deliveryPhone = deliveryAddress.phone || order.buyer?.phone_number;
-    // Built by filtering, so a missing line2 or state cannot leave a dangling ", " in the output.
-    const deliveryLine = [
-      deliveryAddress.street || deliveryAddress.line1,
-      deliveryAddress.line2,
-      deliveryAddress.city,
-      deliveryAddress.state
-    ].filter(Boolean).join(", ");
-    const deliveryPincode = deliveryAddress.zip || deliveryAddress.pincode;
+      // Delivery details come from the order's own snapshot, which is what the buyer confirmed at
+      // checkout. `order.buyer` mirrors the `profiles` row: it can be blank, it can be stale, and it
+      // never reflects a one-off address, so it is a fallback only - never the primary source.
+      const deliveryAddress = order.delivery_address || {};
+      const deliveryPhone = deliveryAddress.phone || order.buyer?.phone_number;
+      // Built by filtering, so a missing line2 or state cannot leave a dangling ", " in the output.
+      const deliveryLine = [
+        deliveryAddress.street || deliveryAddress.line1,
+        deliveryAddress.line2,
+        deliveryAddress.city,
+        deliveryAddress.state
+      ]
+        .filter(Boolean)
+        .join(", ");
+      const deliveryPincode = deliveryAddress.zip || deliveryAddress.pincode;
 
-    const itemsSubtotal = orderSubtotalOf(order);
-    const deliveryFee = resolveOrderDeliveryFee(itemsSubtotal, order.total);
-    const orderTotal = itemsSubtotal + deliveryFee;
-
-    return (
-      <View style={styles.orderCard}>
-        {/* Order header */}
-        <View style={styles.orderHeaderRow}>
-          <Text style={styles.orderId} selectable>#{order.id.substring(0, 8).toUpperCase()}</Text>
-          <View style={[
-            styles.statusBadge,
-            order.status === 'delivered' && styles.statusDelivered,
-            order.status === 'pending' && styles.statusPending,
-          ]}>
-            <Text style={[
-              styles.badgeText,
-              order.status === 'delivered' && styles.badgeTextDelivered,
-            ]}>{order.status}</Text>
-          </View>
-        </View>
-
-        {/* Date & Amount */}
-        <View style={styles.orderMeta}>
-          <View style={styles.metaRow}>
-            <Text style={styles.metaLabel}>Date</Text>
-            <Text style={styles.metaValue}>{formatDate(order.created_at)}</Text>
-          </View>
-          <View style={styles.metaRow}>
-            <Text style={styles.metaLabel}>Item Total</Text>
-            <Text style={styles.metaValue}>{formatCurrency(itemsSubtotal)}</Text>
-          </View>
-          <View style={styles.metaRow}>
-            <Text style={styles.metaLabel}>Delivery</Text>
-            <Text style={styles.metaValue}>{deliveryFee > 0 ? formatCurrency(deliveryFee) : "FREE"}</Text>
-          </View>
-          <View style={styles.metaRow}>
-            <Text style={styles.metaLabel}>Total</Text>
-            <Text style={[styles.metaValue, styles.metaAmount]}>{formatCurrency(orderTotal)}</Text>
-          </View>
-          <View style={styles.metaRow}>
-            <Text style={styles.metaLabel}>Platform Fee</Text>
-            <Text style={styles.metaValue}>{formatCurrency(order.platform_fee)}</Text>
-          </View>
-          <View style={styles.metaRow}>
-            <Text style={styles.metaLabel}>Payment</Text>
-            <Text style={[styles.metaValue, { textTransform: "uppercase" }]}>{order.payment_method}</Text>
-          </View>
-        </View>
-
-        {/* Pickup & Delivery info */}
-        <View style={styles.infoContainer}>
-          {pickups.map((seller: any, idx: number) => (
-            <View key={idx} style={styles.infoBlock}>
-              <View style={styles.infoLabelRow}>
-                <View style={[styles.infoDot, { backgroundColor: colors.accent }]} />
-                <Text style={styles.infoLabel}>
-                  {pickups.length > 1 ? `PICKUP ${idx + 1} OF ${pickups.length}` : "PICKUP FROM"}
-                </Text>
-              </View>
-              <Text style={styles.infoName}>{seller.name}</Text>
-              <Text style={styles.infoDetail}>{seller.city || "City not set"}</Text>
-            </View>
-          ))}
-
-          <View style={styles.infoDivider} />
-
-          <View style={styles.infoBlock}>
-            <View style={styles.infoLabelRow}>
-              <View style={[styles.infoDot, { backgroundColor: "#34A853" }]} />
-              <Text style={styles.infoLabel}>DELIVER TO</Text>
-            </View>
-            <Text style={styles.infoName}>{order.buyer?.full_name || "Unknown Buyer"}</Text>
-            {deliveryPhone ? <Text style={styles.infoDetail}>{deliveryPhone}</Text> : null}
-            {deliveryLine ? (
-              <Text style={styles.infoDetail}>
-                {deliveryLine}{deliveryPincode ? ` — ${deliveryPincode}` : ""}
-              </Text>
-            ) : null}
-          </View>
-        </View>
-
-        {/* Items */}
-        {order.order_items && order.order_items.length > 0 && (
-          <View style={styles.itemsSection}>
-            <Text style={styles.itemsTitle}>Items ({order.order_items.length})</Text>
-            {order.order_items.map((item: any, idx: number) => (
-              <View key={idx} style={styles.itemRow}>
-                <Text style={styles.itemName} numberOfLines={1}>
-                  {item.quantity}× {item.product?.title || "Unknown Product"}
-                </Text>
-                <Text style={styles.itemPrice}>{formatCurrency(item.subtotal)}</Text>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {/* Mark Delivered button */}
-        {order.status !== 'delivered' && order.status !== 'cancelled' && (
-          <TouchableOpacity
-            style={styles.deliverBtn}
-            onPress={() => handleMarkDelivered(order.id)}
-            disabled={updateStatusMutation.isPending}
-            activeOpacity={0.8}
+      return (
+        <View style={styles.card}>
+          {/* SUMMARY - always visible, and the whole row toggles the detail */}
+          <Pressable
+            onPress={() => setExpandedId(isOpen ? null : order.id)}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: isOpen }}
+            accessibilityLabel={`Order ${order.id.substring(0, 8)}, ${meta.label}, ${formatCurrency(orderTotal)}`}
+            style={({ pressed }) => [styles.summary, pressed && styles.pressed]}
           >
-            <Text style={styles.deliverBtnText}>
-              {updateStatusMutation.isPending ? "Updating..." : "Mark Delivered"}
-            </Text>
-          </TouchableOpacity>
-        )}
-      </View>
-    );
-  }, [colors.accent, styles, updateStatusMutation.isPending]);
+            <View style={styles.summaryTop}>
+              <Text style={styles.orderId} selectable>
+                #{order.id.substring(0, 8).toUpperCase()}
+              </Text>
+              <StatusPill label={meta.label} color={meta.color} tint={meta.tint} />
+            </View>
+
+            <View style={styles.summaryBottom}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.buyerName} numberOfLines={1}>
+                  {order.buyer?.full_name || "Buyer removed"}
+                </Text>
+                <Text style={styles.summaryMeta} numberOfLines={1}>
+                  {formatDate(order.created_at)} · {lineCount} item{lineCount === 1 ? "" : "s"}
+                </Text>
+              </View>
+              <View style={styles.summaryRight}>
+                <Text style={styles.orderTotal}>{formatCurrency(orderTotal)}</Text>
+                <View style={styles.expandHint}>
+                  <Text style={styles.expandHintText}>{isOpen ? "Hide" : "Details"}</Text>
+                  {isOpen ? (
+                    <ChevronDownIcon size={13} color={colors.textMuted} strokeWidth={2.4} />
+                  ) : (
+                    <ChevronRightIcon size={13} color={colors.textMuted} strokeWidth={2.4} />
+                  )}
+                </View>
+              </View>
+            </View>
+          </Pressable>
+
+          {/* DETAIL - mounted only while open, so a long list stays cheap to scroll */}
+          {isOpen ? (
+            <View style={styles.detail}>
+              <View style={styles.moneyBlock}>
+                <MoneyRow label="Items" value={formatCurrency(itemsSubtotal)} styles={styles} />
+                <MoneyRow
+                  label="Delivery"
+                  value={deliveryFee > 0 ? formatCurrency(deliveryFee) : "Free"}
+                  styles={styles}
+                />
+                <MoneyRow label="Platform fee" value={formatCurrency(order.platform_fee)} styles={styles} />
+                <MoneyRow
+                  label="Buyer paid"
+                  value={formatCurrency(orderTotal)}
+                  emphasis
+                  styles={styles}
+                />
+                <MoneyRow
+                  label="Payment"
+                  value={String(order.payment_method ?? "cod").toUpperCase()}
+                  styles={styles}
+                />
+              </View>
+
+              {pickups.map((seller: any, index: number) => (
+                <View key={index} style={styles.legBlock}>
+                  <View style={styles.legLabelRow}>
+                    <View style={[styles.legDot, { backgroundColor: colors.accent }]} />
+                    <Text style={styles.legLabel}>
+                      {pickups.length > 1 ? `PICKUP ${index + 1} OF ${pickups.length}` : "PICKUP FROM"}
+                    </Text>
+                  </View>
+                  <Text style={styles.legName}>{seller.name || "Unknown store"}</Text>
+                  <Text style={styles.legDetail}>{seller.city || "City not set"}</Text>
+                </View>
+              ))}
+
+              <View style={styles.legBlock}>
+                <View style={styles.legLabelRow}>
+                  <View style={[styles.legDot, { backgroundColor: colors.success }]} />
+                  <Text style={styles.legLabel}>DELIVER TO</Text>
+                </View>
+                <Text style={styles.legName}>{order.buyer?.full_name || "Buyer removed"}</Text>
+                {deliveryPhone ? <Text style={styles.legDetail} selectable>{deliveryPhone}</Text> : null}
+                {deliveryLine ? (
+                  <Text style={styles.legDetail}>
+                    {deliveryLine}
+                    {deliveryPincode ? ` — ${deliveryPincode}` : ""}
+                  </Text>
+                ) : null}
+              </View>
+
+              {lineCount > 0 ? (
+                <View style={styles.itemsBlock}>
+                  <Text style={styles.itemsTitle}>ITEMS</Text>
+                  {order.order_items.map((item: any, index: number) => (
+                    <View key={index} style={styles.itemRow}>
+                      <Text style={styles.itemName} numberOfLines={2}>
+                        {item.quantity}× {item.product?.title || "Product removed"}
+                      </Text>
+                      <Text style={styles.itemPrice}>{formatCurrency(item.subtotal)}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+
+          {order.status !== "delivered" && order.status !== "cancelled" ? (
+            <Pressable
+              onPress={() => handleMarkDelivered(order.id)}
+              disabled={busy}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.deliverBtn, pressed && styles.pressed, busy && styles.btnBusy]}
+            >
+              <Text style={styles.deliverBtnText}>{busy ? "Updating…" : "Mark delivered"}</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      );
+    },
+    [colors, styles, expandedId, updateStatusMutation, handleMarkDelivered, formatDate]
+  );
 
   return (
     <Screen scroll={false}>
-      {isLoading ? (
-        <>
-          {renderHeader()}
-          <ActivityIndicator size="large" color={colors.accent} style={{ marginTop: 40 }} />
-        </>
-      ) : (
+      <QueryBoundary
+        isLoading={ordersQuery.isLoading}
+        error={ordersQuery.error}
+        onRetry={ordersQuery.refetch}
+        skeleton={
+          <>
+            {renderHeader()}
+            <SkeletonRows count={5} />
+          </>
+        }
+      >
         <FlashList
-          data={filteredOrders}
+          data={orders}
           refreshControl={refreshControl}
           renderItem={renderItem}
-          {...({ estimatedItemSize: 400 } as any)}
+          keyExtractor={(item: any) => String(item.id)}
+          {...({ estimatedItemSize: 150 } as any)}
           ListHeaderComponent={renderHeader}
           contentContainerStyle={{ paddingBottom: 100 }}
           showsVerticalScrollIndicator={false}
-          ItemSeparatorComponent={() => <View style={{ height: 16 }} />}
+          ItemSeparatorComponent={() => <View style={{ height: SPACE.md }} />}
+          onEndReachedThreshold={0.6}
+          onEndReached={() => {
+            if (ordersQuery.hasNextPage && !ordersQuery.isFetchingNextPage) ordersQuery.fetchNextPage();
+          }}
+          ListFooterComponent={
+            ordersQuery.isFetchingNextPage ? (
+              <Text style={styles.footerNote}>Loading more orders…</Text>
+            ) : orders.length > 0 && !ordersQuery.hasNextPage ? (
+              <Text style={styles.footerNote}>That's all {total} of them.</Text>
+            ) : null
+          }
           ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <ShieldIcon size={48} color={colors.border} />
-              <Text style={styles.emptyText}>No {activeTab} orders found.</Text>
-            </View>
+            <EmptyState
+              icon={ReceiptIcon}
+              title={
+                activeTab === "active"
+                  ? "No orders in flight"
+                  : activeTab === "delivered"
+                    ? "Nothing delivered yet"
+                    : "No cancelled orders"
+              }
+              message={
+                activeTab === "active"
+                  ? "Orders appear here from the moment a buyer checks out until they're delivered."
+                  : activeTab === "delivered"
+                    ? "Completed orders are kept here for your records."
+                    : "Cancelled orders are excluded from GMV."
+              }
+            />
           }
         />
-      )}
+      </QueryBoundary>
     </Screen>
   );
 }
 
-const getStyles = (colors: any) => StyleSheet.create({
-  header: {
-    marginBottom: 24
-  },
-  title: {
-    color: colors.textPrimary,
-    fontSize: 28,
-    fontWeight: "800",
-    marginBottom: 4,
-    letterSpacing: -0.5
-  },
-  subtitle: {
-    color: colors.textSecondary,
-    fontSize: 13,
-    fontWeight: "600"
-  },
-  tabContainer: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 24
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: "center",
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface
-  },
-  activeTab: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent
-  },
-  tabText: {
-    color: colors.textSecondary,
-    fontWeight: "700",
-    fontSize: 13
-  },
-  activeTabText: {
-    color: "#FFFFFF"
-  },
-  emptyState: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 60
-  },
-  emptyText: {
-    color: colors.textSecondary,
-    marginTop: 16,
-    fontSize: 16,
-    fontWeight: "500"
-  },
-  list: {
-    gap: 16
-  },
-  orderCard: {
-    backgroundColor: colors.card,
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: colors.border
-  },
-  orderHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 14
-  },
-  orderId: {
-    color: colors.textPrimary,
-    fontSize: 16,
-    fontWeight: "700",
-    letterSpacing: 0.5
-  },
-  statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-    borderWidth: 1,
-    backgroundColor: colors.surface,
-    borderColor: colors.border
-  },
-  statusDelivered: {
-    backgroundColor: "rgba(52, 168, 83, 0.1)",
-    borderColor: "rgba(52, 168, 83, 0.3)"
-  },
-  statusPending: {
-    backgroundColor: "rgba(251, 188, 4, 0.1)",
-    borderColor: "rgba(251, 188, 4, 0.3)"
-  },
-  badgeText: {
-    color: colors.textSecondary,
-    fontSize: 11,
-    fontWeight: "700",
-    textTransform: "uppercase"
-  },
-  badgeTextDelivered: {
-    color: "#34A853"
-  },
-  orderMeta: {
-    gap: 6,
-    marginBottom: 16,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border
-  },
-  metaRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center"
-  },
-  metaLabel: {
-    color: colors.textSecondary,
-    fontSize: 13,
-    fontWeight: "600"
-  },
-  metaValue: {
-    color: colors.textSecondary,
-    fontSize: 13,
-    fontWeight: "500"
-  },
-  metaAmount: {
-    color: colors.textPrimary,
-    fontWeight: "700",
-    fontSize: 15
-  },
-  infoContainer: {
-    marginBottom: 14
-  },
-  infoBlock: {
-    paddingVertical: 10
-  },
-  infoLabelRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginBottom: 6
-  },
-  infoDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4
-  },
-  infoLabel: {
-    color: colors.textSecondary,
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 0.5
-  },
-  infoName: {
-    color: colors.textPrimary,
-    fontSize: 15,
-    fontWeight: "700",
-    marginBottom: 2
-  },
-  infoDetail: {
-    color: colors.textSecondary,
-    fontSize: 13,
-    lineHeight: 19
-  },
-  infoDivider: {
-    height: 1,
-    backgroundColor: colors.border
-  },
-  itemsSection: {
-    backgroundColor: colors.surface,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: colors.border
-  },
-  itemsTitle: {
-    color: colors.textSecondary,
-    fontSize: 11,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    marginBottom: 8
-  },
-  itemRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 6
-  },
-  itemName: {
-    color: colors.textPrimary,
-    fontSize: 13,
-    flex: 1,
-    marginRight: 12
-  },
-  itemPrice: {
-    color: colors.textPrimary,
-    fontSize: 13,
-    fontWeight: "600"
-  },
-  deliverBtn: {
-    backgroundColor: colors.accent,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: "center"
-  },
-  deliverBtnText: {
-    color: "#FFFFFF",
-    fontWeight: "700",
-    fontSize: 13
-  }
-});
+function MoneyRow({
+  label,
+  value,
+  emphasis,
+  styles
+}: {
+  label: string;
+  value: string;
+  emphasis?: boolean;
+  styles: any;
+}) {
+  return (
+    <View style={styles.moneyRow}>
+      <Text style={[styles.moneyLabel, emphasis && styles.moneyLabelStrong]}>{label}</Text>
+      <Text style={[styles.moneyValue, emphasis && styles.moneyValueStrong]}>{value}</Text>
+    </View>
+  );
+}
+
+const getStyles = (colors: any) =>
+  StyleSheet.create({
+    headerBlock: { paddingBottom: SPACE.lg },
+    pressed: { opacity: 0.85 },
+    btnBusy: { opacity: 0.6 },
+
+    card: {
+      borderRadius: RADIUS.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+      overflow: "hidden",
+      ...SHADOW.sm
+    },
+    summary: { padding: SPACE.lg },
+    summaryTop: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: SPACE.md
+    },
+    orderId: {
+      color: colors.textPrimary,
+      fontSize: 14,
+      fontWeight: "800",
+      letterSpacing: 0.6,
+      fontVariant: ["tabular-nums"]
+    },
+    summaryBottom: { flexDirection: "row", alignItems: "flex-end", gap: SPACE.md, marginTop: SPACE.md },
+    buyerName: { color: colors.textPrimary, fontSize: 15, fontWeight: "700" },
+    summaryMeta: { color: colors.textMuted, fontSize: 11.5, fontWeight: "600", marginTop: 3 },
+    summaryRight: { alignItems: "flex-end" },
+    orderTotal: { color: colors.textPrimary, fontSize: 17, fontWeight: "900", letterSpacing: -0.4 },
+    expandHint: { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 3 },
+    expandHintText: { color: colors.textMuted, fontSize: 11, fontWeight: "700" },
+
+    detail: {
+      paddingHorizontal: SPACE.lg,
+      paddingBottom: SPACE.lg,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      paddingTop: SPACE.lg,
+      gap: SPACE.lg
+    },
+    moneyBlock: { gap: 7 },
+    moneyRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+    moneyLabel: { color: colors.textSecondary, fontSize: 13, fontWeight: "600" },
+    moneyLabelStrong: { color: colors.textPrimary, fontWeight: "800" },
+    moneyValue: { color: colors.textSecondary, fontSize: 13, fontWeight: "600" },
+    moneyValueStrong: { color: colors.textPrimary, fontSize: 15, fontWeight: "900" },
+
+    legBlock: { gap: 3 },
+    legLabelRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 3 },
+    legDot: { width: 7, height: 7, borderRadius: 4 },
+    legLabel: { color: colors.textMuted, fontSize: 10, fontWeight: "800", letterSpacing: 0.9 },
+    legName: { color: colors.textPrimary, fontSize: 14.5, fontWeight: "700" },
+    legDetail: { color: colors.textSecondary, fontSize: 13, lineHeight: 19 },
+
+    itemsBlock: {
+      backgroundColor: colors.bgTertiary,
+      borderRadius: RADIUS.sm,
+      padding: SPACE.md,
+      gap: 7
+    },
+    itemsTitle: { color: colors.textMuted, fontSize: 10, fontWeight: "800", letterSpacing: 0.9 },
+    itemRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: SPACE.md },
+    itemName: { color: colors.textPrimary, fontSize: 13, flex: 1, lineHeight: 18 },
+    itemPrice: { color: colors.textPrimary, fontSize: 13, fontWeight: "700" },
+
+    deliverBtn: {
+      backgroundColor: colors.accent,
+      paddingVertical: 13,
+      alignItems: "center",
+      justifyContent: "center"
+    },
+    deliverBtnText: { color: "#FFFFFF", fontWeight: "800", fontSize: 13.5 },
+
+    footerNote: {
+      color: colors.textMuted,
+      fontSize: 12,
+      fontWeight: "600",
+      textAlign: "center",
+      paddingVertical: SPACE.xl
+    }
+  });

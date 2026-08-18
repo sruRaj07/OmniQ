@@ -65,6 +65,11 @@ async function getOrCreateAuthUser(email: string, role: string) {
     email,
     password: "Password123!",
     email_confirm: true,
+    // app_metadata is the authoritative claim: the gateway derives a caller's role from it and
+    // ignores user_metadata entirely (backend/shared/utils/jwtVerifier.ts). Seeding only
+    // user_metadata produced accounts that looked like admins in the app and were treated as
+    // plain buyers by the API - every /admin* call came back 403.
+    app_metadata: { role },
     user_metadata: { role }
   });
   

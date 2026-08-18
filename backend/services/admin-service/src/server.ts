@@ -8,7 +8,7 @@ import express from "express";
 import helmet from "helmet";
 import { ok } from "../../../shared/utils/responseFormatter";
 import { requireRole } from "../../../shared/utils/gatewayIdentity";
-import { analyticsController, dashboardController, moderateProductController, zoneController, deleteZoneController, listZonesController, listAllOrdersController, listUserRequestsController, actionUserRequestController } from "./controllers/adminController";
+import { analyticsController, dashboardController, moderateProductController, zoneController, deleteZoneController, listZonesController, listAllOrdersController, listUserRequestsController, actionUserRequestController, listFlaggedProductsController, listAuditLogController } from "./controllers/adminController";
 import { createAdvertisementController, deleteAdvertisementController, updateAdvertisementController } from "./controllers/advertisementController";
 import multer from "multer";
 
@@ -30,13 +30,13 @@ app.use("/admin", requireRole("admin"));
 
 app.get("/admin/dashboard", dashboardController);
 app.get("/admin/analytics", analyticsController);
-app.get("/admin/flagged-products", (_request, response) => response.json(ok([])));
+app.get("/admin/flagged-products", listFlaggedProductsController);
 app.patch("/admin/products/:id/moderate", moderateProductController);
 app.get("/admin/zones", listZonesController);
 app.post("/admin/zones", zoneController);
 app.delete("/admin/zones/:id", deleteZoneController);
 app.get("/admin/orders", listAllOrdersController);
-app.get("/admin/audit-log", (_request, response) => response.json(ok([])));
+app.get("/admin/audit-log", listAuditLogController);
 app.post("/admin/advertisements", upload.single("image"), createAdvertisementController);
 app.patch("/admin/advertisements/:id", upload.single("image"), updateAdvertisementController);
 app.delete("/admin/advertisements/:id", deleteAdvertisementController);

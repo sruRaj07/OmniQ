@@ -18,6 +18,7 @@ import { PauseIcon } from "@/components/ui/PauseIcon";
 import { PlayIcon } from "@/components/ui/PlayIcon";
 import { TrashIcon } from "@/components/ui/TrashIcon";
 import { EditIcon } from "@/components/ui/EditIcon";
+import { QueryBoundary, SkeletonRows } from "@/components/admin/AdminUI";
 
 type Advertisement = {
   id: string;
@@ -46,13 +47,15 @@ export default function ManageAdsScreen() {
   const [editTargetUrl, setEditTargetUrl] = useState("");
   const [editImageUri, setEditImageUri] = useState<string | null>(null);
 
-  const { data: allCampaigns, isLoading } = useQuery({
+  const campaignsQuery = useQuery({
     queryKey: ["admin-advertisements"],
     queryFn: async () => {
       const res = await apiClient.get<{ data: Advertisement[] }>("/products/advertisements");
-      return res.data.data;
+      return res.data?.data ?? [];
     }
-  }, queryClient);
+  });
+  const allCampaigns = campaignsQuery.data;
+  const isLoading = campaignsQuery.isLoading;
 
   // Filter ads vs offers based on title prefix
   const ads = useMemo(() => allCampaigns?.filter(c => !c.title.startsWith("[OFFER]")) || [], [allCampaigns]);
@@ -253,14 +256,19 @@ export default function ManageAdsScreen() {
         </View>
       </View>
 
-      {isLoading ? (
-        <ActivityIndicator color={colors.accent} style={{ marginTop: 40 }} />
-      ) : items.length === 0 ? (
-        <View style={styles.emptyState}>
-          <ShieldIcon size={48} color={colors.border} />
-          <Text style={styles.emptyText}>No active {type === 'ads' ? 'advertisements' : 'offers'}.</Text>
-        </View>
-      ) : (
+      <QueryBoundary
+        isLoading={isLoading}
+        error={campaignsQuery.error}
+        onRetry={campaignsQuery.refetch}
+        isEmpty={items.length === 0}
+        skeleton={<SkeletonRows count={3} />}
+        empty={
+          <View style={styles.emptyState}>
+            <ShieldIcon size={48} color={colors.border} />
+            <Text style={styles.emptyText}>No active {type === 'ads' ? 'advertisements' : 'offers'}.</Text>
+          </View>
+        }
+      >
         <View style={styles.adsList}>
           {items.map(item => (
             <View key={item.id} style={styles.adRowContainer}>
@@ -317,7 +325,7 @@ export default function ManageAdsScreen() {
             </View>
           ))}
         </View>
-      )}
+      </QueryBoundary>
     </View>
   );
 

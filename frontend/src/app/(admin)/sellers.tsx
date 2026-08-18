@@ -1,318 +1,355 @@
 /**
- * OmniQ mobile app - admin sellers screen.
+ * OmniQ mobile app - admin seller management.
+ *
+ * Approving, rejecting and suspending a business are consequential and irreversible-feeling
+ * actions, so this screen is built around making the current state obvious and the action
+ * deliberate: one status vocabulary shared with the rest of the console, tab counts so an operator
+ * can see the queue without opening it, and a confirmation on anything that takes a live seller
+ * off the platform.
+ *
  * Author: OmniQ Team
  */
-import { StyleSheet, Text, View, ActivityIndicator, Alert, TouchableOpacity } from "react-native";
-import { useState, useCallback } from "react";
+// Explicit React import: this tsconfig uses the classic JSX transform, so a file rendering JSX
+// without it resolves `React` to a UMD global and TypeScript reports TS2686 on every element.
+import React, { useCallback, useMemo, useState } from "react";
+import { Alert, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { FlashList } from "@shopify/flash-list";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { Screen } from "@/components/shared/Screen";
 import { useThemeColors } from "@/store/useThemeStore";
 import { apiClient } from "@/lib/apiClient";
-import { LocationIcon } from "@/components/ui/LocationIcon";
-import { ShieldIcon } from "@/components/ui/ShieldIcon";
 import { useRouter } from "expo-router";
 import { useRefreshControl } from "@/hooks/useRefreshControl";
+import { RADIUS, SHADOW, SPACE, sellerStatusMeta, withAlpha } from "@/constants/adminTheme";
+import {
+  AdminHeader,
+  EmptyState,
+  QueryBoundary,
+  SegmentedTabs,
+  SkeletonRows,
+  StatusPill,
+  type SegmentItem
+} from "@/components/admin/AdminUI";
+import { MapPinIcon, StoreIcon, TagIcon } from "@/components/ui/SellerIcons";
+
+type TabKey = "pending" | "approved" | "inactive";
 
 export default function AdminSellersScreen() {
   const colors = useThemeColors();
-  const styles = getStyles(colors);
+  const styles = useMemo(() => getStyles(colors), [colors]);
   // Pull-to-refresh for this list. `Screen` owns it for scrolling screens; this one
   // passes scroll={false}, so the list attaches it itself.
   const refreshControl = useRefreshControl();
   const router = useRouter();
-  
-  const [activeTab, setActiveTab] = useState<'requests' | 'approved'>('requests');
 
-  const { data: sellers, isLoading } = useQuery({
+  const [activeTab, setActiveTab] = useState<TabKey>("pending");
+
+  const sellersQuery = useQuery({
     queryKey: ["adminSellers"],
     queryFn: async () => {
       const res = await apiClient.get("/sellers");
-      return res.data.data;
+      return res.data?.data ?? [];
     }
-  }, queryClient);
+  });
+
+  const sellers: any[] = sellersQuery.data ?? [];
 
   const updateStatus = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string; }) => {
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
       await apiClient.patch(`/sellers/${id}/status`, { status });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["adminSellers"] });
+      // The dashboard's pending/active seller counts are derived from these rows.
+      queryClient.invalidateQueries({ queryKey: ["adminDashboard"] });
     },
     onError: (err: any) => {
-      Alert.alert("Error", err?.response?.data?.message || err.message);
+      Alert.alert(
+        "Couldn't update the seller",
+        err?.response?.data?.error?.message || err?.message || "Please try again."
+      );
     }
-  }, queryClient);
+  });
 
-  const filteredSellers = (sellers || []).filter((seller: any) => 
-    activeTab === 'requests' ? seller.status === 'pending' : seller.status !== 'pending'
+  // ⚡ PERFORMANCE: one pass over the sellers produces both the buckets and the tab counts, rather
+  // than three filters plus three more for the badges.
+  const { buckets, tabs } = useMemo(() => {
+    const grouped: Record<TabKey, any[]> = { pending: [], approved: [], inactive: [] };
+    for (const seller of sellers) {
+      const status = String(seller.status ?? "").toLowerCase();
+      if (status === "pending") grouped.pending.push(seller);
+      else if (status === "approved" || status === "active") grouped.approved.push(seller);
+      else grouped.inactive.push(seller);
+    }
+    const items: SegmentItem[] = [
+      { key: "pending", label: "Requests", count: grouped.pending.length },
+      { key: "approved", label: "Approved", count: grouped.approved.length },
+      { key: "inactive", label: "Inactive", count: grouped.inactive.length }
+    ];
+    return { buckets: grouped, tabs: items };
+  }, [sellers]);
+
+  const visible = buckets[activeTab];
+
+  /** Anything that removes a live seller from the platform asks first. */
+  const confirmThen = useCallback(
+    (title: string, message: string, onConfirm: () => void, destructive = true) => {
+      if (Platform.OS === "web") {
+        if (window.confirm(`${title}\n\n${message}`)) onConfirm();
+        return;
+      }
+      Alert.alert(title, message, [
+        { text: "Cancel", style: "cancel" },
+        { text: "Confirm", style: destructive ? "destructive" : "default", onPress: onConfirm }
+      ]);
+    },
+    []
   );
 
-  const renderHeader = useCallback(() => (
-    <>
-      <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <Text style={styles.title}>Seller Management</Text>
-          <Text style={styles.subtitle}>Approve or suspend sellers</Text>
-        </View>
+  const renderHeader = useCallback(
+    () => (
+      <View style={styles.headerBlock}>
+        <AdminHeader
+          title="Sellers"
+          subtitle={
+            buckets.pending.length > 0
+              ? `${buckets.pending.length} business${buckets.pending.length === 1 ? "" : "es"} waiting on you`
+              : "Every application has been reviewed"
+          }
+        />
+        <SegmentedTabs items={tabs} value={activeTab} onChange={(key) => setActiveTab(key as TabKey)} />
       </View>
+    ),
+    [styles, buckets.pending.length, tabs, activeTab]
+  );
 
-      <View style={styles.tabContainer}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'requests' && styles.activeTab]}
-          onPress={() => setActiveTab('requests')}
-        >
-          <Text style={[styles.tabText, activeTab === 'requests' && styles.activeTabText]}>Requests</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'approved' && styles.activeTab]}
-          onPress={() => setActiveTab('approved')}
-        >
-          <Text style={[styles.tabText, activeTab === 'approved' && styles.activeTabText]}>Approved</Text>
-        </TouchableOpacity>
-      </View>
-    </>
-  ), [activeTab, styles]);
+  const renderItem = useCallback(
+    ({ item: seller }: { item: any }) => {
+      const status = String(seller.status ?? "").toLowerCase();
+      const meta = sellerStatusMeta(seller.status, colors);
+      const busy = updateStatus.isPending && updateStatus.variables?.id === seller.id;
 
-  const renderItem = useCallback(({ item: seller }: { item: any }) => (
-    <View style={styles.card}>
-      <View style={styles.cardHeader}>
-        <View style={{ flex: 1, paddingRight: 10 }}>
-          <Text style={styles.storeName}>{seller.business_name || "Unknown Store"}</Text>
-          <View style={styles.detailsRow}>
-            <Text style={styles.category}>{seller.category || "Uncategorized"}</Text>
-            <View style={styles.dotSeparator} />
-            <LocationIcon size={12} color={colors.textMuted} />
-            <Text style={styles.city}>{seller.city || "Unknown"}</Text>
+      return (
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={styles.identity}>
+              <Text style={styles.storeName} numberOfLines={2}>
+                {seller.business_name || "Unnamed store"}
+              </Text>
+              <View style={styles.metaRow}>
+                <TagIcon size={11} color={colors.textMuted} strokeWidth={2.2} />
+                <Text style={styles.metaText} numberOfLines={1}>
+                  {seller.category || "Uncategorised"}
+                </Text>
+                <View style={styles.dot} />
+                <MapPinIcon size={11} color={colors.textMuted} strokeWidth={2.2} />
+                <Text style={styles.metaText} numberOfLines={1}>
+                  {seller.city || "City not set"}
+                </Text>
+              </View>
+            </View>
+            <StatusPill label={meta.label} color={meta.color} tint={meta.tint} />
+          </View>
+
+          <Text style={styles.description} numberOfLines={3}>
+            {seller.description || "No description provided."}
+          </Text>
+
+          {seller.gst_number ? (
+            <View style={styles.gstRow}>
+              <Text style={styles.gstLabel}>GSTIN</Text>
+              <Text style={styles.gstValue} selectable>
+                {seller.gst_number}
+              </Text>
+            </View>
+          ) : null}
+
+          <View style={styles.actions}>
+            {status === "pending" ? (
+              <>
+                <Pressable
+                  disabled={busy}
+                  onPress={() =>
+                    confirmThen(
+                      "Approve this seller?",
+                      `${seller.business_name || "This business"} will be able to list products and take orders immediately.`,
+                      () => updateStatus.mutate({ id: seller.id, status: "approved" }),
+                      false
+                    )
+                  }
+                  accessibilityRole="button"
+                  style={({ pressed }) => [styles.btn, styles.btnPrimary, pressed && styles.pressed]}
+                >
+                  <Text style={styles.btnPrimaryText}>{busy ? "Working…" : "Approve"}</Text>
+                </Pressable>
+                <Pressable
+                  disabled={busy}
+                  onPress={() =>
+                    confirmThen(
+                      "Reject this application?",
+                      "The business will not be able to sell on OmniQ. They can apply again later.",
+                      () => updateStatus.mutate({ id: seller.id, status: "rejected" })
+                    )
+                  }
+                  accessibilityRole="button"
+                  style={({ pressed }) => [styles.btn, styles.btnGhost, pressed && styles.pressed]}
+                >
+                  <Text style={styles.btnGhostText}>Reject</Text>
+                </Pressable>
+              </>
+            ) : null}
+
+            {status === "approved" || status === "active" ? (
+              <>
+                <Pressable
+                  disabled={busy}
+                  onPress={() =>
+                    router.push(
+                      `/(admin)/seller-products?sellerId=${seller.id}&storeName=${encodeURIComponent(seller.business_name || "")}`
+                    )
+                  }
+                  accessibilityRole="button"
+                  style={({ pressed }) => [styles.btn, styles.btnGhost, pressed && styles.pressed]}
+                >
+                  <Text style={styles.btnGhostText}>Review products</Text>
+                </Pressable>
+                <Pressable
+                  disabled={busy}
+                  onPress={() =>
+                    confirmThen(
+                      "Suspend this seller?",
+                      `${seller.business_name || "This business"}'s products will be hidden from buyers straight away. Existing orders are unaffected.`,
+                      () => updateStatus.mutate({ id: seller.id, status: "suspended" })
+                    )
+                  }
+                  accessibilityRole="button"
+                  style={({ pressed }) => [styles.btn, styles.btnDanger, pressed && styles.pressed]}
+                >
+                  <Text style={styles.btnDangerText}>{busy ? "Working…" : "Suspend"}</Text>
+                </Pressable>
+              </>
+            ) : null}
+
+            {status === "suspended" || status === "rejected" ? (
+              <Pressable
+                disabled={busy}
+                onPress={() =>
+                  confirmThen(
+                    "Restore this seller?",
+                    "Their products go back on the storefront immediately.",
+                    () => updateStatus.mutate({ id: seller.id, status: "approved" }),
+                    false
+                  )
+                }
+                accessibilityRole="button"
+                style={({ pressed }) => [styles.btn, styles.btnPrimary, pressed && styles.pressed]}
+              >
+                <Text style={styles.btnPrimaryText}>{busy ? "Working…" : "Restore"}</Text>
+              </Pressable>
+            ) : null}
           </View>
         </View>
-        <View style={[styles.statusBadge, { borderColor: seller.status === 'approved' ? colors.success : seller.status === 'pending' ? colors.warning : colors.danger }]}>
-          <Text style={[styles.badgeText, { color: seller.status === 'approved' ? colors.success : seller.status === 'pending' ? colors.warning : colors.danger }]}>
-            {seller.status === 'approved' ? "✓ APPROVED" : seller.status === 'pending' ? "⏳ PENDING" : seller.status?.toUpperCase()}
-          </Text>
-        </View>
-      </View>
-
-      <Text style={styles.description} numberOfLines={2}>
-        {seller.description || "No description provided."}
-      </Text>
-      
-      <View style={styles.actions}>
-        {seller.status === "pending" && (
-          <>
-            <TouchableOpacity 
-              style={[styles.button, { backgroundColor: colors.accent, borderColor: colors.accent }]} 
-              onPress={() => updateStatus.mutate({ id: seller.id, status: "approved" })}
-            >
-              <Text style={[styles.btnText, { color: "#FFFFFF" }]}>Approve</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.button} 
-              onPress={() => updateStatus.mutate({ id: seller.id, status: "rejected" })}
-            >
-              <Text style={styles.btnText}>Reject</Text>
-            </TouchableOpacity>
-          </>
-        )}
-        
-        {seller.status === "approved" && (
-          <TouchableOpacity 
-            style={styles.button} 
-            onPress={() => updateStatus.mutate({ id: seller.id, status: "suspended" })}
-          >
-            <Text style={styles.btnText}>Suspend</Text>
-          </TouchableOpacity>
-        )}
-        
-        {seller.status === "suspended" && (
-          <TouchableOpacity 
-            style={styles.button} 
-            onPress={() => updateStatus.mutate({ id: seller.id, status: "approved" })}
-          >
-            <Text style={styles.btnText}>Restore</Text>
-          </TouchableOpacity>
-        )}
-        
-        {seller.status === "approved" && (
-          <TouchableOpacity 
-            style={styles.button} 
-            onPress={() => router.push(`/(admin)/seller-products?sellerId=${seller.id}&storeName=${encodeURIComponent(seller.business_name || '')}`)}
-          >
-            <Text style={styles.btnText}>Review Products</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-    </View>
-  ), [colors, styles, updateStatus, router]);
+      );
+    },
+    [colors, styles, updateStatus, router, confirmThen]
+  );
 
   return (
     <Screen scroll={false}>
-      {isLoading ? (
-        <>
-          {renderHeader()}
-          <ActivityIndicator size="large" color={colors.accent} style={{ marginTop: 40 }} />
-        </>
-      ) : (
+      <QueryBoundary
+        isLoading={sellersQuery.isLoading}
+        error={sellersQuery.error}
+        onRetry={sellersQuery.refetch}
+        skeleton={
+          <>
+            {renderHeader()}
+            <SkeletonRows count={4} />
+          </>
+        }
+      >
         <FlashList
-          data={filteredSellers}
+          data={visible}
           refreshControl={refreshControl}
           renderItem={renderItem}
-          {...({ estimatedItemSize: 200 } as any)}
+          keyExtractor={(item: any) => String(item.id)}
+          {...({ estimatedItemSize: 220 } as any)}
           ListHeaderComponent={renderHeader}
           contentContainerStyle={{ paddingBottom: 100 }}
           showsVerticalScrollIndicator={false}
-          ItemSeparatorComponent={() => <View style={{ height: 16 }} />}
+          ItemSeparatorComponent={() => <View style={{ height: SPACE.md }} />}
           ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <ShieldIcon size={48} color="rgba(255,255,255,0.1)" />
-              <Text style={styles.emptyText}>No {activeTab} sellers found.</Text>
-            </View>
+            <EmptyState
+              icon={StoreIcon}
+              title={
+                activeTab === "pending"
+                  ? "No applications waiting"
+                  : activeTab === "approved"
+                    ? "No approved sellers yet"
+                    : "No suspended or rejected sellers"
+              }
+              message={
+                activeTab === "pending"
+                  ? "New seller applications land here for review."
+                  : activeTab === "approved"
+                    ? "Approve an application and the business appears here."
+                    : "Sellers you suspend or reject are listed here so you can restore them."
+              }
+            />
           }
         />
-      )}
+      </QueryBoundary>
     </Screen>
   );
 }
 
-const getStyles = (colors: any) => StyleSheet.create({
-  header: {
-    marginBottom: 24
-  },
-  headerContent: {
-    flex: 1
-  },
-  title: {
-    color: colors.textPrimary,
-    fontSize: 28,
-    fontWeight: "800",
-    marginBottom: 4,
-    letterSpacing: -0.5
-  },
-  subtitle: {
-    color: colors.textSecondary,
-    fontSize: 13,
-    fontWeight: "600"
-  },
-  tabContainer: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 24
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: "center",
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface
-  },
-  activeTab: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent
-  },
-  tabText: {
-    color: colors.textSecondary,
-    fontWeight: "700",
-    fontSize: 13
-  },
-  activeTabText: {
-    color: "#FFFFFF"
-  },
-  emptyState: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 60
-  },
-  emptyText: {
-    color: colors.textMuted,
-    marginTop: 16,
-    fontSize: 16,
-    fontWeight: "600"
-  },
-  list: {
-    gap: 16
-  },
-  card: {
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.card
-  },
-  cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 12
-  },
-  storeName: {
-    color: colors.textPrimary,
-    fontSize: 18,
-    fontWeight: "800",
-    marginBottom: 6
-  },
-  detailsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6
-  },
-  dotSeparator: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.border
-  },
-  category: {
-    color: colors.textSecondary,
-    fontSize: 11,
-    fontWeight: "600",
-    letterSpacing: 0.5
-  },
-  city: {
-    color: colors.textMuted,
-    fontSize: 11,
-    fontWeight: "700"
-  },
-  description: {
-    color: colors.textSecondary,
-    fontSize: 13,
-    marginBottom: 20,
-    lineHeight: 20,
-    fontWeight: "500"
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 4,
-    borderWidth: 1,
-    backgroundColor: "transparent"
-  },
-  badgeText: {
-    fontSize: 10,
-    fontWeight: "800",
-    textTransform: "uppercase",
-    letterSpacing: 0.5
-  },
-  actions: {
-    flexDirection: "row",
-    gap: 12
-  },
-  button: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border
-  },
-  btnText: {
-    color: colors.textPrimary,
-    fontSize: 13,
-    fontWeight: "600",
-    letterSpacing: 0.5
-  }
-});
+const getStyles = (colors: any) =>
+  StyleSheet.create({
+    headerBlock: { paddingBottom: SPACE.lg },
+    pressed: { opacity: 0.85 },
+
+    card: {
+      borderRadius: RADIUS.lg,
+      padding: SPACE.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+      ...SHADOW.sm
+    },
+    cardHeader: { flexDirection: "row", alignItems: "flex-start", gap: SPACE.md, marginBottom: SPACE.md },
+    identity: { flex: 1 },
+    storeName: { color: colors.textPrimary, fontSize: 17, fontWeight: "800", letterSpacing: -0.3 },
+    metaRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 6 },
+    metaText: { color: colors.textMuted, fontSize: 11.5, fontWeight: "700", flexShrink: 1 },
+    dot: { width: 3, height: 3, borderRadius: 2, backgroundColor: colors.border, marginHorizontal: 2 },
+
+    description: { color: colors.textSecondary, fontSize: 13, lineHeight: 20, marginBottom: SPACE.md },
+
+    gstRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: SPACE.sm,
+      paddingVertical: SPACE.sm,
+      paddingHorizontal: SPACE.md,
+      backgroundColor: colors.bgTertiary,
+      borderRadius: RADIUS.sm,
+      marginBottom: SPACE.lg
+    },
+    gstLabel: { color: colors.textMuted, fontSize: 10, fontWeight: "800", letterSpacing: 0.8 },
+    gstValue: { color: colors.textPrimary, fontSize: 12.5, fontWeight: "700", flex: 1 },
+
+    actions: { flexDirection: "row", gap: SPACE.md },
+    btn: {
+      flex: 1,
+      paddingVertical: 12,
+      borderRadius: RADIUS.sm,
+      alignItems: "center",
+      justifyContent: "center"
+    },
+    btnPrimary: { backgroundColor: colors.accent },
+    btnPrimaryText: { color: "#FFFFFF", fontSize: 13.5, fontWeight: "800" },
+    btnGhost: { backgroundColor: colors.bgTertiary, borderWidth: 1, borderColor: colors.border },
+    btnGhostText: { color: colors.textPrimary, fontSize: 13.5, fontWeight: "700" },
+    btnDanger: { backgroundColor: withAlpha(colors.danger, 0.1), borderWidth: 1, borderColor: withAlpha(colors.danger, 0.3) },
+    btnDangerText: { color: colors.danger, fontSize: 13.5, fontWeight: "800" }
+  });

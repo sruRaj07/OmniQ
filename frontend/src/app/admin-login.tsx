@@ -2,7 +2,9 @@
  * OmniQ mobile app - admin login screen.
  * Author: OmniQ Team
  */
-import { useRef, useState } from "react";
+// Explicit React import: this tsconfig uses the classic JSX transform, so a file rendering JSX
+// without it resolves `React` to a UMD global and TypeScript reports TS2686 on every element.
+import React, { useRef, useState } from "react";
 import { Link, useRouter } from "expo-router";
 import { StyleSheet, Text, View, Platform, TouchableOpacity, KeyboardAvoidingView, type TextInput } from "react-native";
 import { Button } from "@/components/ui/Button";
@@ -15,6 +17,7 @@ import { useThemeColors } from "@/store/useThemeStore";
 import { typography } from "@/constants/typography";
 import { supabase } from "@/lib/supabase";
 import { apiClient } from "@/lib/apiClient";
+import { roleFromAccessToken } from "@/lib/sessionRole";
 export default function AdminLoginScreen() {
   const colors = useThemeColors();
   const styles = getStyles(colors);
@@ -41,18 +44,26 @@ export default function AdminLoginScreen() {
         password
       });
       if (res.data?.data?.session) {
+        const accessToken = res.data.data.session.access_token;
         await supabase.auth.setSession({
-          access_token: res.data.data.session.access_token,
+          access_token: accessToken,
           refresh_token: res.data.data.session.refresh_token
         });
-        const userRole = res.data.data.session.user?.user_metadata?.role;
-        if (userRole === "admin") {
+        // Read the same claim the gateway enforces (app_metadata.role), not user_metadata.role.
+        // They can disagree, and when they did this screen let the account through to a console
+        // where every request was answered 403 - which rendered as an empty dashboard rather than
+        // as "you are not an admin".
+        if (roleFromAccessToken(accessToken) === "admin") {
           router.replace("/(admin)" as any);
         } else {
           // Sign back out first, then report: leaving a non-admin session live behind an
           // "access denied" message is the kind of gap that turns into a real one.
           await supabase.auth.signOut();
-          setFormError("That account does not have administrator privileges.");
+          setFormError(
+            "That account does not have administrator privileges. If you believe it should, the " +
+            "admin role has to be set on the account's app_metadata - a role stored only in " +
+            "user_metadata is not accepted by the API."
+          );
         }
       } else {
         throw new Error("Invalid response from server");

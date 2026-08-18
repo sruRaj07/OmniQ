@@ -2,8 +2,10 @@
  * OmniQ mobile app - admin zones screen.
  * Author: OmniQ Team
  */
+// Explicit React import: this tsconfig uses the classic JSX transform, so a file rendering JSX
+// without it resolves `React` to a UMD global and TypeScript reports TS2686 on every element.
+import React, { useState } from "react";
 import { StyleSheet, Text, View, ActivityIndicator, TextInput, TouchableOpacity, Modal, Pressable } from "react-native";
-import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { Screen } from "@/components/shared/Screen";
@@ -11,6 +13,7 @@ import { ShieldIcon } from "@/components/ui/ShieldIcon";
 import { TrashIcon } from "@/components/ui/TrashIcon";
 import { useThemeColors } from "@/store/useThemeStore";
 import { apiClient } from "@/lib/apiClient";
+import { QueryBoundary, SkeletonRows } from "@/components/admin/AdminUI";
 
 const ZONES_KEY = ["adminZones"] as const;
 
@@ -66,13 +69,14 @@ export default function AdminZonesScreen() {
   // path shows the admin nothing at all.
   const [createError, setCreateError] = useState<string | null>(null);
 
-  const { data: zones, isLoading } = useQuery({
+  const zonesQuery = useQuery({
     queryKey: ZONES_KEY,
     queryFn: async () => {
       const res = await apiClient.get("/admin/zones");
-      return (res.data.data || []) as Zone[];
+      return (res.data?.data || []) as Zone[];
     }
-  }, queryClient);
+  });
+  const zones = zonesQuery.data;
 
   const createZone = useMutation({
     mutationFn: async (name: string) => {
@@ -154,19 +158,27 @@ export default function AdminZonesScreen() {
         </View>
       )}
 
-      {isLoading ? (
-        <ActivityIndicator size="large" color={colors.accent} style={{ marginTop: 40 }} />
-      ) : zones?.length === 0 ? (
-        <View style={styles.emptyState}>
-          <ShieldIcon size={48} color={colors.textMuted} />
-          <Text style={styles.emptyText}>No zones configured</Text>
-          <Text style={styles.emptySubtext}>Without a zone, no pincode is serviceable and buyers cannot check out.</Text>
-        </View>
-      ) : (
+      {/* A failed zone fetch used to render as "No zones configured" - which reads as "delivery is
+          switched off platform-wide" and is the single most alarming thing this screen can say.
+          QueryBoundary keeps the two apart. */}
+      <QueryBoundary
+        isLoading={zonesQuery.isLoading}
+        error={zonesQuery.error}
+        onRetry={zonesQuery.refetch}
+        isEmpty={zones?.length === 0}
+        skeleton={<SkeletonRows count={3} />}
+        empty={
+          <View style={styles.emptyState}>
+            <ShieldIcon size={48} color={colors.textMuted} />
+            <Text style={styles.emptyText}>No zones configured</Text>
+            <Text style={styles.emptySubtext}>Without a zone, no pincode is serviceable and buyers cannot check out.</Text>
+          </View>
+        }
+      >
         <View style={styles.list}>
           {zones?.map(zone => <ZoneCard key={zone.id} zone={zone} />)}
         </View>
-      )}
+      </QueryBoundary>
       <View style={{ height: 60 }} />
     </Screen>
   );

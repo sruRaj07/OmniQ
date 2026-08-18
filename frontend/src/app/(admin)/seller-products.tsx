@@ -9,7 +9,9 @@ import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, run
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
-import { useState, useCallback } from "react";
+// Explicit React import: this tsconfig uses the classic JSX transform, so a file rendering JSX
+// without it resolves `React` to a UMD global and TypeScript reports TS2686 on every element.
+import React, { useState, useCallback } from "react";
 import { FlashList } from "@shopify/flash-list";
 import { Screen } from "@/components/shared/Screen";
 import { useThemeColors } from "@/store/useThemeStore";
@@ -18,6 +20,7 @@ import { apiClient } from "@/lib/apiClient";
 import { formatCurrency } from "@/utils/formatCurrency";
 import { ShieldIcon } from "@/components/ui/ShieldIcon";
 import { CategorySvgIcon } from "@/components/ui/CategorySvgIcon";
+import { QueryBoundary, SkeletonRows } from "@/components/admin/AdminUI";
 import { useRefreshControl } from "@/hooks/useRefreshControl";
 export default function AdminSellerProductsScreen() {
   const colors = useThemeColors();
@@ -63,17 +66,16 @@ export default function AdminSellerProductsScreen() {
     opacity: opacityAnim.value
   }));
 
-  const {
-    data: products,
-    isLoading
-  } = useQuery({
+  const productsQuery = useQuery({
     queryKey: ["adminSellerProducts", sellerId],
     queryFn: async () => {
       const res = await apiClient.get(`/products?sellerId=${sellerId}&limit=500`);
-      return res.data.data;
+      return res.data?.data ?? [];
     },
     enabled: !!sellerId
-  }, queryClient);
+  });
+  const products = productsQuery.data;
+  const isLoading = productsQuery.isLoading;
   
   const moderateProduct = useMutation({
     mutationFn: async ({
@@ -242,16 +244,24 @@ export default function AdminSellerProductsScreen() {
   }, [expandedId, loadingAction, colors, styles, moderateProduct]);
 
   return <Screen scroll={false}>
-      {isLoading ? (
-        <>
-          {renderHeader()}
-          <ActivityIndicator size="large" color="#6C63FF" style={{ marginTop: 40 }} />
-        </>
-      ) : (
+      {/* Without this, a failed fetch rendered "No products found" - indistinguishable from a
+          seller who has genuinely listed nothing, and the reason moderation looked broken. */}
+      <QueryBoundary
+        isLoading={isLoading}
+        error={productsQuery.error}
+        onRetry={productsQuery.refetch}
+        skeleton={
+          <>
+            {renderHeader()}
+            <SkeletonRows count={4} />
+          </>
+        }
+      >
         <FlashList
           data={filteredProducts}
           refreshControl={refreshControl}
           renderItem={renderItem}
+          keyExtractor={(item: any) => String(item.id)}
           {...({ estimatedItemSize: 250 } as any)}
           extraData={expandedId}
           ListHeaderComponent={renderHeader}
@@ -260,12 +270,12 @@ export default function AdminSellerProductsScreen() {
           ItemSeparatorComponent={() => <View style={{ height: 16 }} />}
           ListEmptyComponent={
             <View style={styles.emptyState}>
-              <ShieldIcon size={48} color="rgba(0,0,0,0.05)" />
+              <ShieldIcon size={48} color={colors.border} />
               <Text style={styles.emptyText}>No {activeTab} products found.</Text>
             </View>
           }
         />
-      )}
+      </QueryBoundary>
 
       <Modal visible={showSuccess} transparent animationType="fade">
         <View style={styles.modalContainer}>
