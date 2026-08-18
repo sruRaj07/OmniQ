@@ -9,6 +9,7 @@ import helmet from "helmet";
 import { ok } from "../../../shared/utils/responseFormatter";
 import { pincodeLookupController, zoneCheckController } from "./controllers/locationController";
 import { installGracefulShutdown } from "../../../shared/utils/gracefulShutdown";
+import { notFoundHandler, errorHandler } from "../../../shared/utils/httpErrors";
 
 dotenv.config();
 const app = express();
@@ -19,5 +20,10 @@ app.use(express.json());
 app.get("/health", (_request, response) => response.json(ok({ service: "location-service", status: "ok", uptime: process.uptime(), version: "1.0.0" })));
 app.post("/location/zone-check", zoneCheckController);
 app.get("/location/pincode/:pincode", pincodeLookupController);
+
+// Terminal handlers: must come after every route so they only see what nothing else matched.
+app.use(notFoundHandler);
+app.use(errorHandler);
+
 const server = app.listen(port, "0.0.0.0", () => console.log(`OmniQ location service running on ${port}`));
 installGracefulShutdown(server, "location-service");

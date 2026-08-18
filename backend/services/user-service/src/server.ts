@@ -11,6 +11,7 @@ import { requireAuth, requireRole } from "../../../shared/utils/gatewayIdentity"
 import { assignRoleController, meController, updateProfileController, createUserRequestController, getUserRequestsController, deleteAccountController } from "./controllers/userController";
 import { signInController, signUpController, verifyOtpController } from "./controllers/authController";
 import { installGracefulShutdown } from "../../../shared/utils/gracefulShutdown";
+import { notFoundHandler, errorHandler } from "../../../shared/utils/httpErrors";
 
 dotenv.config();
 const app = express();
@@ -49,6 +50,11 @@ app.post("/auth/login", signInController);
 app.post("/login", signInController);
 app.post("/auth/verify-otp", verifyOtpController);
 app.post("/verify-otp", verifyOtpController);
+
+
+// Terminal handlers: must come after every route so they only see what nothing else matched.
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 const server = app.listen(port, "0.0.0.0", () => console.log(`OmniQ user service running on ${port}`));
 installGracefulShutdown(server, "user-service");

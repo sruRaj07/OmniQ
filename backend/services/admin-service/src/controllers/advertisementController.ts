@@ -95,9 +95,23 @@ export async function createAdvertisementController(request: Request, response: 
   }
 }
 
+/**
+ * `advertisements.id` is a uuid column, so a malformed id reached Postgres and came back as
+ * `invalid input syntax for type uuid: "..."` under a 500 - a client mistake reported as a server
+ * fault. Checking the shape first makes it a 400, which is what DELETE /admin/zones/:id already did.
+ */
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function rejectMalformedId(id: string | undefined, response: Response): boolean {
+  if (id && UUID_PATTERN.test(id)) return false;
+  response.status(400).json(fail("VALIDATION_ERROR", "Advertisement id must be a valid uuid."));
+  return true;
+}
+
 export async function deleteAdvertisementController(request: Request, response: Response): Promise<void> {
   try {
     const id = request.params.id;
+    if (rejectMalformedId(id, response)) return;
     const { error } = await supabaseAdmin
       .from("advertisements")
       .delete()
@@ -117,6 +131,7 @@ export async function deleteAdvertisementController(request: Request, response: 
 export async function updateAdvertisementController(request: Request, response: Response): Promise<void> {
   try {
     const id = request.params.id;
+    if (rejectMalformedId(id, response)) return;
     const { title, target_url, is_active } = request.body;
 
     const updates: any = {};

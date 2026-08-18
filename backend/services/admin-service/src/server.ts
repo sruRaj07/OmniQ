@@ -12,6 +12,7 @@ import { analyticsController, dashboardController, moderateProductController, zo
 import { createAdvertisementController, deleteAdvertisementController, listAdvertisementsController, updateAdvertisementController } from "./controllers/advertisementController";
 import multer from "multer";
 import { installGracefulShutdown } from "../../../shared/utils/gracefulShutdown";
+import { notFoundHandler, errorHandler } from "../../../shared/utils/httpErrors";
 
 dotenv.config();
 const app = express();
@@ -44,5 +45,10 @@ app.patch("/admin/advertisements/:id", upload.single("image"), updateAdvertiseme
 app.delete("/admin/advertisements/:id", deleteAdvertisementController);
 app.get("/admin/user-requests", listUserRequestsController);
 app.patch("/admin/user-requests/:id", actionUserRequestController);
+
+// Terminal handlers: must come after every route so they only see what nothing else matched.
+app.use(notFoundHandler);
+app.use(errorHandler);
+
 const server = app.listen(port, "0.0.0.0", () => console.log(`OmniQ admin service running on ${port}`));
 installGracefulShutdown(server, "admin-service");

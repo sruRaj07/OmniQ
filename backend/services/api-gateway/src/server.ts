@@ -11,6 +11,7 @@ import morgan from "morgan";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import { fail, ok } from "../../../shared/utils/responseFormatter";
 import { installGracefulShutdown } from "../../../shared/utils/gracefulShutdown";
+import { notFoundHandler, errorHandler } from "../../../shared/utils/httpErrors";
 import { attachRequestId } from "./middleware/requestLogger";
 import {
   globalLimiter,
@@ -242,6 +243,12 @@ app.all("/cart*", authMiddleware, createProxyMiddleware(proxyConfig(orderTarget)
 // SECURITY: authLimiter existed but was never wired up, leaving login/signup throttled only by
 // the 300-per-15-min global limit. These are unauthenticated credential endpoints.
 app.all("/auth*", authLimiter, createProxyMiddleware(proxyConfig(userTarget)));
+
+// Terminal handlers, registered after every proxy route so they only see paths nothing matched.
+// A proxy that handles a request never calls next(), so these cannot shadow an existing route -
+// route order above is untouched.
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 const server = app.listen(port, "0.0.0.0", () => {
   console.log(`OmniQ API gateway running on ${port}`);

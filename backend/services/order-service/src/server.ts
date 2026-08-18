@@ -10,6 +10,7 @@ import { ok } from "../../../shared/utils/responseFormatter";
 import { requireAuth } from "../../../shared/utils/gatewayIdentity";
 import { placeOrderController, updateOrderStatusController, listOrdersController, listSellerOrdersController, getCartController, addToCartController, removeFromCartController, clearCartController, updateCartItemController, cancelOrderController } from "./controllers/orderController";
 import { installGracefulShutdown } from "../../../shared/utils/gracefulShutdown";
+import { notFoundHandler, errorHandler } from "../../../shared/utils/httpErrors";
 
 dotenv.config();
 const app = express();
@@ -36,5 +37,10 @@ app.post("/cart/items", addToCartController);
 app.patch("/cart/items/:productId", updateCartItemController);
 app.delete("/cart/items/:productId", removeFromCartController);
 app.delete("/cart", clearCartController);
+
+// Terminal handlers: must come after every route so they only see what nothing else matched.
+app.use(notFoundHandler);
+app.use(errorHandler);
+
 const server = app.listen(port, "0.0.0.0", () => console.log(`OmniQ order service running on ${port}`));
 installGracefulShutdown(server, "order-service");

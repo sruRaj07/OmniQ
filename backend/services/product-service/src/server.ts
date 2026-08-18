@@ -11,7 +11,8 @@ import cluster from "cluster";
 import os from "os";
 import { ok } from "../../../shared/utils/responseFormatter";
 import { requireAuth } from "../../../shared/utils/gatewayIdentity";
-import { installGracefulShutdown } from "../../../shared/utils/gracefulShutdown";
+import { installGracefulShutdown, installClusterPrimaryShutdown } from "../../../shared/utils/gracefulShutdown";
+import { notFoundHandler, errorHandler } from "../../../shared/utils/httpErrors";
 import { createProductController, updateProductController, getProductController, listProductsController, listSellerProductsController, getAdvertisementsController, searchProductsController, getCategoryTagsController } from "./controllers/productController";
 import multer from "multer";
 
@@ -28,13 +29,21 @@ if (cluster.isPrimary) {
     : Math.min(os.cpus().length, 2);
   console.log(`Primary ${process.pid} is running. Forking ${numCPUs} worker(s).`);
 
+  // The primary owns the listening socket that the workers share, so it needs its own signal
+  // handler - draining the workers alone leaves port 4001 bound until the primary dies.
+  const isShuttingDown = installClusterPrimaryShutdown(cluster, "product-service primary");
+
   // Fork workers
   for (let i = 0; i < numCPUs; i++) {
     cluster.fork();
   }
 
   cluster.on("exit", (worker, code, signal) => {
-    console.log(`worker ${worker.process.pid} died. Restarting...`);
+    // During a shutdown every worker exits deliberately. Replacing them here would fork a fresh
+    // one for each, so the primary would never finish draining and would hold the port open - which
+    // is exactly what made a `tsx watch` reload fail with EADDRINUSE on 4001.
+    if (isShuttingDown()) return;
+    console.log(`worker ${worker.process.pid} died (code=${code}, signal=${signal}). Restarting...`);
     cluster.fork();
   });
 } else {
@@ -72,9 +81,13 @@ if (cluster.isPrimary) {
   // destructive action it never performed is a liability. Re-add with real implementations behind
   // the appropriate guard.
 
+  // Terminal handlers: must come after every route so they only see what nothing else matched.
+  app.use(notFoundHandler);
+  app.use(errorHandler);
+
   const server = app.listen(port, "0.0.0.0", () => console.log(`OmniQ product service running on ${port} (Worker ${process.pid})`));
 
-  // Each cluster worker drains its own connections. The primary forwards the signal by way of the
-  // platform delivering it to the whole process group, so no extra plumbing is needed here.
+  // Each worker drains its own connections; the primary coordinates them via cluster.disconnect()
+  // and only exits once every worker has, which is what actually frees the shared listening socket.
   installGracefulShutdown(server, `product-service worker ${process.pid}`);
 }
