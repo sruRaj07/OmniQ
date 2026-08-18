@@ -11,6 +11,7 @@ import cluster from "cluster";
 import os from "os";
 import { ok } from "../../../shared/utils/responseFormatter";
 import { requireAuth } from "../../../shared/utils/gatewayIdentity";
+import { installGracefulShutdown } from "../../../shared/utils/gracefulShutdown";
 import { createProductController, updateProductController, getProductController, listProductsController, listSellerProductsController, getAdvertisementsController, searchProductsController, getCategoryTagsController } from "./controllers/productController";
 import multer from "multer";
 
@@ -71,5 +72,9 @@ if (cluster.isPrimary) {
   // destructive action it never performed is a liability. Re-add with real implementations behind
   // the appropriate guard.
 
-  app.listen(port, "0.0.0.0", () => console.log(`OmniQ product service running on ${port} (Worker ${process.pid})`));
+  const server = app.listen(port, "0.0.0.0", () => console.log(`OmniQ product service running on ${port} (Worker ${process.pid})`));
+
+  // Each cluster worker drains its own connections. The primary forwards the signal by way of the
+  // platform delivering it to the whole process group, so no extra plumbing is needed here.
+  installGracefulShutdown(server, `product-service worker ${process.pid}`);
 }

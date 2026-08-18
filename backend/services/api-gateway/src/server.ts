@@ -9,7 +9,8 @@ import express from "express";
 import helmet from "helmet";
 import morgan from "morgan";
 import { createProxyMiddleware } from "http-proxy-middleware";
-import { ok } from "../../../shared/utils/responseFormatter";
+import { fail, ok } from "../../../shared/utils/responseFormatter";
+import { installGracefulShutdown } from "../../../shared/utils/gracefulShutdown";
 import { attachRequestId } from "./middleware/requestLogger";
 import {
   globalLimiter,
@@ -59,9 +60,70 @@ app.get("/health", (_request, response) => {
   response.json(ok({ service: "api-gateway", status: "ok", uptime: process.uptime(), version: "1.0.0" }));
 });
 
+// Azure Container Apps runs these services with no `--min-replicas`, so the platform default of 0
+// applies and an idle service is scaled to zero. The first request after an idle period therefore
+// arrives while the container is still booting, and the upstream socket is refused outright.
+//
+// http-proxy-middleware's default error handler answered that with a plain-text
+// "Error occurred while trying to proxy: ..." body under status 504. Two things went wrong with it:
+// the body is not the { success, error } envelope every caller unwraps, so the console could not
+// read a message out of it; and a refused connection fails in ~10ms, so the client burned its two
+// retries (+1s, +2s) inside three seconds while the container needed five to thirty. The operator
+// saw an empty admin console that fixed itself on a later reload - "sometimes it shows no data".
+//
+// 503 + Retry-After is the honest status for "this instance is not up yet, come back": it is
+// retryable by contract, where 504 claims the upstream answered too slowly and it never answered.
+const UPSTREAM_COLD_CODES = new Set(["ECONNREFUSED", "ECONNRESET", "EHOSTUNREACH", "ENETUNREACH", "EAI_AGAIN"]);
+
+// A cold start has to be waited out, not timed out. These bound a genuinely hung upstream while
+// staying above the worst realistic Container Apps boot.
+const PROXY_TIMEOUT_MS = 45_000; // waiting for the upstream to respond
+const PROXY_CONNECT_TIMEOUT_MS = 45_000; // waiting for the upstream socket
+
 const proxyConfig = (target: string) => ({
   target,
-  changeOrigin: true
+  changeOrigin: true,
+  proxyTimeout: PROXY_TIMEOUT_MS,
+  timeout: PROXY_CONNECT_TIMEOUT_MS,
+  on: {
+    error: (error: NodeJS.ErrnoException, request: any, responseOrSocket: any) => {
+      // The third argument is a net.Socket for a WebSocket upgrade, which has no HTTP response to
+      // write. Only a ServerResponse can be answered.
+      if (!responseOrSocket || typeof responseOrSocket.status !== "function") {
+        responseOrSocket?.destroy?.();
+        return;
+      }
+      if (responseOrSocket.headersSent) {
+        responseOrSocket.destroy();
+        return;
+      }
+
+      const cold = UPSTREAM_COLD_CODES.has(error?.code ?? "");
+      const requestId = responseOrSocket.locals?.requestId as string | undefined;
+      console.error(
+        `[gateway] proxy error ${error?.code ?? "UNKNOWN"} for ${request?.method} ${request?.originalUrl ?? request?.url} -> ${target}`
+      );
+
+      if (cold) {
+        responseOrSocket.setHeader("Retry-After", "2");
+        responseOrSocket
+          .status(503)
+          .json(
+            fail(
+              "UPSTREAM_UNAVAILABLE",
+              "That service is starting up. Please try again in a moment.",
+              requestId,
+              2
+            )
+          );
+        return;
+      }
+
+      responseOrSocket
+        .status(504)
+        .json(fail("UPSTREAM_TIMEOUT", "The upstream service did not respond in time.", requestId));
+    }
+  }
 });
 
 // ⚡ PERFORMANCE: In-memory response cache for public read endpoints.
@@ -181,6 +243,8 @@ app.all("/cart*", authMiddleware, createProxyMiddleware(proxyConfig(orderTarget)
 // the 300-per-15-min global limit. These are unauthenticated credential endpoints.
 app.all("/auth*", authLimiter, createProxyMiddleware(proxyConfig(userTarget)));
 
-app.listen(port, "0.0.0.0", () => {
+const server = app.listen(port, "0.0.0.0", () => {
   console.log(`OmniQ API gateway running on ${port}`);
 });
+
+installGracefulShutdown(server, "api-gateway");

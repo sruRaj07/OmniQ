@@ -147,7 +147,17 @@ apiClient.interceptors.response.use(
 );
 
 // --- Retry Logic ---
-const MAX_RETRIES = 2;
+// ⚡ PERFORMANCE: the retry budget has to outlast a backend cold start, not just a blip.
+// The services scale to zero when idle, so the first request after a quiet period is refused at the
+// socket - which fails in about 10ms, not after a timeout. With two retries at 1s and 2s the whole
+// budget was spent in ~3 seconds while the container needed five to thirty to boot, and the screen
+// settled on an error that a manual reload a minute later silently "fixed". Four retries at
+// 1/2/4/8s span ~15s of backoff, which covers a normal cold start, and the 30s request timeout
+// still bounds a genuinely hung call.
+//
+// This only changes the failure path: a request that succeeds first time is untouched, and a
+// non-retryable status (4xx) still rejects immediately rather than sleeping through the budget.
+const MAX_RETRIES = 4;
 const RETRY_DELAY_MS = 1000;
 
 function shouldRetry(error: AxiosError): boolean {
@@ -165,6 +175,22 @@ function shouldRetry(error: AxiosError): boolean {
   return status >= 500 && status < 600;
 }
 
+/**
+ * How long the server asked us to wait, in ms. The gateway sends `Retry-After` on the 503 it raises
+ * for a cold upstream, and honouring that beats guessing at a backoff. Clamped so a malformed or
+ * hostile header cannot stall the app, and floored against the exponential delay so this can only
+ * ever lengthen a wait, never shorten one. (429 is not retried at all - see shouldRetry.)
+ */
+const MAX_RETRY_AFTER_MS = 10_000;
+
+function retryAfterMs(error: AxiosError): number {
+  const header = error.response?.headers?.["retry-after"];
+  if (header === undefined || header === null) return 0;
+  const seconds = Number(Array.isArray(header) ? header[0] : header);
+  if (!Number.isFinite(seconds) || seconds <= 0) return 0;
+  return Math.min(seconds * 1000, MAX_RETRY_AFTER_MS);
+}
+
 apiClient.interceptors.response.use(undefined, async (error: AxiosError) => {
   const axiosConfig = error.config as InternalAxiosRequestConfig & { _retryCount?: number };
   if (!axiosConfig) return Promise.reject(error);
@@ -180,7 +206,10 @@ apiClient.interceptors.response.use(undefined, async (error: AxiosError) => {
   // An auth replay is pointless to delay - the token has already been refreshed synchronously.
   const delay = status === 401 || status === 403
     ? 0
-    : RETRY_DELAY_MS * Math.pow(2, axiosConfig._retryCount - 1);
+    : Math.max(
+        retryAfterMs(error),
+        RETRY_DELAY_MS * Math.pow(2, axiosConfig._retryCount - 1)
+      );
 
   if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
   return apiClient.request(axiosConfig);

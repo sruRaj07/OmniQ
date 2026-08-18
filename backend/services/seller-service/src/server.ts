@@ -9,6 +9,7 @@ import helmet from "helmet";
 import { ok } from "../../../shared/utils/responseFormatter";
 import { requireAuth, requireRole } from "../../../shared/utils/gatewayIdentity";
 import { listSellersController, registerSellerController, updateSellerStatusController, getSellerByIdController, getMySellerProfileController, updateMySellerProfileController } from "./controllers/sellerController";
+import { installGracefulShutdown } from "../../../shared/utils/gracefulShutdown";
 
 dotenv.config();
 const app = express();
@@ -38,4 +39,5 @@ app.patch("/sellers/:id/status", requireRole("admin"), updateSellerStatusControl
 // Removed: `app.delete("/sellers/:id", ...)` returned {deleted:true} without deleting anything and
 // had no authorisation. A stub that reports success for a destructive operation is worse than no
 // route at all - re-add it only with a real implementation behind requireRole("admin").
-app.listen(port, "0.0.0.0", () => console.log(`OmniQ seller service running on ${port}`));
+const server = app.listen(port, "0.0.0.0", () => console.log(`OmniQ seller service running on ${port}`));
+installGracefulShutdown(server, "seller-service");
