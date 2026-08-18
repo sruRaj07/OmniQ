@@ -2,6 +2,41 @@ import type { Request, Response } from "express";
 import { fail, ok } from "../../../../shared/utils/responseFormatter";
 import { supabaseAdmin } from "../../../../shared/utils/supabaseClient";
 
+/**
+ * Every campaign, live or paused.
+ *
+ * The console previously read the buyer-facing `GET /products/advertisements`, which filters to
+ * `is_active = true`. Pausing a campaign therefore removed it from the only screen that could
+ * resume it - the pause button was a one-way door and the "(Paused)" label and resume button in
+ * the UI were unreachable code. The storefront endpoint is deliberately left exactly as it is;
+ * this is an additive admin-only read.
+ */
+export async function listAdvertisementsController(request: Request, response: Response): Promise<void> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("advertisements")
+      .select("id, title, image_url, target_url, is_active, created_at")
+      .order("created_at", { ascending: false })
+      .limit(ADVERTISEMENT_LIST_LIMIT);
+
+    if (error) {
+      throw new Error(`Failed to fetch advertisements: ${error.message}`);
+    }
+
+    response.json(ok(data ?? []));
+  } catch (error: any) {
+    console.error("ADVERTISEMENT LIST ERROR:", error);
+    response.status(500).json(fail("SERVER_ERROR", error.message || error.toString()));
+  }
+}
+
+/**
+ * Explicit ceiling. A `.select()` with no range is silently capped by PostgREST at `db.max_rows`,
+ * which is a truncation the caller cannot detect. Campaign counts are small; stating the bound
+ * means the number of rows returned is a decision rather than an accident.
+ */
+const ADVERTISEMENT_LIST_LIMIT = 200;
+
 export async function createAdvertisementController(request: Request, response: Response): Promise<void> {
   try {
     const title = request.body.title as string;
@@ -114,15 +149,29 @@ export async function updateAdvertisementController(request: Request, response: 
       updates.image_url = publicUrlData.publicUrl;
     }
 
+    // An empty patch is a client bug, not a database error: PostgREST rejects `update({})` with a
+    // generic 400 that surfaced to the operator as "Database update failed".
+    if (Object.keys(updates).length === 0) {
+      response.status(400).json(fail("VALIDATION_ERROR", "Nothing to update."));
+      return;
+    }
+
     const { data, error } = await supabaseAdmin
       .from("advertisements")
       .update(updates)
       .eq("id", id)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) {
       throw new Error(`Database update failed: ${error.message}`);
+    }
+
+    // maybeSingle rather than single: a campaign deleted in another tab used to come back as a
+    // 500 "JSON object requested, multiple (or no) rows returned", which tells the operator nothing.
+    if (!data) {
+      response.status(404).json(fail("NOT_FOUND", "That campaign no longer exists."));
+      return;
     }
 
     response.json(ok(data));

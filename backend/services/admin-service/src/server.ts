@@ -9,7 +9,7 @@ import helmet from "helmet";
 import { ok } from "../../../shared/utils/responseFormatter";
 import { requireRole } from "../../../shared/utils/gatewayIdentity";
 import { analyticsController, dashboardController, moderateProductController, zoneController, deleteZoneController, listZonesController, listAllOrdersController, listUserRequestsController, actionUserRequestController, listFlaggedProductsController, listAuditLogController } from "./controllers/adminController";
-import { createAdvertisementController, deleteAdvertisementController, updateAdvertisementController } from "./controllers/advertisementController";
+import { createAdvertisementController, deleteAdvertisementController, listAdvertisementsController, updateAdvertisementController } from "./controllers/advertisementController";
 import multer from "multer";
 
 dotenv.config();
@@ -37,6 +37,7 @@ app.post("/admin/zones", zoneController);
 app.delete("/admin/zones/:id", deleteZoneController);
 app.get("/admin/orders", listAllOrdersController);
 app.get("/admin/audit-log", listAuditLogController);
+app.get("/admin/advertisements", listAdvertisementsController);
 app.post("/admin/advertisements", upload.single("image"), createAdvertisementController);
 app.patch("/admin/advertisements/:id", upload.single("image"), updateAdvertisementController);
 app.delete("/admin/advertisements/:id", deleteAdvertisementController);

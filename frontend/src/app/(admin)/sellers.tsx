@@ -12,7 +12,7 @@
 // Explicit React import: this tsconfig uses the classic JSX transform, so a file rendering JSX
 // without it resolves `React` to a UMD global and TypeScript reports TS2686 on every element.
 import React, { useCallback, useMemo, useState } from "react";
-import { Alert, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { FlashList } from "@shopify/flash-list";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -21,6 +21,7 @@ import { useThemeColors } from "@/store/useThemeStore";
 import { apiClient } from "@/lib/apiClient";
 import { useRouter } from "expo-router";
 import { useRefreshControl } from "@/hooks/useRefreshControl";
+import { confirmAction, errorMessage, notify } from "@/utils/dialog";
 import { RADIUS, SHADOW, SPACE, sellerStatusMeta, withAlpha } from "@/constants/adminTheme";
 import {
   AdminHeader,
@@ -64,11 +65,8 @@ export default function AdminSellersScreen() {
       // The dashboard's pending/active seller counts are derived from these rows.
       queryClient.invalidateQueries({ queryKey: ["adminDashboard"] });
     },
-    onError: (err: any) => {
-      Alert.alert(
-        "Couldn't update the seller",
-        err?.response?.data?.error?.message || err?.message || "Please try again."
-      );
+    onError: (err: unknown) => {
+      notify("Couldn't update the seller", errorMessage(err, "Please try again."));
     }
   });
 
@@ -92,18 +90,13 @@ export default function AdminSellersScreen() {
 
   const visible = buckets[activeTab];
 
-  /** Anything that removes a live seller from the platform asks first. */
+  /**
+   * Anything that removes a live seller from the platform asks first. The platform branching this
+   * used to do inline now lives in utils/dialog, shared with the rest of the console.
+   */
   const confirmThen = useCallback(
-    (title: string, message: string, onConfirm: () => void, destructive = true) => {
-      if (Platform.OS === "web") {
-        if (window.confirm(`${title}\n\n${message}`)) onConfirm();
-        return;
-      }
-      Alert.alert(title, message, [
-        { text: "Cancel", style: "cancel" },
-        { text: "Confirm", style: destructive ? "destructive" : "default", onPress: onConfirm }
-      ]);
-    },
+    (title: string, message: string, onConfirm: () => void, destructive = true) =>
+      confirmAction(title, message, onConfirm, { destructive }),
     []
   );
 
