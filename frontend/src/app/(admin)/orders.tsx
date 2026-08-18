@@ -15,7 +15,7 @@
 // Explicit React import: this tsconfig uses the classic JSX transform, so a file rendering JSX
 // without it resolves `React` to a UMD global and TypeScript reports TS2686 on every element.
 import React, { useCallback, useMemo, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { FlashList } from "@shopify/flash-list";
 import { useInfiniteQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -25,6 +25,7 @@ import { apiClient } from "@/lib/apiClient";
 import { formatCurrency } from "@/utils/formatCurrency";
 import { orderSubtotalOf, resolveOrderDeliveryFee } from "@/constants/delivery";
 import { useRefreshControl } from "@/hooks/useRefreshControl";
+import { confirmAction, errorMessage, notify } from "@/utils/dialog";
 import { RADIUS, SHADOW, SPACE, adminOrderStatusMeta, withAlpha } from "@/constants/adminTheme";
 import {
   AdminHeader,
@@ -64,7 +65,16 @@ export default function AdminOrdersScreen() {
         params: { status: activeTab, limit: PAGE_SIZE, offset: pageParam }
       });
       // Paging figures ride in `meta`; the page itself stays in `data`.
-      return { rows: res.data?.data ?? [], meta: res.data?.meta ?? {} };
+      const meta = res.data?.meta ?? {};
+      return {
+        rows: res.data?.data ?? [],
+        meta,
+        // An admin service predating server-side filtering ignores `status`, `limit` and `offset`
+        // and returns every order, with no paging meta to say so. The tabs then all showed the
+        // same full list - "46 of 46 active" whichever one was selected. Absence of `total` is the
+        // signal that the response was not filtered.
+        serverFiltered: typeof meta.total === "number"
+      };
     },
     getNextPageParam: (lastPage, allPages) => {
       if (!lastPage?.meta?.hasMore) return undefined;
@@ -72,10 +82,21 @@ export default function AdminOrdersScreen() {
     }
   });
 
-  const orders: any[] = useMemo(
-    () => (ordersQuery.data?.pages ?? []).flatMap((page: any) => page.rows ?? []),
-    [ordersQuery.data]
-  );
+  const serverFiltered: boolean = ordersQuery.data?.pages?.[0]?.serverFiltered ?? true;
+
+  const orders: any[] = useMemo(() => {
+    const rows = (ordersQuery.data?.pages ?? []).flatMap((page: any) => page.rows ?? []);
+    if (serverFiltered) return rows;
+    // Fallback only. Postgres does this far better, but showing the wrong orders under a tab is a
+    // correctness bug, and an unfiltered response is exactly when the client has to cover for it.
+    return rows.filter((order: any) => {
+      const status = String(order?.status ?? "").toLowerCase();
+      if (activeTab === "delivered") return status === "delivered";
+      if (activeTab === "cancelled") return status === "cancelled";
+      return status !== "delivered" && status !== "cancelled";
+    });
+  }, [ordersQuery.data, serverFiltered, activeTab]);
+
   const total: number = ordersQuery.data?.pages?.[0]?.meta?.total ?? orders.length;
 
   const updateStatusMutation = useMutation({
@@ -90,20 +111,21 @@ export default function AdminOrdersScreen() {
     },
     // This mutation previously had no onError at all, so a failed status change looked exactly like
     // a successful one - the button stopped spinning and the order simply did not move.
-    onError: (err: any) => {
-      Alert.alert(
-        "Couldn't update the order",
-        err?.response?.data?.error?.message || err?.message || "The order was not changed. Please try again."
-      );
+    onError: (err: unknown) => {
+      notify("Couldn't update the order", errorMessage(err, "The order was not changed. Please try again."));
     }
   });
 
+  // Alert.alert is a no-op on react-native-web, so in a browser this prompt never appeared and the
+  // order was simply never marked delivered. utils/dialog picks the right primitive per platform.
   const handleMarkDelivered = useCallback(
     (orderId: string) => {
-      Alert.alert("Mark as delivered?", "This closes the order and it moves to the Delivered tab.", [
-        { text: "Cancel", style: "cancel" },
-        { text: "Mark delivered", onPress: () => updateStatusMutation.mutate({ orderId, status: "delivered" }) }
-      ]);
+      confirmAction(
+        "Mark as delivered?",
+        "This closes the order and it moves to the Delivered tab.",
+        () => updateStatusMutation.mutate({ orderId, status: "delivered" }),
+        { confirmLabel: "Mark delivered", destructive: false }
+      );
     },
     [updateStatusMutation]
   );

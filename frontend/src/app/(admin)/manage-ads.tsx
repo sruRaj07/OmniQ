@@ -113,20 +113,38 @@ export default function ManageAdsScreen() {
   const [composerOpen, setComposerOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  // Reads the admin list, not the storefront one: `/products/advertisements` filters to
-  // is_active = true, so a paused campaign disappeared from the only screen that could resume it.
+  /**
+   * Reads the admin list, not the storefront one: `/products/advertisements` filters to
+   * is_active = true, so a paused campaign disappeared from the only screen that could resume it.
+   *
+   * The fallback is not defensive padding. The app and the seven backends deploy independently, so
+   * there is always a window where the frontend has shipped and the admin service has not - and in
+   * local development the services are long-lived processes that may predate an edit entirely. A
+   * hard dependency on a brand-new route turns that window into a dead screen, which is precisely
+   * the failure this console was just rebuilt to stop having. On a 404 it falls back to the
+   * storefront endpoint and says so, rather than showing nothing.
+   */
   const campaignsQuery = useQuery({
     queryKey: ["admin-advertisements"],
-    queryFn: async () => {
-      const response = await apiClient.get<{ data: Advertisement[] }>("/admin/advertisements");
-      return response.data?.data ?? [];
+    queryFn: async (): Promise<{ rows: Advertisement[]; degraded: boolean }> => {
+      try {
+        const response = await apiClient.get<{ data: Advertisement[] }>("/admin/advertisements");
+        return { rows: response.data?.data ?? [], degraded: false };
+      } catch (error: any) {
+        if (error?.response?.status !== 404) throw error;
+        const response = await apiClient.get<{ data: Advertisement[] }>("/products/advertisements");
+        return { rows: response.data?.data ?? [], degraded: true };
+      }
     },
     staleTime: 30_000
   });
 
+  /** True when only live campaigns could be loaded, so the screen must not imply otherwise. */
+  const degraded = campaignsQuery.data?.degraded ?? false;
+
   const { ads, offers } = useMemo(() => {
     const buckets: { ads: Advertisement[]; offers: Advertisement[] } = { ads: [], offers: [] };
-    for (const campaign of campaignsQuery.data ?? []) {
+    for (const campaign of campaignsQuery.data?.rows ?? []) {
       (isOffer(campaign) ? buckets.offers : buckets.ads).push(campaign);
     }
     return buckets;
@@ -295,10 +313,21 @@ export default function ManageAdsScreen() {
         <Text style={styles.listTitle}>{copy.section}</Text>
         {items.length > 0 ? (
           <Text style={styles.listCount}>
-            {liveCount} live · {items.length - liveCount} paused
+            {/* In degraded mode the paused ones were never fetched, so "0 paused" would be a lie. */}
+            {degraded ? `${liveCount} live` : `${liveCount} live · ${items.length - liveCount} paused`}
           </Text>
         ) : null}
       </View>
+
+      {degraded ? (
+        <View style={styles.notice}>
+          <Text style={styles.noticeText}>
+            Showing live campaigns only. The admin service is running an older build without
+            /admin/advertisements, so paused campaigns cannot be listed — and pausing one here will
+            hide it until that service is updated.
+          </Text>
+        </View>
+      ) : null}
 
       <QueryBoundary
         isLoading={campaignsQuery.isLoading}
@@ -930,6 +959,19 @@ const getStyles = (colors: any) =>
       fontSize: 12,
       fontWeight: "600",
       color: colors.textMuted
+    },
+    notice: {
+      backgroundColor: withAlpha(colors.warning, 0.1),
+      borderColor: withAlpha(colors.warning, 0.35),
+      borderWidth: 1,
+      borderRadius: RADIUS.md,
+      padding: SPACE.md,
+      marginBottom: SPACE.lg
+    },
+    noticeText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      lineHeight: 17
     },
     list: {
       gap: SPACE.md

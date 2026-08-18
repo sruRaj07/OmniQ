@@ -16,7 +16,7 @@
 // Explicit React import: this tsconfig uses the classic JSX transform, so a file rendering JSX
 // without it resolves `React` to a UMD global and TypeScript reports TS2686 on every element.
 import React, { useCallback, useMemo } from "react";
-import { Alert, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -27,6 +27,7 @@ import { RefreshButton } from "@/components/shared/RefreshButton";
 import { useThemeColors } from "@/store/useThemeStore";
 import { apiClient } from "@/lib/apiClient";
 import { RADIUS, SPACE, compactCount, compactInr, withAlpha } from "@/constants/adminTheme";
+import { confirmAction, errorMessage, notify } from "@/utils/dialog";
 import {
   AdminHeader,
   AttentionCard,
@@ -78,10 +79,10 @@ export default function AdminDashboardScreen() {
       queryClient.invalidateQueries({ queryKey: ["adminUserRequests"] });
       // Actioning a request moves the dashboard's pending count, so pull it back in sync too.
       queryClient.invalidateQueries({ queryKey: ["adminDashboard"] });
-      Alert.alert("Done", "The request has been actioned.");
+      notify("Done", "The request has been actioned.");
     },
-    onError: (err: any) => {
-      Alert.alert("Couldn't action the request", err?.response?.data?.error?.message || err?.message || "Please try again.");
+    onError: (err: unknown) => {
+      notify("Couldn't action the request", errorMessage(err, "Please try again."));
     }
   });
 
@@ -98,19 +99,10 @@ export default function AdminDashboardScreen() {
           ? `Approve this ${readable} request?\n\nThis permanently deletes the account. Their orders are anonymised and kept for records. This cannot be undone.`
           : `Approve this ${readable} request?`;
 
-      if (Platform.OS === "web") {
-        if (window.confirm(message)) actionRequestMutation.mutate({ id, status });
-        return;
-      }
-
-      Alert.alert("Confirm approval", message, [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Approve",
-          style: type === "account_deletion" ? "destructive" : "default",
-          onPress: () => actionRequestMutation.mutate({ id, status })
-        }
-      ]);
+      confirmAction("Confirm approval", message, () => actionRequestMutation.mutate({ id, status }), {
+        confirmLabel: "Approve",
+        destructive: type === "account_deletion"
+      });
     },
     [actionRequestMutation]
   );
