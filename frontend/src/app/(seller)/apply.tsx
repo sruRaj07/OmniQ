@@ -6,8 +6,8 @@
  *
  * Author: OmniQ Team
  */
-import React, { useMemo, useState } from "react";
-import { StyleSheet, Text, View, Alert } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, StyleSheet, Text, View, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -18,9 +18,15 @@ import { Screen } from "@/components/shared/Screen";
 import { Surface } from "@/components/seller/SellerUI";
 import { useThemeColors } from "@/store/useThemeStore";
 import { apiClient } from "@/lib/apiClient";
-import { useSellerStatus } from "@/hooks/useSellerStatus";
+import { sellerProfileOf, useSellerStatus } from "@/hooks/useSellerStatus";
 import { RADIUS, SPACE, withAlpha } from "@/constants/sellerTheme";
 import { CheckIcon, StoreIcon } from "@/components/ui/SellerIcons";
+
+/** Where an existing seller account belongs, given its approval state. */
+function routeForSeller(profile: Record<string, any>): string {
+  const status = String(profile.status ?? "").toLowerCase();
+  return status === "approved" || status === "active" ? "/(seller)/dashboard" : "/(seller)/pending";
+}
 
 const applySchema = z.object({
   businessName: z.string().min(2, "Business name is required"),
@@ -42,7 +48,16 @@ export default function ApplySellerScreen() {
   const styles = useMemo(() => getStyles(colors), [colors]);
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const { refetch } = useSellerStatus();
+  const { sellerProfile, isUnresolved, isError, isFetching, refetch } = useSellerStatus();
+
+  // Last line of defence: this screen re-checks with the server on mount, so a seller who was
+  // routed here in error is sent to their store instead of being asked to apply twice.
+  useEffect(() => {
+    if (sellerProfile) {
+      router.replace(routeForSeller(sellerProfile) as any);
+    }
+  }, [sellerProfile, router]);
+
   const {
     control,
     handleSubmit,
@@ -66,11 +81,64 @@ export default function ApplySellerScreen() {
       Alert.alert("Success", "Your application has been submitted!");
       router.replace("/(seller)/pending" as any);
     } catch (error: any) {
-      Alert.alert("Application Failed", error.response?.data?.message || error.message);
+      const payload = error?.response?.data?.error ?? error?.response?.data;
+      const code = payload?.code;
+      const message = payload?.message || error?.message || "Something went wrong.";
+
+      // sellers.owner_id is unique, so this means the account already exists — the user was
+      // shown this form by mistake. Send them to their store rather than leaving them stuck on
+      // a duplicate-key error. The raw-text check keeps this working against a gateway that
+      // has not been redeployed with the SELLER_ALREADY_EXISTS code yet.
+      const alreadyExists =
+        code === "SELLER_ALREADY_EXISTS" ||
+        /duplicate key|already exists|sellers_owner_id/i.test(String(message));
+
+      if (alreadyExists) {
+        const refreshed = sellerProfileOf((await refetch()).data);
+        Alert.alert(
+          "You already have a seller account",
+          "We found the seller account linked to this email and opened it for you."
+        );
+        router.replace((refreshed ? routeForSeller(refreshed) : "/(seller)/pending") as any);
+        return;
+      }
+
+      Alert.alert("Application Failed", message);
     } finally {
       setLoading(false);
     }
   };
+
+  // The application form is only correct for someone the server has confirmed has no seller
+  // account. Until then this screen shows its own state rather than guessing — showing the
+  // form on an unanswered or failed check is what made existing sellers re-apply.
+  if (isError && isUnresolved) {
+    return (
+      <Screen scroll={false}>
+        <View style={styles.gate}>
+          <Text style={styles.gateTitle}>Couldn&apos;t check your account</Text>
+          <Text style={styles.gateText}>
+            We couldn&apos;t reach OmniQ to see whether you already sell with us. If you have a
+            seller account, applying again won&apos;t work — please retry instead.
+          </Text>
+          <Button onPress={() => refetch()} loading={isFetching} disabled={isFetching}>
+            Try again
+          </Button>
+        </View>
+      </Screen>
+    );
+  }
+
+  if (isUnresolved || sellerProfile) {
+    return (
+      <Screen scroll={false}>
+        <View style={styles.gate}>
+          <ActivityIndicator color={colors.accent} />
+          <Text style={styles.gateText}>Checking your seller account…</Text>
+        </View>
+      </Screen>
+    );
+  }
 
   return (
     <Screen scroll={true}>
@@ -207,6 +275,9 @@ export default function ApplySellerScreen() {
 
 const getStyles = (colors: any) =>
   StyleSheet.create({
+    gate: { flex: 1, alignItems: "center", justifyContent: "center", gap: SPACE.md, paddingHorizontal: SPACE.lg },
+    gateTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: "800", textAlign: "center" },
+    gateText: { color: colors.textSecondary, fontSize: 13.5, lineHeight: 20, textAlign: "center" },
     header: { marginBottom: SPACE.xl },
     badge: {
       width: 44,

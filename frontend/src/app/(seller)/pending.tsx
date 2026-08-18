@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/Button";
 import { Screen } from "@/components/shared/Screen";
 import { Surface } from "@/components/seller/SellerUI";
 import { useThemeColors } from "@/store/useThemeStore";
-import { useSellerStatus } from "@/hooks/useSellerStatus";
+import { sellerProfileOf, useSellerStatus } from "@/hooks/useSellerStatus";
 import { RADIUS, SPACE, withAlpha } from "@/constants/sellerTheme";
 import { CheckIcon, ClockIcon, ShieldCheckIcon, StoreIcon } from "@/components/ui/SellerIcons";
 
@@ -40,7 +40,9 @@ export default function PendingApprovalScreen() {
     setChecking(true);
     try {
       const result = await refetch();
-      if (String(result.data?.status ?? "").toLowerCase() === "approved") {
+      const refreshed = sellerProfileOf(result.data);
+      const nextStatus = String(refreshed?.status ?? "").toLowerCase();
+      if (nextStatus === "approved" || nextStatus === "active") {
         router.replace("/(seller)/dashboard" as any);
       }
     } finally {

@@ -22,7 +22,7 @@ import { Screen } from "@/components/shared/Screen";
 import { RefreshButton } from "@/components/shared/RefreshButton";
 import { useAppTheme } from "@/store/useThemeStore";
 import { useAuthStore } from "@/store/authStore";
-import { useSellerStatus } from "@/hooks/useSellerStatus";
+import { sellerProfileOf, useSellerStatus } from "@/hooks/useSellerStatus";
 import { useOrders } from "@/hooks/useOrders";
 import { supabase } from "@/lib/supabase";
 import { apiClient } from "@/lib/apiClient";
@@ -91,9 +91,10 @@ export default function ProfileScreen() {
   const [deleteReason, setDeleteReason] = useState("");
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const {
-    sellerProfile,
-    isLoading: isSellerLoading
+    isLoading: isSellerLoading,
+    refetch: refetchSellerStatus
   } = useSellerStatus();
+  const [isCheckingSellerPortal, setIsCheckingSellerPortal] = useState(false);
   const {
     buyerOrders,
     isLoading: isLoadingOrders
@@ -261,16 +262,33 @@ export default function ProfileScreen() {
     useAuthStore.getState().setSession(null);
     router.replace("/");
   };
-  const handleOpenSellerPortal = () => {
-    if (isSellerLoading) return;
-    if (!sellerProfile) {
-      router.push("/(seller)/apply" as any);
-    } else if (sellerProfile.status === "pending") {
-      router.push("/(seller)/pending" as any);
-    } else if (sellerProfile.status === "approved" || sellerProfile.status === "active") {
-      router.push("/(seller)/dashboard" as any);
-    } else {
-      Alert.alert("Account Status", `Your seller account is ${sellerProfile.status}.`);
+  // Confirm the seller account against the server on every tap instead of trusting whatever
+  // useSellerStatus happens to hold. A cached or failed answer used to read as "not a seller",
+  // which sent people who already have an approved store back to the application form.
+  const handleOpenSellerPortal = async () => {
+    if (isCheckingSellerPortal) return;
+    setIsCheckingSellerPortal(true);
+    try {
+      const result = await refetchSellerStatus();
+      if (result.isError || result.data === undefined) {
+        Alert.alert(
+          "Could not check your seller account",
+          "We couldn't reach OmniQ just now. Check your connection and try again — your seller account is safe."
+        );
+        return;
+      }
+      const profile = sellerProfileOf(result.data);
+      if (!profile) {
+        router.push("/(seller)/apply" as any);
+      } else if (profile.status === "pending") {
+        router.push("/(seller)/pending" as any);
+      } else if (profile.status === "approved" || profile.status === "active") {
+        router.push("/(seller)/dashboard" as any);
+      } else {
+        Alert.alert("Account Status", `Your seller account is ${profile.status}.`);
+      }
+    } finally {
+      setIsCheckingSellerPortal(false);
     }
   };
   return <Screen scroll={true} bottomNavItems={[{
@@ -318,8 +336,14 @@ export default function ProfileScreen() {
         <TouchableOpacity style={styles.pill} onPress={() => setIsEditing(true)}>
           <Text style={styles.pillText}>Your Account</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.pill} onPress={handleOpenSellerPortal}>
-          <Text style={styles.pillText}>{isSellerLoading ? 'Loading...' : 'Seller Portal'}</Text>
+        <TouchableOpacity
+          style={styles.pill}
+          onPress={handleOpenSellerPortal}
+          disabled={isCheckingSellerPortal}
+        >
+          <Text style={styles.pillText}>
+            {isCheckingSellerPortal || isSellerLoading ? 'Checking…' : 'Seller Portal'}
+          </Text>
         </TouchableOpacity>
       </View>
 

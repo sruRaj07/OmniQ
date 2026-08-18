@@ -3,7 +3,7 @@
  * Tuned for 2G networks and low-end devices (Redmi 9A class).
  * Author: OmniQ Team
  */
-import { QueryClient, keepPreviousData } from "@tanstack/react-query";
+import { QueryClient, defaultShouldDehydrateQuery, keepPreviousData } from "@tanstack/react-query";
 import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
 import { persistQueryClient } from "@tanstack/react-query-persist-client";
 import type { NetworkQuality } from "@/hooks/useNetworkQuality";
@@ -148,10 +148,23 @@ const persister = createSyncStoragePersister({
   throttleTime: 1000,
 });
 
+/**
+ * Query keys that must never be written to disk. Anything that decides what a user is
+ * allowed to reach belongs here: a 24h-old answer restored from MMKV would gate the app on
+ * a fact that was true yesterday. "sellerStatus" is the seller-portal check — persisting it
+ * meant a buyer who later became a seller kept being shown the application form.
+ */
+const NON_PERSISTED_QUERY_KEYS = new Set<string>(["sellerStatus"]);
+
 persistQueryClient({
   queryClient,
   persister,
   maxAge: GC_TIME,
   // Bump this when the cached shape changes so stale entries are discarded.
-  buster: "v1",
+  buster: "v2",
+  dehydrateOptions: {
+    shouldDehydrateQuery: (query) =>
+      !NON_PERSISTED_QUERY_KEYS.has(String(query.queryKey?.[0])) &&
+      defaultShouldDehydrateQuery(query),
+  },
 });
