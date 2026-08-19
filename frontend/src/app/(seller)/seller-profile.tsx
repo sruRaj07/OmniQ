@@ -9,7 +9,7 @@
  */
 import React, { useCallback, useMemo, useState } from "react";
 import { Link, useRouter } from "expo-router";
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Button } from "@/components/ui/Button";
 import { Screen } from "@/components/shared/Screen";
 import { SELLER_NAV_ITEMS } from "@/components/seller/sellerNav";
@@ -20,6 +20,7 @@ import { supabase } from "@/lib/supabase";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/apiClient";
 import { RADIUS, SPACE, withAlpha } from "@/constants/sellerTheme";
+import { confirmAction } from "@/utils/dialog";
 import {
   InfoIcon,
   LogOutIcon,
@@ -97,20 +98,29 @@ export default function SellerProfileScreen() {
 
   // Signing out drops the session and any cached seller data; worth one confirmation tap
   // rather than losing the screen to a mis-tap next to "Switch to Buyer App".
+  //
+  // This used to call Alert.alert directly, which is a no-op on react-native-web: the prompt
+  // never rendered, so its onPress never fired and the button read as dead. confirmAction picks
+  // window.confirm on web and Alert.alert on device.
   const handleSignOut = useCallback(() => {
-    Alert.alert("Sign out?", "You will need to log in again to manage your store.", [
-      { text: "Stay signed in", style: "cancel" },
-      {
-        text: "Sign out",
-        style: "destructive",
-        onPress: async () => {
+    confirmAction(
+      "Sign out?",
+      "You will need to log in again to manage your store.",
+      async () => {
+        // Clear local session even if the network call fails - otherwise a seller on a bad
+        // connection stays logged in with no feedback. Supabase clears its own storage locally.
+        try {
           await supabase.auth.signOut();
-          useAuthStore.getState().setSession(null);
-          router.replace("/");
-        },
+        } catch {
+          // ignored on purpose; the local clear below is what actually signs them out here
+        }
+        useAuthStore.getState().setSession(null);
+        queryClient.clear();
+        router.replace("/");
       },
-    ]);
-  }, [router]);
+      { confirmLabel: "Sign out", destructive: true }
+    );
+  }, [router, queryClient]);
 
   const displayName = sellerData?.business_name || user?.user_metadata?.full_name || "OmniQ Seller";
   const status = statusTone(sellerData?.status, colors);
