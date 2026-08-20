@@ -1,6 +1,12 @@
 # OmniQ production-readiness — session handoff
 
-**Updated:** 2026-08-15. Nothing is mid-flight.
+**Updated:** 2026-08-20. Nothing is mid-flight.
+
+> **Play launch work has moved to [`PLAY_LAUNCH.md`](PLAY_LAUNCH.md).** That file is the active
+> checklist for shipping to Google Play. This file remains the security and performance record.
+>
+> **This document is why the repo must stay private.** It describes both breaches in enough detail
+> to reproduce them. It was publicly readable at `raw.githubusercontent.com` until 2026-08-20.
 
 ---
 
@@ -73,12 +79,12 @@ deny-all to anon.
 ## State of the repo
 
 Commit `fa2eb5433` — "fix(security): verify JWTs, enforce authorization, and stop publishing
-backends", 30 files, +1347 / −402 — is on local `main` and **not pushed**. The repo owner pushes.
+backends" — **has been pushed**; `main` and `origin/main` agree. The hardened `deploy.yml` with the
+per-service `ingress` matrix is therefore live on GitHub, and the CI-regression risk noted in the
+previous version of this document is closed.
 
-> While it is unpushed, the `deploy.yml` on GitHub `main` is still the version that hardcodes
-> `ingress: external` for all seven services. If anyone pushes to `main` before this commit lands,
-> that workflow runs and republishes all six backends to the internet. The Azure state is correct
-> today; this is a CI-regression risk only.
+Twelve further commits have landed since, covering the seller portal redesign, admin fixes, image
+renditions, account deletion and error sanitisation.
 
 Deployed image tag on all 7 apps: `omniqregistry.azurecr.io/<service>:sec-299ab687a`,
 `provisioningState: Succeeded`.
@@ -92,13 +98,20 @@ It sat in plaintext env vars alongside a publicly reachable endpoint. It bypasse
 work above does not constrain it. Rotate in the Supabase dashboard, update the GitHub repository
 secret, then re-run the deploy workflow. Not yet done.
 
-### Google Play blockers
-- **Account deletion is not implemented.** It inserts a `pending` row in `user_requests` with no
-  fulfilment path. Play requires a working in-app path plus a public web URL.
-- **No privacy policy, no Data Safety declaration.** Nothing in `/docs/legal/` yet.
-- **`cart.tsx:133` sends hardcoded coordinates** (`buyerLat: 12.9348, buyerLng: 77.6220`) on every
-  order. Either wire real location with a consent prompt, or remove it — but the Data Safety form
-  must match whichever is true.
+### Google Play blockers — now tracked in [`PLAY_LAUNCH.md`](PLAY_LAUNCH.md)
+Resolved since the last update:
+- **Account deletion** is implemented server-side (`backend/shared/utils/accountDeletion.ts`) and
+  migration `005_account_deletion.sql` is confirmed applied in production. The frontend flow was
+  broken until 2026-08-20 — the confirmation text was checked but bound to no input, so the
+  mutation could never fire — and has been fixed.
+- **Legal pages** are written and live in `legal-site/`, ready to publish to a separate public repo
+  via GitHub Pages.
+- **Hardcoded coordinates** are gone from `cart.tsx`; `buyerLat`/`buyerLng` are optional in
+  `orderCreateSchema`. The unused `expo-location` dependency was removed and camera/location/mic
+  permissions are stripped via `android.blockedPermissions`, verified in the generated manifest.
+
+Still outstanding: the Data Safety declaration itself, store graphics (feature graphic and
+screenshots), and the 14-day closed test.
 
 ### Performance (measured, not estimated)
 - **`minReplicas: 0` on all services.** Cold starts measured at 26.2s (direct admin-service),
@@ -124,8 +137,10 @@ secret, then re-run the deploy workflow. Not yet done.
   succeed. It was 4-digit, `Math.random()`-based, in-memory.
 - **Stub endpoints returning success without doing anything**: `GET /orders/export` (hardcoded
   CSV), `/admin/flagged-products`, `/admin/audit-log`. The product-service stubs were removed.
-- **Root `app.json` and `frontend/app.json` disagree** — different EAS `projectId`s, and the root
-  sets `newArchEnabled: true` while frontend does not.
+- ~~Root `app.json` and `frontend/app.json` disagree~~ — **fixed 2026-08-20.** Both root `app.json`
+  and root `eas.json` were deleted. Since `aaa4c9329` removed their `projectRoot` pointer, running
+  `eas build` from the repo root would have built against a different EAS project with no
+  `android.package` and `newArchEnabled: true`. `frontend/` is now the only Expo config.
 
 ### Not yet started
 Performance baseline doc, Azure CDN/Front Door cost evaluation, image pipeline, DB indexing,

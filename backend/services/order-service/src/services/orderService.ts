@@ -10,8 +10,12 @@ import { supabaseAdmin } from "../../../../shared/utils/supabaseClient";
 export const orderCreateSchema = z.object({
   items: z.array(z.object({ productId: z.string(), quantity: z.number().int().positive().max(100) })).min(1).max(50),
   deliveryAddress: z.record(z.string(), z.string()),
-  buyerLat: z.number(),
-  buyerLng: z.number()
+  // Optional since v1.0. The app used to send hardcoded Bangalore coordinates on every order,
+  // which was fabricated data and would have forced a "precise location" disclosure on the Play
+  // Data Safety form for a value nothing reads. Kept in the schema (rather than deleted) so
+  // already-installed clients that still send the pair are not rejected at checkout.
+  buyerLat: z.number().optional(),
+  buyerLng: z.number().optional()
 });
 
 export const ORDER_STATUSES = ["pending", "packed", "dispatched", "delivered", "cancelled"] as const;
@@ -151,8 +155,8 @@ export async function placeOrder(buyerId: string, input: unknown, idempotencyKey
         // it as (total - subtotal), which stays accurate for past orders even if the rule changes.
         total,
         delivery_address: parsed.deliveryAddress,
-        buyer_lat: parsed.buyerLat,
-        buyer_lng: parsed.buyerLng,
+        buyer_lat: parsed.buyerLat ?? null,
+        buyer_lng: parsed.buyerLng ?? null,
         status: "pending"
       })
       .select()

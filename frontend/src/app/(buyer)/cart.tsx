@@ -246,8 +246,10 @@ export default function CartScreen() {
           quantity: item.quantity
         })),
         deliveryAddress,
-        buyerLat: 12.9348,
-        buyerLng: 77.6220,
+        // No coordinates. This used to send a hardcoded Bangalore lat/lng for every buyer in the
+        // country - fabricated data that nothing reads, and which would have obliged us to declare
+        // precise location collection on the Play Data Safety form. Delivery routes off the
+        // address and pincode above. Requires order-service with optional buyerLat/buyerLng.
         paymentMethod: "CASH_ON_DELIVERY"
       };
       await apiClient.post("/orders", payload, { headers: { "Idempotency-Key": idempotencyKey } });

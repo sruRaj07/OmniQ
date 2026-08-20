@@ -124,7 +124,6 @@ export default function ProfileScreen() {
     enabled: !!user
   });
   const userRequests = requestsResponse?.data || [];
-  const pendingDeletion = userRequests.find((r: any) => r.type === "account_deletion" && r.status === "pending");
 
   // Mutation: create a user request
   const requestMutation = useMutation({
@@ -478,7 +477,7 @@ export default function ProfileScreen() {
         <View style={{ marginTop: 32 }}>
           <Text style={styles.sectionTitle}>Data & Privacy</Text>
           <Text style={[styles.meta, { textAlign: 'left', marginBottom: 16 }]}>
-            You have the right to request a copy of your data or delete your account. Requests are reviewed within 30 days.
+            You can delete your account at any time. Deletion is immediate and permanent. You can also request a copy of your data.
           </Text>
 
           <View style={styles.privacyCard}>
@@ -487,15 +486,13 @@ export default function ProfileScreen() {
                 <Text style={styles.privacyLabel}>Delete Account</Text>
                 <Text style={styles.privacyDesc}>Permanently remove your account and all associated data.</Text>
               </View>
-              {pendingDeletion ? (
-                <View style={[styles.pendingBadge, { backgroundColor: 'rgba(255,77,109,0.1)' }]}>
-                  <Text style={[styles.pendingBadgeText, { color: colors.danger }]}>Pending</Text>
-                </View>
-              ) : (
-                <Button variant="danger" onPress={handleDeleteAccountRequest} style={{ minWidth: 100 }}>
-                  Delete
-                </Button>
-              )}
+              {/* Deliberately not gated on a `pending` account_deletion row. Deletion is immediate
+                  now, so a leftover pending request from the old review-based flow is stale data -
+                  and rendering a "Pending" badge in its place would hide the Delete button forever
+                  for exactly those users. Play requires the path to always be reachable. */}
+              <Button variant="danger" onPress={handleDeleteAccountRequest} style={{ minWidth: 100 }}>
+                Delete
+              </Button>
             </View>
           </View>
         </View>
@@ -556,12 +553,23 @@ export default function ProfileScreen() {
               Please review the following before proceeding:
             </Text>
             <View style={{ marginBottom: 16 }}>
-              <Text style={styles.deleteTermItem}>• If approved, your account will be removed within 30 days</Text>
-              <Text style={styles.deleteTermItem}>• The request may be rejected for some reason (e.g., active orders)</Text>
-              <Text style={styles.deleteTermItem}>• If rejected, this request will be dismissed and you will be notified</Text>
-              <Text style={styles.deleteTermItem}>• Upon deletion, all personal data will be permanently removed</Text>
-              <Text style={styles.deleteTermItem}>• You will not be able to recover your account once deleted</Text>
+              <Text style={styles.deleteTermItem}>• Your account is deleted immediately — there is no review step</Text>
+              <Text style={styles.deleteTermItem}>• Your name, email, phone number and saved addresses are erased</Text>
+              <Text style={styles.deleteTermItem}>• Your cart is emptied and you are signed out on this device</Text>
+              <Text style={styles.deleteTermItem}>• Past orders are kept for tax and accounting law, with every identifying detail stripped out</Text>
+              <Text style={styles.deleteTermItem}>• This cannot be undone and your account cannot be recovered</Text>
             </View>
+
+            <Text style={styles.label}>Type DELETE to confirm</Text>
+            <TextInput
+              style={styles.deleteConfirmInput}
+              placeholder="DELETE"
+              placeholderTextColor={colors.textMuted}
+              value={deleteConfirmText}
+              onChangeText={setDeleteConfirmText}
+              autoCapitalize="characters"
+              autoCorrect={false}
+            />
 
             <Text style={styles.label}>Reason (optional)</Text>
             <TextInput
@@ -575,11 +583,15 @@ export default function ProfileScreen() {
             />
 
             <Button variant="danger" onPress={submitDeleteRequest} style={{ marginTop: 16, marginBottom: 12 }}>
-              {requestMutation.isPending ? "Submitting..." : "Confirm Delete Request"}
+              {deleteAccountMutation.isPending ? "Deleting..." : "Permanently Delete My Account"}
             </Button>
             <Button variant="secondary" onPress={() => {
               setShowDeleteModal(false);
               setDeleteReason("");
+              // Clear the confirmation too. Leaving a stale "DELETE" in state would mean a buyer who
+              // typed it, backed out, then reopened the modal could delete their account with one
+              // tap and no second confirmation.
+              setDeleteConfirmText("");
             }}>
               Cancel
             </Button>
@@ -861,5 +873,18 @@ const getStyles = (colors: any) => StyleSheet.create({
     minHeight: 80,
     textAlignVertical: 'top',
     marginTop: 8,
+  },
+  deleteConfirmInput: {
+    backgroundColor: colors.card,
+    color: colors.textPrimary,
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 2,
+    borderWidth: 1,
+    borderColor: colors.danger,
+    marginTop: 8,
+    marginBottom: 4,
   },
 });
