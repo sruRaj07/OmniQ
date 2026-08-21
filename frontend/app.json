@@ -49,7 +49,7 @@
       }
     },
     "android": {
-      "package": "com.omniq.app",
+      "package": "com.sruraj.omniq",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"

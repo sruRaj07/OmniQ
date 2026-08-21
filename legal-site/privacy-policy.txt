@@ -1,0 +1,208 @@
+OMNIQ - PRIVACY POLICY
+
+Last updated: 20 August 2026
+Applies to the OmniQ Android app (com.sruraj.omniq)
+
+OmniQ is an online marketplace in India where buyers order goods from independent sellers. This
+policy explains exactly what personal data the app collects, why, who it is shared with, and how
+you can get it deleted. It is written to describe what the software actually does.
+
+THE SHORT VERSION
+
+We collect the details needed to create your account and deliver your orders: your name, email
+address, phone number and delivery address. We do NOT collect your location, we do NOT use your
+camera, we do NOT run any advertising, analytics or tracking software, and we do NOT sell your
+data to anyone. Orders are Cash on Delivery, so we never handle your card or bank details. You can
+delete your account from inside the app at any time and it happens immediately.
+
+
+1. WHO IS RESPONSIBLE FOR YOUR DATA
+
+OmniQ is operated by Sru Raj Sinha, a sole proprietor trading as "OmniQ", based in India. For
+anything in this policy, including privacy requests, contact:
+
+Email: srusinha092@gmail.com
+
+We aim to respond to privacy requests within 30 days.
+
+
+2. WHAT WE COLLECT
+
+Information you give us:
+
+- Email address and password. Collected when you create an account. Used to identify you and sign
+  you in. Passwords are hashed by our authentication provider; we never see or store them in
+  readable form.
+
+- Full name. Collected at sign-up and in your profile. Used so sellers know who to deliver to, and
+  to address you in the app.
+
+- Phone number. Collected in your profile and at checkout. Used so the seller or delivery agent can
+  contact you about your order.
+
+- Delivery address and PIN code. Collected in your profile and at checkout. Used to deliver your
+  order and to check whether we serve your area.
+
+- Photos you choose. Collected only if you are a seller listing a product, or an administrator
+  uploading a banner. Used to display the product image. We only ever open your photo library when
+  you tap to add an image, and we only receive the specific images you pick. Buyers are never asked
+  for photos.
+
+- Seller business details. Collected if you register as a seller. Used to operate your storefront
+  and route orders and payouts to you.
+
+Information created as you use the app:
+
+- Cart contents, so your cart survives closing the app and switching devices.
+
+- Order history - items, quantities, prices, delivery address, status and timestamps - to process
+  and track orders, handle disputes, and meet tax and accounting obligations.
+
+- Your account role (buyer, seller or administrator), to decide which parts of the app you can use.
+
+
+3. WHAT WE DELIBERATELY DO NOT COLLECT
+
+This section is here because it is unusual, and because you should be able to hold us to it. The
+OmniQ app does NOT collect any of the following:
+
+- Location. Not precise, not approximate. The app requests no location permission at all, and the
+  permission is explicitly stripped from the app package. Serviceability is checked from the PIN
+  code you type in, not from your device.
+
+- Camera, microphone or audio. These permissions are explicitly stripped from the app package. The
+  app can open your photo library on request, but it cannot take a photo or record you.
+
+- Payment or financial information. All orders are Cash on Delivery. There is no payment gateway in
+  the app, so no card, UPI or bank details are ever entered or stored.
+
+- Advertising, analytics or tracking. There is no advertising SDK, no analytics SDK, no
+  crash-reporting SDK and no advertising identifier. We do not build advertising profiles and we do
+  not track you across other apps or websites.
+
+- Contacts, calendar, SMS, call logs or installed apps.
+
+- Push notification tokens. The app sends no push notifications.
+
+
+4. HOW YOUR DATA IS USED
+
+We use your data only to:
+
+- create and secure your account, and sign you in;
+- show you products and keep your cart;
+- place, deliver, track and support your orders;
+- let sellers fulfil the orders you place with them;
+- prevent fraud and abuse, and keep the marketplace safe;
+- meet legal, tax and accounting obligations.
+
+We do not use your data for automated decision-making that produces legal effects, and we do not
+sell or rent it.
+
+
+5. WHO YOUR DATA IS SHARED WITH
+
+Sellers. OmniQ is a marketplace, so this one matters. When you place an order, the seller you
+ordered from receives your NAME, PHONE NUMBER and DELIVERY ADDRESS for that order. They need it to
+deliver. Sellers only ever see the orders placed with them, and they never see your password or
+your orders with other sellers.
+
+Service providers:
+
+- Supabase - database and authentication. Holds your account, profile, cart and orders. Acts as our
+  data processor.
+
+- Microsoft Azure - application hosting. Processes requests in transit. Our backend services run
+  here.
+
+- Google Play - app distribution. Handles installation and updates under Google's own privacy
+  policy. We receive no personal data from Play.
+
+Legal disclosure. We may disclose data where we are legally required to, such as a valid order from
+a court or law enforcement agency, or where it is necessary to establish or defend a legal claim.
+
+
+6. WHERE YOUR DATA IS STORED
+
+Our infrastructure runs on servers operated by the providers above, which may be located outside
+India, including in the United States. Data is encrypted in transit using HTTPS/TLS. By using OmniQ
+you consent to this transfer.
+
+
+7. HOW YOUR DATA IS PROTECTED
+
+- All traffic between the app and our servers uses HTTPS/TLS.
+- Passwords are hashed by our authentication provider and are never stored in readable form.
+- Database row-level security means one account cannot read another account's rows, even if the app
+  were tampered with.
+- Session tokens are cryptographically signed and verified on every request.
+
+No system is perfectly secure, and we cannot guarantee absolute security. If a breach affects your
+personal data we will notify you and the relevant authority as required by law.
+
+
+8. HOW LONG WE KEEP YOUR DATA
+
+- Account and profile data - until you delete your account.
+
+- Cart contents - until you clear the cart or delete your account.
+
+- Order records - retained after account deletion in anonymised form, with your name, phone number
+  and delivery address stripped out and the link to your account removed. Indian tax and accounting
+  law requires us to keep records of transactions; keeping them without identifying details is how
+  we meet that duty without keeping data about you.
+
+
+9. DELETING YOUR ACCOUNT
+
+In the app: Profile > Data & Privacy > Delete Account. Deletion is immediate and permanent - there
+is no waiting period and no review step.
+
+Without the app: email srusinha092@gmail.com from the address registered to the account, with the
+subject "OmniQ account deletion request".
+
+When you delete your account we immediately:
+
+- erase your name, email address, phone number, saved addresses and PIN code;
+- delete your sign-in credentials, so the account can no longer be used;
+- empty and delete your cart;
+- remove your name and address from past orders and unlink them from you;
+- unlink any seller storefront from you as a person.
+
+This cannot be undone. Your account cannot be recovered afterwards.
+
+
+10. YOUR RIGHTS
+
+Under India's Digital Personal Data Protection Act, 2023, and other applicable law, you have the
+right to:
+
+- ask what personal data we hold about you and get a copy of it;
+- have inaccurate or incomplete data corrected - you can edit most of it in the app directly;
+- have your data erased, which you can do yourself at any time (section 9);
+- withdraw consent, by deleting your account;
+- nominate another person to exercise these rights on your behalf if you die or become
+  incapacitated;
+- complain to the Data Protection Board of India if you believe we have mishandled your data.
+
+To exercise any of these, email srusinha092@gmail.com.
+
+
+11. CHILDREN
+
+OmniQ is not intended for children. You must be at least 18 years old to create an account, since
+ordering goods forms a contract. We do not knowingly collect data from children. If you believe a
+child has created an account, email us and we will delete it.
+
+
+12. CHANGES TO THIS POLICY
+
+If we change this policy we will update the date at the top of this page. If the change materially
+affects how we handle your data, we will give notice in the app before it takes effect. Continuing
+to use OmniQ after a change means you accept the updated policy.
+
+
+13. CONTACT
+
+Sru Raj Sinha (sole proprietor, trading as OmniQ)
+srusinha092@gmail.com

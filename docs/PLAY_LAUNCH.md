@@ -1,6 +1,6 @@
 # Publishing OmniQ to Google Play
 
-**Written 2026-08-20.** Package `com.omniq.app`. Personal developer account.
+**Written 2026-08-20.** Package `com.sruraj.omniq`. Personal developer account.
 
 This is the working checklist for getting OmniQ onto Google Play. Read
 [The critical path](#the-critical-path) first — it determines the order of everything else.
@@ -91,9 +91,9 @@ Your URLs will be (confirm the exact casing after Pages goes live):
 
 | Purpose | URL |
 |---|---|
-| Privacy policy | `https://sruraj07.github.io/omniq-legal/privacy-policy.html` |
-| Account deletion | `https://sruraj07.github.io/omniq-legal/account-deletion.html` |
-| Terms | `https://sruraj07.github.io/omniq-legal/terms.html` |
+| Privacy policy | `https://sruraj07.github.io/omniQ-legal/privacy-policy.html` |
+| Account deletion | `https://sruraj07.github.io/omniQ-legal/account-deletion.html` |
+| Terms | `https://sruraj07.github.io/omniQ-legal/terms.html` |
 
 Verify each returns `200` in a private browser window before pasting them into Play Console.
 
@@ -224,7 +224,7 @@ software. We never sell your data.
 You can delete your account and personal data permanently from inside the app at any time, from
 Profile → Data & Privacy. Deletion is immediate — there is no waiting period.
 
-Privacy policy: https://sruraj07.github.io/omniq-legal/privacy-policy.html
+Privacy policy: https://sruraj07.github.io/omniQ-legal/privacy-policy.html
 
 SUPPORT
 
@@ -303,7 +303,7 @@ fulfil orders — this counts as sharing), **Processed ephemerally = No**,
 |---|---|
 | Is data encrypted in transit? | **Yes** — HTTPS/TLS on all traffic |
 | Can users request data deletion? | **Yes** |
-| Deletion URL | `https://sruraj07.github.io/omniq-legal/account-deletion.html` |
+| Deletion URL | `https://sruraj07.github.io/omniQ-legal/account-deletion.html` |
 | Have you committed to the Play Families policy? | No |
 | Independent security review? | No |
 
