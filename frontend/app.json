@@ -54,7 +54,7 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
       },
-      "versionCode": 9,
+      "versionCode": 10,
       "jsEngine": "hermes",
       "//blockedPermissions": "The app never opens the camera (only ImagePicker.launchImageLibraryAsync) and never reads GPS - useLocation checks a pincode against the delivery-zone API. expo-image-picker's manifest still declares CAMERA, and any transitive dependency can reintroduce location. Stripping them here keeps the manifest matching the Play Data Safety declaration, which states no location and no camera.",
       "blockedPermissions": [
