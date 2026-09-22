@@ -14,12 +14,14 @@ on:
   workflow_dispatch:
 
 env:
-  ACR_NAME: omniqregistry
-  RESOURCE_GROUP: OmniQ-Backend
+  # ── New Azure account resource names (updated for fresh deployment) ──
+  ACR_NAME: omniqacr
+  RESOURCE_GROUP: omniq-backend-rg
   CONTAINER_APP_ENV: omniq-env
   # Internal DNS suffix of the Container Apps environment. Only api-gateway is reachable from the
   # public internet; the six backend services resolve on this name from inside the environment.
-  INTERNAL_SUFFIX: internal.redbay-317d5a3d.eastus.azurecontainerapps.io
+  # TODO: Replace after `az containerapp env show` returns the real suffix.
+  INTERNAL_SUFFIX: internal.bravemoss-d229feb4.centralindia.azurecontainerapps.io
 
 jobs:
   build-and-deploy:
@@ -69,8 +71,7 @@ jobs:
           for pair in \
             "SUPABASE_URL:${{ secrets.SUPABASE_URL }}" \
             "SUPABASE_ANON_KEY:${{ secrets.SUPABASE_ANON_KEY }}" \
-            "SUPABASE_SERVICE_ROLE_KEY:${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
-            "REDIS_URL:${{ secrets.REDIS_URL }}" ; do
+            "SUPABASE_SERVICE_ROLE_KEY:${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" ; do
             name="${pair%%:*}"; value="${pair#*:}"
             [ -n "$value" ] || missing="$missing $name"
           done
@@ -117,7 +118,6 @@ jobs:
             --secrets \
               supabase-service-role-key="${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
               supabase-anon-key="${{ secrets.SUPABASE_ANON_KEY }}" \
-              redis-url="${{ secrets.REDIS_URL }}" \
             -o none
 
       - name: Deploy to Azure Container Apps
@@ -135,7 +135,6 @@ jobs:
               EXPO_PUBLIC_SUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
               EXPO_PUBLIC_SUPABASE_ANON_KEY=secretref:supabase-anon-key \
               SUPABASE_SERVICE_ROLE_KEY=secretref:supabase-service-role-key \
-              REDIS_URL=secretref:redis-url \
               PRODUCT_SERVICE_URL=https://product-service.${{ env.INTERNAL_SUFFIX }} \
               ORDER_SERVICE_URL=https://order-service.${{ env.INTERNAL_SUFFIX }} \
               LOCATION_SERVICE_URL=https://location-service.${{ env.INTERNAL_SUFFIX }} \

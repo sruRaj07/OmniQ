@@ -4,17 +4,14 @@
  */
 import { productCreateSchema, productUpdateSchema } from "../validators/productValidator";
 import { supabaseAdmin } from "../../../../shared/utils/supabaseClient";
-import { redis } from "./redisClient";
+import { cacheGet, cacheSet, invalidateCache } from "../utils/microCache";
 
-async function invalidateProductCaches(sellerId: string) {
-  try {
-    const keys = await redis.keys('products:*');
-    if (keys.length > 0) {
-      await redis.del(...keys);
-    }
-  } catch (err) {
-    console.error("Failed to invalidate product caches:", err);
-  }
+/** TTL constants (milliseconds) */
+const LIST_TTL_MS = 5 * 60 * 1000;   // 5 minutes for public product listings
+const SELLER_TTL_MS = 10 * 60 * 1000; // 10 minutes for seller-specific listings
+
+function invalidateProductCaches(_sellerId?: string) {
+  invalidateCache("products:");
 }
 
 export type ProductDto = {
@@ -33,9 +30,9 @@ export type ProductDto = {
 export async function listProducts(sellerId?: string, cursor?: string, limit: number = 100): Promise<{ products: ProductDto[], nextCursor: string | null }> {
   const cacheKey = `products:seller:${sellerId || 'all'}:cursor:${cursor || 'first'}:limit:${limit}`;
   if (!sellerId) {
-    const cached = await redis.get(cacheKey);
+    const cached = cacheGet<{ products: ProductDto[], nextCursor: string | null }>(cacheKey, LIST_TTL_MS);
     if (cached) {
-      return JSON.parse(cached);
+      return cached;
     }
   }
 
@@ -65,16 +62,16 @@ export async function listProducts(sellerId?: string, cursor?: string, limit: nu
 
   const result = { products, nextCursor };
   if (!sellerId) {
-    await redis.setex(cacheKey, 300, JSON.stringify(result)); // TTL 5 minutes
+    cacheSet(cacheKey, result);
   }
   return result;
 }
 
 export async function listSellerProducts(ownerId: string): Promise<ProductDto[]> {
   const cacheKey = `products:owner:${ownerId}`;
-  const cached = await redis.get(cacheKey);
+  const cached = cacheGet<ProductDto[]>(cacheKey, SELLER_TTL_MS);
   if (cached) {
-    return JSON.parse(cached);
+    return cached;
   }
 
   const { data: seller, error: sellerError } = await supabaseAdmin
@@ -94,7 +91,7 @@ export async function listSellerProducts(ownerId: string): Promise<ProductDto[]>
 
   if (error) throw new Error(`Failed to fetch seller products: ${error.message}`);
   const result = data || [];
-  await redis.setex(cacheKey, 600, JSON.stringify(result)); // TTL 10 minutes
+  cacheSet(cacheKey, result);
   return result;
 }
 
