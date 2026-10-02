@@ -7,10 +7,14 @@
  *
  * Author: OmniQ Team
  */
-import React, { memo, useCallback, useMemo } from "react";
+import React, { memo, useCallback, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
+  Dimensions,
+  Linking,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -35,9 +39,13 @@ import {
 import {
   AlertIcon,
   CheckIcon,
+  CopyIcon,
   ImageIcon,
   MapPinIcon,
+  NavigationIcon,
   PhoneIcon,
+  PhoneOutgoingIcon,
+  SearchIcon,
   XIcon,
 } from "@/components/ui/SellerIcons";
 
@@ -132,7 +140,70 @@ export const OrderDetailSheet = memo(function OrderDetailSheet({
     .join(", ");
   const phone = address.phone || order?.buyer?.phone_number;
 
+  /* ─── Image lightbox state ─── */
+  const [lightbox, setLightbox] = useState<{ uri: string; title: string } | null>(null);
+  const lightboxOpacity = useRef(new Animated.Value(0)).current;
+
+  const openLightbox = useCallback((uri: string, title: string) => {
+    setLightbox({ uri, title });
+    lightboxOpacity.setValue(0);
+    Animated.timing(lightboxOpacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+  }, [lightboxOpacity]);
+
+  const closeLightbox = useCallback(() => {
+    Animated.timing(lightboxOpacity, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => {
+      setLightbox(null);
+    });
+  }, [lightboxOpacity]);
+
+  /* ─── Clipboard copy with animated "Copied!" toast ─── */
+  const toastOpacity = useRef(new Animated.Value(0)).current;
+  const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showCopiedToast = useCallback(() => {
+    if (toastTimeout.current) clearTimeout(toastTimeout.current);
+    toastOpacity.setValue(1);
+    toastTimeout.current = setTimeout(() => {
+      Animated.timing(toastOpacity, { toValue: 0, duration: 300, useNativeDriver: true }).start();
+    }, 1500);
+  }, [toastOpacity]);
+
+  const handleCopyAddress = useCallback(async () => {
+    if (!addressLine) return;
+    try {
+      if (Platform.OS === "web" && typeof navigator?.clipboard?.writeText === "function") {
+        await navigator.clipboard.writeText(addressLine);
+      } else {
+        const Clipboard = (await import("expo-clipboard")).default;
+        await Clipboard.setStringAsync(addressLine);
+      }
+      showCopiedToast();
+    } catch { /* clipboard unavailable — silently degrade */ }
+  }, [addressLine, showCopiedToast]);
+
+  /** Opens the address in Google Maps (Android/Web) or Apple Maps (iOS). */
+  const handleOpenMaps = useCallback(() => {
+    if (!addressLine) return;
+    const encoded = encodeURIComponent(addressLine);
+    const url = Platform.select({
+      ios: `maps:0,0?q=${encoded}`,
+      default: `https://www.google.com/maps/search/?api=1&query=${encoded}`,
+    });
+    Linking.openURL(url).catch(() => {
+      // Fallback to Google Maps web URL if native scheme fails
+      Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encoded}`).catch(() => {});
+    });
+  }, [addressLine]);
+
+  /** Opens the phone dialler with the customer's number pre-filled. */
+  const handleDialPhone = useCallback(() => {
+    if (!phone) return;
+    const cleaned = String(phone).replace(/[^\d+]/g, "");
+    Linking.openURL(`tel:${cleaned}`).catch(() => {});
+  }, [phone]);
+
   return (
+  <>
     <Modal visible={!!order} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.overlay}>
         <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Close order details" />
@@ -173,17 +244,60 @@ export const OrderDetailSheet = memo(function OrderDetailSheet({
               <View style={styles.block}>
                 <Text style={styles.blockTitle}>Delivery to</Text>
                 {addressLine ? (
-                  <View style={styles.blockRow}>
-                    <MapPinIcon size={15} color={colors.textMuted} strokeWidth={2} />
-                    <Text style={styles.blockValue}>{addressLine}</Text>
+                  <View style={styles.addressContainer}>
+                    <View style={styles.blockRow}>
+                      <MapPinIcon size={15} color={colors.textMuted} strokeWidth={2} />
+                      <Text style={styles.blockValue}>{addressLine}</Text>
+                    </View>
+                    <View style={styles.addressActions}>
+                      <Pressable
+                        onPress={handleCopyAddress}
+                        hitSlop={6}
+                        accessibilityLabel="Copy address"
+                        accessibilityRole="button"
+                        style={({ pressed }) => [styles.actionChip, pressed && styles.actionChipPressed]}
+                      >
+                        <CopyIcon size={13} color={colors.accent} strokeWidth={2.2} />
+                        <Text style={[styles.actionChipLabel, { color: colors.accent }]}>Copy</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={handleOpenMaps}
+                        hitSlop={6}
+                        accessibilityLabel="Open in Maps"
+                        accessibilityRole="button"
+                        style={({ pressed }) => [styles.actionChip, styles.actionChipMaps, pressed && styles.actionChipPressed]}
+                      >
+                        <NavigationIcon size={13} color="#FFFFFF" strokeWidth={2.2} />
+                        <Text style={styles.actionChipLabelMaps}>Directions</Text>
+                      </Pressable>
+                    </View>
                   </View>
                 ) : null}
                 {phone ? (
-                  <View style={styles.blockRow}>
-                    <PhoneIcon size={15} color={colors.textMuted} strokeWidth={2} />
-                    <Text style={styles.blockValue}>{phone}</Text>
+                  <View style={styles.phoneRow}>
+                    <View style={styles.blockRow}>
+                      <PhoneIcon size={15} color={colors.textMuted} strokeWidth={2} />
+                      <Text style={styles.blockValue}>{phone}</Text>
+                    </View>
+                    <Pressable
+                      onPress={handleDialPhone}
+                      hitSlop={8}
+                      accessibilityLabel="Call customer"
+                      accessibilityRole="button"
+                      style={({ pressed }) => [styles.dialButton, pressed && styles.dialButtonPressed]}
+                    >
+                      <PhoneOutgoingIcon size={16} color={colors.success} strokeWidth={2.2} />
+                    </Pressable>
                   </View>
                 ) : null}
+                {/* "Copied!" toast overlay */}
+                <Animated.View
+                  pointerEvents="none"
+                  style={[styles.copiedToast, { opacity: toastOpacity, backgroundColor: colors.accent }]}
+                >
+                  <CheckIcon size={12} color="#FFFFFF" strokeWidth={3} />
+                  <Text style={styles.copiedToastText}>Copied!</Text>
+                </Animated.View>
               </View>
             ) : null}
 
@@ -192,18 +306,29 @@ export const OrderDetailSheet = memo(function OrderDetailSheet({
               {(order?.order_items || []).map((item: any) => {
                 const product = item.product;
                 const lineTotal = (Number(item.price) || Number(product?.price) || 0) * (item.quantity || 1);
+                const imageUri = product?.images?.[0];
                 return (
                   <View key={item.id} style={styles.itemRow}>
-                    {product?.images?.[0] ? (
-                      <NetworkAwareImage
-                        source={product.images[0]}
-                        thumbnailSource={product.thumbnail_url}
-                        placeholder={product.blurhash}
-                        style={styles.itemImage}
-                        displayWidth={44}
-                        contentFit="cover"
-                        transition={120}
-                      />
+                    {imageUri ? (
+                      <Pressable
+                        onPress={() => openLightbox(imageUri, product?.title || "Product")}
+                        accessibilityLabel={`View ${product?.title || "product"} image`}
+                        accessibilityRole="button"
+                        style={({ pressed }) => pressed && styles.itemImagePressed}
+                      >
+                        <NetworkAwareImage
+                          source={imageUri}
+                          thumbnailSource={product.thumbnail_url}
+                          placeholder={product.blurhash}
+                          style={styles.itemImage}
+                          displayWidth={44}
+                          contentFit="cover"
+                          transition={120}
+                        />
+                        <View style={styles.zoomBadge}>
+                          <SearchIcon size={9} color="#FFFFFF" strokeWidth={2.8} />
+                        </View>
+                      </Pressable>
                     ) : (
                       <View style={[styles.itemImage, styles.itemImageFallback]}>
                         <ImageIcon size={16} color={colors.textMuted} strokeWidth={1.8} />
@@ -259,6 +384,32 @@ export const OrderDetailSheet = memo(function OrderDetailSheet({
         </View>
       </View>
     </Modal>
+
+    {/* ─── Full-screen image lightbox ─── */}
+    <Modal visible={!!lightbox} transparent animationType="none" onRequestClose={closeLightbox}>
+      <Animated.View style={[styles.lightboxOverlay, { opacity: lightboxOpacity }]}>
+        <Pressable style={styles.lightboxBackdrop} onPress={closeLightbox} />
+        <View style={styles.lightboxContent}>
+          <NetworkAwareImage
+            source={lightbox?.uri ?? ""}
+            style={styles.lightboxImage}
+            displayWidth={Dimensions.get("window").width - SPACE.xl * 2}
+            contentFit="contain"
+            transition={100}
+          />
+          <Text style={styles.lightboxTitle} numberOfLines={3}>{lightbox?.title}</Text>
+        </View>
+        <Pressable
+          onPress={closeLightbox}
+          hitSlop={12}
+          accessibilityLabel="Close image preview"
+          style={({ pressed }) => [styles.lightboxClose, pressed && { opacity: 0.7 }]}
+        >
+          <XIcon size={20} color="#FFFFFF" strokeWidth={2.4} />
+        </Pressable>
+      </Animated.View>
+    </Modal>
+  </>
   );
 });
 
@@ -343,11 +494,75 @@ const getStyles = (colors: any) =>
       textTransform: "uppercase",
       marginBottom: SPACE.md,
     },
-    blockRow: { flexDirection: "row", alignItems: "flex-start", gap: SPACE.sm, marginBottom: 6 },
+    blockRow: { flexDirection: "row", alignItems: "flex-start", gap: SPACE.sm, marginBottom: 6, flex: 1 },
     blockValue: { flex: 1, color: colors.textPrimary, fontSize: 13.5, fontWeight: "500", lineHeight: 20 },
+    addressContainer: { marginBottom: 4 },
+    addressActions: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: SPACE.sm,
+      marginTop: SPACE.sm,
+      marginLeft: 23, // aligns with text (icon width 15 + gap 8)
+    },
+    actionChip: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      paddingVertical: 5,
+      paddingHorizontal: 10,
+      borderRadius: RADIUS.pill,
+      borderWidth: 1.2,
+      borderColor: withAlpha(colors.accent, 0.3),
+      backgroundColor: withAlpha(colors.accent, 0.06),
+    },
+    actionChipPressed: { opacity: 0.65 },
+    actionChipLabel: { fontSize: 11.5, fontWeight: "700" },
+    actionChipMaps: {
+      backgroundColor: colors.accent,
+      borderColor: colors.accent,
+    },
+    actionChipLabelMaps: { fontSize: 11.5, fontWeight: "700", color: "#FFFFFF" },
+    phoneRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    dialButton: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: withAlpha(colors.success, 0.1),
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    dialButtonPressed: { opacity: 0.6, transform: [{ scale: 0.92 }] },
+    copiedToast: {
+      position: "absolute",
+      top: SPACE.md,
+      right: SPACE.md,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      paddingVertical: 5,
+      paddingHorizontal: 10,
+      borderRadius: RADIUS.pill,
+    },
+    copiedToastText: { color: "#FFFFFF", fontSize: 11, fontWeight: "800" },
     itemRow: { flexDirection: "row", alignItems: "center", gap: SPACE.md, paddingVertical: SPACE.sm },
-    itemImage: { width: 44, height: 44, borderRadius: RADIUS.sm, backgroundColor: colors.bgTertiary },
+    itemImage: { width: 44, height: 44, borderRadius: RADIUS.sm, backgroundColor: colors.bgTertiary, overflow: "hidden" as const },
+    itemImagePressed: { opacity: 0.7 },
     itemImageFallback: { alignItems: "center", justifyContent: "center" },
+    zoomBadge: {
+      position: "absolute" as const,
+      bottom: 2,
+      right: 2,
+      width: 16,
+      height: 16,
+      borderRadius: 8,
+      backgroundColor: "rgba(0,0,0,0.55)",
+      alignItems: "center" as const,
+      justifyContent: "center" as const,
+    },
     itemBody: { flex: 1, minWidth: 0 },
     itemName: { color: colors.textPrimary, fontSize: 13.5, fontWeight: "600", lineHeight: 18 },
     itemQty: { color: colors.textMuted, fontSize: 12, fontWeight: "600", marginTop: 2 },
@@ -384,4 +599,48 @@ const getStyles = (colors: any) =>
     primaryPressed: { opacity: 0.88 },
     primaryBusy: { opacity: 0.7 },
     primaryLabel: { color: "#FFFFFF", fontSize: 15.5, fontWeight: "800", letterSpacing: 0.2 },
+    lightboxOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.88)",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    lightboxBackdrop: {
+      position: "absolute" as const,
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+    },
+    lightboxContent: {
+      alignItems: "center",
+      paddingHorizontal: SPACE.xl,
+      maxWidth: 500,
+    },
+    lightboxImage: {
+      width: Dimensions.get("window").width - SPACE.xl * 2,
+      height: Dimensions.get("window").width - SPACE.xl * 2,
+      borderRadius: RADIUS.lg,
+      maxWidth: 460,
+      maxHeight: 460,
+    },
+    lightboxTitle: {
+      color: "#FFFFFF",
+      fontSize: 16,
+      fontWeight: "700",
+      textAlign: "center" as const,
+      marginTop: SPACE.lg,
+      lineHeight: 22,
+    },
+    lightboxClose: {
+      position: "absolute" as const,
+      top: 56,
+      right: SPACE.xl,
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: "rgba(255,255,255,0.15)",
+      alignItems: "center" as const,
+      justifyContent: "center" as const,
+    },
   });

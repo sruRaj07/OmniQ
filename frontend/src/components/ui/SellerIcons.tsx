@@ -249,3 +249,29 @@ export const SlidersIcon = stroked("SlidersIcon", () => (
     <Circle cx="15" cy="17" r="2.4" />
   </>
 ));
+
+/** Copy-to-clipboard icon (two overlapping rectangles). */
+export const CopyIcon = stroked("CopyIcon", () => (
+  <>
+    <Rect x="9" y="9" width="13" height="13" rx="2" />
+    <Path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+  </>
+));
+
+/** External-link / navigation arrow icon (arrow pointing out of a box). */
+export const NavigationIcon = stroked("NavigationIcon", () => (
+  <>
+    <Path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+    <Polyline points="15 3 21 3 21 9" />
+    <Line x1="10" y1="14" x2="21" y2="3" />
+  </>
+));
+
+/** Phone with outgoing arrow — dial / call icon. */
+export const PhoneOutgoingIcon = stroked("PhoneOutgoingIcon", () => (
+  <>
+    <Path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.2 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z" />
+    <Polyline points="23 1 23 7 17 7" />
+    <Line x1="16" y1="8" x2="23" y2="1" />
+  </>
+));
