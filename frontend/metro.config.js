@@ -1,15 +1,13 @@
-/**
- * OmniQ mobile app - Metro bundler configuration.
- * Learn more https://docs.expo.io/guides/customizing-metro
- */
-const { getDefaultConfig } = require("expo/metro-config");
 const path = require("path");
+const {
+  getSentryExpoConfig
+} = require("@sentry/react-native/metro");
 
 const projectRoot = __dirname;
 const monorepoRoot = path.resolve(projectRoot, "..");
 
 /** @type {import('expo/metro-config').MetroConfig} */
-const config = getDefaultConfig(projectRoot);
+const config = getSentryExpoConfig(projectRoot);
 
 // Watch all files in the monorepo
 config.watchFolders = [...(config.watchFolders || []), monorepoRoot];

@@ -27,7 +27,9 @@ LogBox.ignoreLogs([
 ]);
 
 
-export default function RootLayout() {
+import * as Sentry from '@sentry/react-native';
+
+function RootLayout() {
   const colors = useThemeColors();
 
   const screenOptions = useMemo(() => ({
@@ -60,3 +62,5 @@ export default function RootLayout() {
     </SafeAreaProvider>
   );
 }
+
+export default Sentry.wrap(RootLayout);

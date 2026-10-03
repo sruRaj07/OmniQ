@@ -9,3 +9,5 @@ expo-env.d.ts
 # directory silently overrides it and would strip the blockedPermissions handling.
 /android
 /ios
+
+.env.local
