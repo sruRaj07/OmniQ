@@ -15,7 +15,7 @@ import { StatusBar } from "expo-status-bar";
 import { Platform, LogBox } from "react-native";
 
 import { useThemeColors } from "@/store/useThemeStore";
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 
 LogBox.ignoreLogs([
   'props.pointerEvents is deprecated',
@@ -28,9 +28,14 @@ LogBox.ignoreLogs([
 
 
 import * as Sentry from '@sentry/react-native';
+import { configureGoogleSignIn } from "@/lib/googleAuth";
 
 function RootLayout() {
   const colors = useThemeColors();
+
+  useEffect(() => {
+    configureGoogleSignIn();
+  }, []);
 
   const screenOptions = useMemo(() => ({
     headerShown: false,

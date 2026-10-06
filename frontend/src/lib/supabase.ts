@@ -31,7 +31,7 @@ function createSafeClient(): SupabaseClient {
       storage: getStorage(),
       autoRefreshToken: typeof window !== "undefined",
       persistSession: typeof window !== "undefined",
-      detectSessionInUrl: false,
+      detectSessionInUrl: typeof window !== "undefined" && Platform.OS === "web",
     },
   };
 

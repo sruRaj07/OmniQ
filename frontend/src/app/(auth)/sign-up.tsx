@@ -133,30 +133,19 @@ export default function SignUpScreen() {
   const handleGoogleAuth = async () => {
     setGoogleLoading(true);
     setFormError(null);
-    const isWeb = Platform.OS === "web";
-    const redirectUri = Linking.createURL('/');
-    const {
-      data,
-      error
-    } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: redirectUri,
-        skipBrowserRedirect: !isWeb
+    const { signInWithGoogleNative } = await import("@/lib/googleAuth");
+    
+    const { success, error, data } = await signInWithGoogleNative();
+    
+    if (!success) {
+      if (error && !error.includes('cancelled')) {
+        setFormError(error);
       }
-    });
-    if (error) {
-      setFormError(error.message);
       setGoogleLoading(false);
       return;
     }
-    if (!isWeb && data?.url) {
-      try {
-        await WebBrowser.openAuthSessionAsync(data.url, redirectUri);
-      } catch (err: any) {
-        setFormError(err.message);
-      }
-    }
+    
+    // AuthProvider will automatically redirect since session is now active
     setGoogleLoading(false);
   };
   return <Screen scroll={true} refreshable={false}>
