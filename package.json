@@ -30,7 +30,9 @@
   },
   "pnpm": {
     "onlyBuiltDependencies": [
-      "esbuild"
+      "esbuild",
+      "@sentry/cli",
+      "@parcel/watcher"
     ],
     "packageExtensions": {
       "@tanstack/router-generator": {
