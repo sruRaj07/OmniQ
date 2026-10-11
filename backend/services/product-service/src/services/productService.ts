@@ -25,31 +25,49 @@ export type ProductDto = {
   images?: string[];
   is_approved?: boolean;
   is_flagged?: boolean;
+  created_at?: string;
+  updated_at?: string;
 };
 
-export async function listProducts(sellerId?: string, cursor?: string, limit: number = 100): Promise<{ products: ProductDto[], nextCursor: string | null }> {
-  const cacheKey = `products:seller:${sellerId || 'all'}:cursor:${cursor || 'first'}:limit:${limit}`;
-  if (!sellerId) {
+export async function listProducts(
+  sellerId?: string,
+  cursor?: string,
+  limit: number = 100,
+  isApproved?: boolean
+): Promise<{ products: ProductDto[], nextCursor: string | null }> {
+  const cacheKey = `products:seller:${sellerId || 'all'}:cursor:${cursor || 'first'}:limit:${limit}:approved:${isApproved ?? 'all'}`;
+  if (!sellerId && isApproved === undefined) {
     const cached = cacheGet<{ products: ProductDto[], nextCursor: string | null }>(cacheKey, LIST_TTL_MS);
     if (cached) {
       return cached;
     }
   }
 
-  let query = supabaseAdmin.from("products").select("id, title, price, compare_price, images, seller_id, stock, category, created_at, is_approved, is_flagged");
+  let query = supabaseAdmin.from("products").select("id, title, price, compare_price, images, seller_id, stock, category, created_at, updated_at, is_approved, is_flagged");
   
   if (sellerId) {
     query = query.eq("seller_id", sellerId);
+    if (isApproved !== undefined) {
+      query = query.eq("is_approved", isApproved);
+    }
   } else {
-    // Public fetch: only show approved products
-    query = query.eq("is_approved", true);
+    // Public fetch: default to approved only unless explicitly specified
+    query = query.eq("is_approved", isApproved !== undefined ? isApproved : true);
   }
 
   if (cursor) {
     query = query.lt("created_at", cursor);
   }
 
-  query = query.order("created_at", { ascending: false }).limit(limit);
+  // When querying for a specific seller (e.g. admin reviewing inventory or seller checking listings),
+  // order by updated_at descending first so newly edited or resubmitted products always appear at the top
+  if (sellerId) {
+    query = query.order("updated_at", { ascending: false }).order("created_at", { ascending: false });
+  } else {
+    query = query.order("created_at", { ascending: false });
+  }
+
+  query = query.limit(limit);
 
   const { data, error } = await query;
   if (error) throw new Error(`Failed to fetch products: ${error.message}`);
@@ -61,7 +79,7 @@ export async function listProducts(sellerId?: string, cursor?: string, limit: nu
   }
 
   const result = { products, nextCursor };
-  if (!sellerId) {
+  if (!sellerId && isApproved === undefined) {
     cacheSet(cacheKey, result);
   }
   return result;

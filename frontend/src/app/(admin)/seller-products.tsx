@@ -67,11 +67,14 @@ export default function AdminSellerProductsScreen() {
   }));
 
   const productsQuery = useQuery({
-    queryKey: ["adminSellerProducts", sellerId],
+    queryKey: ["adminSellerProducts", sellerId, activeTab],
     queryFn: async () => {
-      const res = await apiClient.get(`/products?sellerId=${sellerId}&limit=500`);
+      const isApproved = activeTab === "approved";
+      const res = await apiClient.get(`/products?sellerId=${sellerId}&approved=${isApproved}&limit=500`);
       return res.data?.data ?? [];
     },
+    staleTime: 0,
+    refetchOnMount: "always",
     enabled: !!sellerId
   });
   const products = productsQuery.data;
@@ -97,6 +100,9 @@ export default function AdminSellerProductsScreen() {
       queryClient.invalidateQueries({
         queryKey: ["adminSellerProducts", sellerId]
       });
+      queryClient.invalidateQueries({
+        queryKey: ["adminDashboard"]
+      });
       setLoadingAction(null);
       
       const msg = variables.action === "approve" ? "Approved successfully" : 
@@ -115,9 +121,11 @@ export default function AdminSellerProductsScreen() {
       }
     }
   }, queryClient);
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString?: string | null) => {
     if (!dateString) return "N/A";
-    return new Date(dateString).toLocaleString('en-GB', {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return "N/A";
+    return date.toLocaleString('en-GB', {
       day: 'numeric',
       month: 'short',
       year: 'numeric',
@@ -125,6 +133,25 @@ export default function AdminSellerProductsScreen() {
       minute: '2-digit'
     });
   };
+
+  const formatRelativeTime = (dateString?: string | null) => {
+    if (!dateString) return "";
+    const date = new Date(dateString);
+    const diffMs = Date.now() - date.getTime();
+    if (diffMs < 0 || isNaN(diffMs)) return "";
+    const diffSec = Math.floor(diffMs / 1000);
+    const diffMin = Math.floor(diffSec / 60);
+    const diffHours = Math.floor(diffMin / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffSec < 60) return "Just now";
+    if (diffMin < 60) return `${diffMin}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays === 1) return "Yesterday";
+    if (diffDays < 30) return `${diffDays}d ago`;
+    return "";
+  };
+
   const filteredProducts = products?.filter((p: any) => (activeTab === "approved" ? p.is_approved : !p.is_approved)) || [];
 
   const renderHeader = useCallback(() => (
@@ -160,6 +187,13 @@ export default function AdminSellerProductsScreen() {
     const isDeleting = loadingAction?.id === product.id && loadingAction?.action === "delete";
     const isProcessing = isApproving || isRejecting || isDeleting;
 
+    const effectiveUpdated = product.updated_at || product.created_at;
+    const isEdited = Boolean(
+      product.updated_at &&
+      product.created_at &&
+      new Date(product.updated_at).getTime() - new Date(product.created_at).getTime() > 2000
+    );
+
     return (
       <TouchableOpacity activeOpacity={0.9} onPress={() => setExpandedId(isExpanded ? null : product.id)}>
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -184,7 +218,15 @@ export default function AdminSellerProductsScreen() {
             </View>
           </View>
           
-          <Text style={[styles.price, { color: colors.textPrimary }]}>{formatCurrency(product.price)}</Text>
+          <View style={styles.priceRow}>
+            <Text style={[styles.price, { color: colors.textPrimary }]}>{formatCurrency(product.price)}</Text>
+            {effectiveUpdated ? (
+              <Text style={styles.cardTimestamp}>
+                {isEdited ? "Updated: " : "Listed: "}
+                {formatDate(effectiveUpdated)}
+              </Text>
+            ) : null}
+          </View>
           
           <Text style={styles.mutedText} numberOfLines={isExpanded ? undefined : 2}>
             {product.description}
@@ -206,19 +248,30 @@ export default function AdminSellerProductsScreen() {
               </View>
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>Category:</Text>
-                <Text style={styles.infoValue}>{product.category_id || "Uncategorized"}</Text>
+                <Text style={styles.infoValue}>{product.category || product.category_id || "Uncategorized"}</Text>
               </View>
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>Stock Available:</Text>
-                <Text style={styles.infoValue}>{product.stock_quantity ?? "0"} units</Text>
+                <Text style={styles.infoValue}>{product.stock ?? product.stock_quantity ?? "0"} units</Text>
               </View>
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>Added On:</Text>
                 <Text style={styles.infoValue}>{formatDate(product.created_at)}</Text>
               </View>
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Last Updated:</Text>
-                <Text style={styles.infoValue}>{formatDate(product.updated_at)}</Text>
+              <View style={[styles.infoRow, { alignItems: "flex-start" }]}>
+                <Text style={[styles.infoLabel, { paddingTop: 2 }]}>Last Updated:</Text>
+                <View style={styles.updatedValueWrapper}>
+                  <Text style={styles.updatedDateText}>
+                    {formatDate(effectiveUpdated)}
+                  </Text>
+                  {isEdited ? (
+                    <View style={styles.editedBadge}>
+                      <Text style={styles.editedBadgeText}>
+                        {formatRelativeTime(product.updated_at) ? `${formatRelativeTime(product.updated_at).toUpperCase()} • EDITED` : "EDITED"}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
               </View>
             </View>
           )}
@@ -377,11 +430,23 @@ const getStyles = (colors: any) => StyleSheet.create({
     marginRight: 12,
     lineHeight: 24
   },
+  priceRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+    flexWrap: "wrap",
+    gap: 8
+  },
   price: {
     color: colors.textPrimary,
     fontSize: 18,
     fontWeight: "800",
-    marginBottom: 12
+  },
+  cardTimestamp: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontWeight: "600",
   },
   mutedText: {
     color: colors.textSecondary,
@@ -455,13 +520,15 @@ const getStyles = (colors: any) => StyleSheet.create({
   infoRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
-    paddingVertical: 4
+    alignItems: "center",
+    paddingVertical: 5,
+    minHeight: 28
   },
   infoLabel: {
     color: colors.textSecondary,
     fontSize: 13,
-    fontWeight: "700"
+    fontWeight: "700",
+    flexShrink: 0
   },
   infoValue: {
     color: colors.textPrimary,
@@ -470,6 +537,36 @@ const getStyles = (colors: any) => StyleSheet.create({
     textAlign: "right",
     flex: 1,
     marginLeft: 16
+  },
+  updatedValueWrapper: {
+    flexDirection: "column",
+    alignItems: "flex-end",
+    justifyContent: "center",
+    gap: 4,
+    flexShrink: 0,
+    marginLeft: 12
+  },
+  updatedDateText: {
+    color: colors.textPrimary,
+    fontSize: 13,
+    fontWeight: "700",
+    textAlign: "right"
+  },
+  editedBadge: {
+    backgroundColor: "rgba(245, 124, 0, 0.12)",
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "rgba(245, 124, 0, 0.35)",
+    alignSelf: "flex-end"
+  },
+  editedBadgeText: {
+    color: "#F57C00",
+    fontSize: 9.5,
+    fontWeight: "800",
+    letterSpacing: 0.4,
+    textTransform: "uppercase"
   },
   actions: {
     flexDirection: "row",

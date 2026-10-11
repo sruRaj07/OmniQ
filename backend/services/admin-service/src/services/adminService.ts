@@ -399,11 +399,12 @@ export async function listZones() {
 export async function listFlaggedProducts(limit = 50) {
   const { data, error, count } = await supabaseAdmin
     .from("products")
-    .select("id, title, price, category, images, is_approved, created_at, seller:sellers(id, business_name, city)", {
+    .select("id, title, price, category, images, is_approved, created_at, updated_at, seller:sellers(id, business_name, city)", {
       count: "exact"
     })
     .eq("is_approved", false)
     .is("deleted_at", null)
+    .order("updated_at", { ascending: false })
     .order("created_at", { ascending: false })
     .range(0, Math.min(Math.max(limit, 1), 100) - 1);
 

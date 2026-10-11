@@ -13,9 +13,18 @@ export async function listProductsController(request: Request, response: Respons
     const sellerId = request.query.sellerId as string | undefined;
     const cursor = request.query.cursor as string | undefined;
     const limitParam = parseInt(request.query.limit as string);
-    const limit = isNaN(limitParam) || limitParam <= 0 ? 20 : Math.min(limitParam, 50);
+    // Allow up to 500 items when reviewing a specific seller (e.g. admin console review), otherwise clamp public browse to 50
+    const maxLimit = sellerId ? 500 : 50;
+    const limit = isNaN(limitParam) || limitParam <= 0 ? 20 : Math.min(limitParam, maxLimit);
 
-    const { products, nextCursor } = await listProducts(sellerId, cursor, limit);
+    let isApproved: boolean | undefined = undefined;
+    if (request.query.approved !== undefined) {
+      isApproved = request.query.approved === "true" || request.query.approved === "1";
+    } else if (request.query.is_approved !== undefined) {
+      isApproved = request.query.is_approved === "true" || request.query.is_approved === "1";
+    }
+
+    const { products, nextCursor } = await listProducts(sellerId, cursor, limit, isApproved);
     response.json(ok(products, { nextCursor, limit, total: products.length }));
   } catch (error: any) {
     response.status(500).json(fail("SERVER_ERROR", error.message));

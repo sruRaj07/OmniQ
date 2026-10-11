@@ -12,10 +12,10 @@ const config = getSentryExpoConfig(projectRoot);
 // Watch all files in the monorepo
 config.watchFolders = [...(config.watchFolders || []), monorepoRoot];
 
-// Let Metro know where to resolve packages from (both frontend and root node_modules)
+// Let Metro know where to resolve packages from (prioritize monorepo root for hoisted pnpm dependencies)
 config.resolver.nodeModulesPaths = [
-  path.resolve(projectRoot, "node_modules"),
   path.resolve(monorepoRoot, "node_modules"),
+  path.resolve(projectRoot, "node_modules"),
 ];
 
 // Asset formats. `webp` (plus heic/avif) is already in Expo's default assetExts —
