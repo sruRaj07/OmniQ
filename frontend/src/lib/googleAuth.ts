@@ -36,7 +36,7 @@ export async function configureGoogleSignIn() {
     const gModule = await getGoogleSignin();
     if (gModule?.GoogleSignin) {
       gModule.GoogleSignin.configure({
-        webClientId: '706824175405-9a7gums7n4obvuukn1ftikk1m9s28crf.apps.googleusercontent.com',
+        webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '264266975577-4ci2geidu8hd64qlaskncc0k5t31ppad.apps.googleusercontent.com',
       });
     }
   } catch (err) {
