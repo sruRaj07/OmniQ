@@ -37,7 +37,7 @@ export default function BrowseScreen() {
   const categories = useMemo(() => {
     const dynamicCats = products.map(p => p.category).filter(Boolean) as string[];
     const normalized = dynamicCats.map(normalizeCategory);
-    const allCats = new Set(["Grocery", "Kitchen", ...normalized]);
+    const allCats = new Set(["Grocery", "Kitchen", "Vegetables", "Pooja", ...normalized]);
     return ["All", ...Array.from(allCats)];
   }, [products]);
 

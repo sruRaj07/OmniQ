@@ -15,3 +15,12 @@ export const zoneCheckSchema = z.object({
 }).refine(data => data.pincode || (data.lat !== undefined && data.lng !== undefined), {
   message: "Either pincode or lat/lng must be provided"
 });
+
+export const calculateDeliverySchema = z.object({
+  subtotal: z.number().nonnegative("Subtotal cannot be negative"),
+  pincode: z.string().optional(),
+  lat: z.number().min(-90).max(90).optional(),
+  lng: z.number().min(-180).max(180).optional()
+}).refine(data => data.pincode || (data.lat !== undefined && data.lng !== undefined), {
+  message: "Either pincode or lat/lng must be provided to calculate delivery fee"
+});

@@ -20,10 +20,11 @@ import { BuyerHeader } from "@/components/buyer/BuyerHeader";
 import { AnimatedEmptyCart } from "@/components/buyer/AnimatedEmptyCart";
 import { FreeDeliveryProgress } from "@/components/buyer/FreeDeliveryProgress";
 import { useAppTheme } from "@/store/useThemeStore";
-import { useCart } from "@/hooks/useCart";
+import { useCart, getCartItemPricing } from "@/hooks/useCart";
+import { useCartStore } from "@/store/cartStore";
 import { formatCurrency } from "@/utils/formatCurrency";
 import { apiClient } from "@/lib/apiClient";
-import { DELIVERY_FEE } from "@/constants/delivery";
+import { RATE_PER_KM } from "@/constants/delivery";
 
 type AddressField = "line1" | "line2" | "city" | "state" | "pincode" | "phone";
 type DeliveryAddress = Record<AddressField, string>;
@@ -71,18 +72,13 @@ function validateAddress(address: DeliveryAddress): AddressErrors {
 export default function CartScreen() {
   const { colors } = useAppTheme();
   const styles = getStyles(colors);
-  const {
-    items,
-    subtotal,
-    platformFee,
-    deliveryFee,
-    remainingForFreeDelivery,
-    freeDeliveryThreshold,
-    total,
-    updateQuantity,
-    removeItem,
-    clearCart
-  } = useCart();
+
+  const cartLines = useCartStore((state) => state.items);
+  const cartSubtotal = cartLines.reduce((sum, item) => {
+    const pricing = getCartItemPricing(item);
+    return sum + pricing.totalPrice;
+  }, 0);
+
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [showAddressModal, setShowAddressModal] = useState(false);
@@ -99,10 +95,6 @@ export default function CartScreen() {
   // Remembers what the pincode lookup last filled in, so we only overwrite our own suggestion
   // and never clobber a city/state the buyer typed by hand.
   const autoFilledRef = useRef({ city: "", state: "" });
-  // Fields the buyer has typed into. The profile prefill below re-runs on every refetch of
-  // /users/me (queryClient sets refetchOnReconnect: "always", and placing an order invalidates
-  // the key), and without this it would overwrite the buyer's fresh input with the stale profile
-  // copy - the address they just corrected would silently revert while the modal was open.
   const touchedFieldsRef = useRef<Set<AddressField>>(new Set());
 
   const updateField = (field: AddressField, value: string) => {
@@ -119,6 +111,42 @@ export default function CartScreen() {
       return res.data?.data;
     }
   });
+
+  const activePincode = (address.pincode || profile?.pincode || "").trim();
+  const isValidPincode = PINCODE_PATTERN.test(activePincode);
+
+  const { data: deliveryData } = useQuery({
+    queryKey: ["calculateDelivery", activePincode, cartSubtotal],
+    enabled: isValidPincode && cartSubtotal > 0,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const res = await apiClient.post("/location/calculate-delivery", {
+        subtotal: cartSubtotal,
+        pincode: activePincode
+      });
+      return res.data?.data;
+    }
+  });
+
+  const currentDistanceKm = deliveryData?.distanceKm ?? 0;
+
+  const {
+    items,
+    subtotal,
+    standardSubtotal,
+    totalSavings,
+    platformFee,
+    deliveryFee,
+    standardDeliveryFee,
+    ratePerKm,
+    deliverySavings,
+    remainingForFreeDelivery,
+    freeDeliveryThreshold,
+    total,
+    updateQuantity,
+    removeItem,
+    clearCart
+  } = useCart(currentDistanceKm);
 
   useEffect(() => {
     if (!profile) return;
@@ -246,10 +274,7 @@ export default function CartScreen() {
           quantity: item.quantity
         })),
         deliveryAddress,
-        // No coordinates. This used to send a hardcoded Bangalore lat/lng for every buyer in the
-        // country - fabricated data that nothing reads, and which would have obliged us to declare
-        // precise location collection on the Play Data Safety form. Delivery routes off the
-        // address and pincode above. Requires order-service with optional buyerLat/buyerLng.
+        distanceKm: currentDistanceKm,
         paymentMethod: "CASH_ON_DELIVERY"
       };
       await apiClient.post("/orders", payload, { headers: { "Idempotency-Key": idempotencyKey } });
@@ -332,21 +357,54 @@ export default function CartScreen() {
 
             <Card style={styles.summary}>
               <Text style={styles.summaryTitle}>Order Summary</Text>
-              <View style={styles.row}><Text style={styles.label}>Subtotal ({items.reduce((sum, item) => sum + item.quantity, 0)} items)</Text><Text style={styles.value}>{formatCurrency(subtotal)}</Text></View>
               <View style={styles.row}>
-                <Text style={styles.label}>Delivery charges</Text>
+                <Text style={styles.label}>Subtotal ({items.reduce((sum, item) => sum + item.quantity, 0)} items)</Text>
+                <Text style={styles.value}>{formatCurrency(totalSavings > 0 ? standardSubtotal : subtotal)}</Text>
+              </View>
+              {totalSavings > 0 ? (
+                <View style={styles.row}>
+                  <Text style={[styles.label, { color: "#16A34A", fontWeight: "700" }]}>Daily Deal Savings</Text>
+                  <Text style={[styles.value, { color: "#16A34A", fontWeight: "700" }]}>−{formatCurrency(totalSavings)}</Text>
+                </View>
+              ) : null}
+
+              {/* Delivery Charge */}
+              <View style={styles.row}>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={styles.label}>Delivery charges</Text>
+                  {currentDistanceKm > 0 ? (
+                    <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 1 }}>
+                      {currentDistanceKm} km from {deliveryData?.nearestHub ?? "hub"} (@ ₹{ratePerKm}/km)
+                    </Text>
+                  ) : null}
+                </View>
                 {deliveryFee > 0 ? (
                   <Text style={styles.value}>{formatCurrency(deliveryFee)}</Text>
                 ) : (
                   <View style={styles.deliveryFreeGroup}>
-                    <Text style={styles.strikePrice}>{formatCurrency(DELIVERY_FEE)}</Text>
+                    {standardDeliveryFee > 0 ? (
+                      <Text style={styles.strikePrice}>{formatCurrency(standardDeliveryFee)}</Text>
+                    ) : null}
                     <Text style={styles.free}>FREE</Text>
                   </View>
                 )}
               </View>
+
+              {deliveryFee === 0 && deliverySavings > 0 ? (
+                <View style={styles.row}>
+                  <Text style={[styles.label, { color: "#16A34A", fontWeight: "600", fontSize: 12 }]}>
+                    Free Delivery Savings (≥ ₹{freeDeliveryThreshold})
+                  </Text>
+                  <Text style={[styles.value, { color: "#16A34A", fontWeight: "600", fontSize: 12 }]}>
+                    −{formatCurrency(deliverySavings)}
+                  </Text>
+                </View>
+              ) : null}
+
               <View style={styles.divider} />
               <View style={styles.row}><Text style={styles.totalLabel}>Total</Text><Text style={styles.total}>{formatCurrency(total)}</Text></View>
             </Card>
+
             <Pressable style={styles.order} onPress={handlePlaceOrder} disabled={isPlacingOrder}>
               <Text style={styles.orderText}>
                 {isPlacingOrder ? "Processing..." : `Place Order — ${formatCurrency(total)}`}
@@ -417,6 +475,14 @@ export default function CartScreen() {
               }}
             />
             {errors.pincode ? <Text style={styles.fieldError}>{errors.pincode}</Text> : null}
+            {deliveryData?.isServiceable && deliveryData?.nearestHub ? (
+              <View style={{ backgroundColor: "rgba(22, 163, 74, 0.08)", borderColor: "rgba(22, 163, 74, 0.25)", borderWidth: 1, borderRadius: 8, padding: 8, marginTop: 6, flexDirection: "row", alignItems: "center" }}>
+                <Text style={{ fontSize: 13, marginRight: 6 }}>📍</Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 12, flex: 1 }}>
+                  Nearest Hub: <Text style={{ fontWeight: "700", color: colors.textPrimary }}>{deliveryData.nearestHub}</Text> ({deliveryData.distanceKm} km away)
+                </Text>
+              </View>
+            ) : null}
 
             <Text style={styles.inputLabel}>Mobile Number *</Text>
             <TextInput

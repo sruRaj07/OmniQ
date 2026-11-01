@@ -4,19 +4,54 @@
  */
 import { z } from "zod";
 import { emitOrderStatusChanged } from "../events/orderEventEmitter";
-import { computeDeliveryFee } from "../../../../shared/constants/delivery";
+import { computeDeliveryFee, calculateDeliveryFeeDetails } from "../../../../shared/constants/delivery";
 import { supabaseAdmin } from "../../../../shared/utils/supabaseClient";
+import { calculateTieredPrice } from "../../../../shared/utils/tieredPricing";
+
+let hasOfferColumnsInOrderItems: boolean | null = null;
+async function checkOrderItemsHasOfferColumns(): Promise<boolean> {
+  if (hasOfferColumnsInOrderItems !== null) return hasOfferColumnsInOrderItems;
+  try {
+    const { error } = await supabaseAdmin.from("order_items").select("offer_qty").limit(0);
+    hasOfferColumnsInOrderItems = !error;
+  } catch {
+    hasOfferColumnsInOrderItems = false;
+  }
+  return hasOfferColumnsInOrderItems;
+}
+
+let hasDeliveryColumnsInOrders: boolean | null = null;
+async function checkOrdersHasDeliveryColumns(): Promise<boolean> {
+  if (hasDeliveryColumnsInOrders !== null) return hasDeliveryColumnsInOrders;
+  try {
+    const { error } = await supabaseAdmin.from("orders").select("delivery_fee, distance_km, nearest_hub").limit(0);
+    hasDeliveryColumnsInOrders = !error;
+  } catch {
+    hasDeliveryColumnsInOrders = false;
+  }
+  return hasDeliveryColumnsInOrders;
+}
+
+function distanceKmBetween(point: { lat: number; lng: number }, centre: { lat: number; lng: number }): number {
+  const toRad = (value: number): number => (value * Math.PI) / 180;
+  const earthKm = 6371;
+  const dLat = toRad(centre.lat - point.lat);
+  const dLng = toRad(centre.lng - point.lng);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(point.lat)) * Math.cos(toRad(centre.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * earthKm * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
 export const orderCreateSchema = z.object({
   items: z.array(z.object({ productId: z.string(), quantity: z.number().int().positive().max(100) })).min(1).max(50),
   deliveryAddress: z.record(z.string(), z.string()),
-  // Optional since v1.0. The app used to send hardcoded Bangalore coordinates on every order,
-  // which was fabricated data and would have forced a "precise location" disclosure on the Play
-  // Data Safety form for a value nothing reads. Kept in the schema (rather than deleted) so
-  // already-installed clients that still send the pair are not rejected at checkout.
+  // Optional since v1.0. Kept in the schema so clients sending coords are supported.
   buyerLat: z.number().optional(),
-  buyerLng: z.number().optional()
+  buyerLng: z.number().optional(),
+  distanceKm: z.number().optional()
 });
+
 
 export const ORDER_STATUSES = ["pending", "packed", "dispatched", "delivered", "cancelled"] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
@@ -77,7 +112,7 @@ export async function placeOrder(buyerId: string, input: unknown, idempotencyKey
 
   const { data: products, error: productsError } = await supabaseAdmin
     .from("products")
-    .select("id, price, seller_id, stock, is_approved")
+    .select("*")
     .in("id", productIds);
 
   if (productsError) throw new Error(`Failed to verify products: ${productsError.message}`);
@@ -87,7 +122,17 @@ export async function placeOrder(buyerId: string, input: unknown, idempotencyKey
 
   // 2. Validate stock and compute prices. Prices come from the database, never from the client.
   let subtotal = 0;
-  const resolvedItems: Array<{ product_id: string; quantity: number; unit_price: number; subtotal: number }> = [];
+  const resolvedItems: Array<{
+    product_id: string;
+    quantity: number;
+    unit_price: number;
+    subtotal: number;
+    offer_price?: number;
+    offer_qty?: number;
+    regular_price?: number;
+    regular_qty?: number;
+    savings?: number;
+  }> = [];
 
   for (const item of parsed.items) {
     const product = products.find((p) => p.id === item.productId);
@@ -97,14 +142,28 @@ export async function placeOrder(buyerId: string, input: unknown, idempotencyKey
       throw new Error(`Insufficient stock for product ${product.id}. Available: ${product.stock}, Requested: ${item.quantity}`);
     }
 
-    const itemSubtotal = Number(product.price) * item.quantity;
+    // Pure deterministic tiered daily offer pricing
+    const tieredPrice = calculateTieredPrice({
+      quantity: item.quantity,
+      price: Number(product.price),
+      offerPrice: product.offer_price,
+      offerLimitQty: product.offer_limit_qty,
+      unit: product.unit
+    });
+
+    const itemSubtotal = tieredPrice.totalPrice;
     subtotal += itemSubtotal;
 
     resolvedItems.push({
       product_id: product.id,
       quantity: item.quantity,
-      unit_price: product.price,
-      subtotal: itemSubtotal
+      unit_price: Number(product.price),
+      subtotal: itemSubtotal,
+      offer_price: tieredPrice.offerPrice,
+      offer_qty: tieredPrice.offerQty,
+      regular_price: tieredPrice.regularPrice,
+      regular_qty: tieredPrice.regularQty,
+      savings: tieredPrice.totalSavings
     });
   }
 
@@ -118,9 +177,50 @@ export async function placeOrder(buyerId: string, input: unknown, idempotencyKey
   }
   const sellerId = sellerIds[0];
 
-  // Delivery is recomputed from the server-side subtotal, never taken from the client - otherwise
-  // a caller could post a ₹40 cart and claim free delivery.
-  const deliveryFee = computeDeliveryFee(subtotal);
+  // Option C: Delivery is computed from server-side subtotal and distance from nearest inventory hub.
+  let resolvedDistanceKm = parsed.distanceKm ?? 0;
+  let nearestHubName: string | null = null;
+
+  try {
+    const { data: zones } = await supabaseAdmin
+      .from("delivery_zones")
+      .select("name, lat, lng, radius_km, supported_pincodes")
+      .eq("active", true)
+      .is("deleted_at", null);
+
+    if (zones && zones.length > 0) {
+      const pincode = parsed.deliveryAddress?.pincode ? String(parsed.deliveryAddress.pincode).trim() : "";
+
+      if (parsed.buyerLat !== undefined && parsed.buyerLng !== undefined) {
+        let minDist = Infinity;
+        let closest = null;
+        for (const zone of zones) {
+          const d = distanceKmBetween({ lat: parsed.buyerLat, lng: parsed.buyerLng }, { lat: zone.lat, lng: zone.lng });
+          if (d < minDist) {
+            minDist = d;
+            closest = zone;
+          }
+        }
+        if (closest) {
+          resolvedDistanceKm = Number(minDist.toFixed(1));
+          nearestHubName = closest.name;
+        }
+      } else if (pincode) {
+        const matched = zones.find((z) => z.supported_pincodes && z.supported_pincodes.includes(pincode));
+        if (matched) {
+          nearestHubName = matched.name;
+          if (!resolvedDistanceKm) {
+            resolvedDistanceKm = 2.5; // Default within-zone estimate
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("[order] Failed to resolve distance from delivery zones:", err);
+  }
+
+  const deliveryDetails = calculateDeliveryFeeDetails(subtotal, resolvedDistanceKm);
+  const deliveryFee = deliveryDetails.deliveryFee;
   const total = subtotal + deliveryFee;
 
   // 3. Reserve stock BEFORE creating the order, using a conditional update per item.
@@ -144,36 +244,55 @@ export async function placeOrder(buyerId: string, input: unknown, idempotencyKey
     }
 
     // 4. Create the order.
+    const orderInsertPayload: any = {
+      buyer_id: buyerId,
+      seller_id: sellerId,
+      subtotal,
+      platform_fee: 0,
+      total,
+      delivery_address: parsed.deliveryAddress,
+      buyer_lat: parsed.buyerLat ?? null,
+      buyer_lng: parsed.buyerLng ?? null,
+      status: "pending"
+    };
+
+    const hasDelivCols = await checkOrdersHasDeliveryColumns();
+    if (hasDelivCols) {
+      orderInsertPayload.delivery_fee = deliveryFee;
+      orderInsertPayload.distance_km = resolvedDistanceKm;
+      orderInsertPayload.nearest_hub = nearestHubName;
+    }
+
     const { data: order, error: orderError } = await supabaseAdmin
       .from("orders")
-      .insert({
-        buyer_id: buyerId,
-        seller_id: sellerId,
-        subtotal,
-        platform_fee: 0,
-        // `orders` has no delivery_fee column, so the charge lives inside `total`. Readers derive
-        // it as (total - subtotal), which stays accurate for past orders even if the rule changes.
-        total,
-        delivery_address: parsed.deliveryAddress,
-        buyer_lat: parsed.buyerLat ?? null,
-        buyer_lng: parsed.buyerLng ?? null,
-        status: "pending"
-      })
+      .insert(orderInsertPayload)
       .select()
       .single();
+
 
     if (orderError) throw new Error(`Failed to create order: ${orderError.message}`);
 
     // 5. Create the line items.
-    const { error: itemsError } = await supabaseAdmin.from("order_items").insert(
-      resolvedItems.map((item) => ({
+    const hasOfferCols = await checkOrderItemsHasOfferColumns();
+    const lineItemRows = resolvedItems.map((item) => {
+      const row: any = {
         order_id: order.id,
         product_id: item.product_id,
         quantity: item.quantity,
         unit_price: item.unit_price,
         subtotal: item.subtotal
-      }))
-    );
+      };
+      if (hasOfferCols) {
+        row.offer_price = item.offer_price ?? null;
+        row.offer_qty = item.offer_qty ?? 0;
+        row.regular_price = item.regular_price ?? item.unit_price;
+        row.regular_qty = item.regular_qty ?? item.quantity;
+        row.savings = item.savings ?? 0;
+      }
+      return row;
+    });
+
+    const { error: itemsError } = await supabaseAdmin.from("order_items").insert(lineItemRows);
 
     if (itemsError) {
       // Roll the order back so a half-written order never reaches the seller.

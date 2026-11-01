@@ -11,6 +11,7 @@ import { Card } from "@/components/ui/Card";
 import { useThemeColors } from "@/store/useThemeStore";
 import type { CartLine } from "@/store/cartStore";
 import { formatCurrency } from "@/utils/formatCurrency";
+import { calculateTieredPrice } from "@/utils/tieredPricing";
 
 type CartItemProps = {
   item: CartLine;
@@ -28,6 +29,15 @@ export const CartItem = memo(function CartItem({
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
   const imageUrl = item.product.images && item.product.images.length > 0 ? item.product.images[0] : null;
+
+  const pricing = useMemo(() => calculateTieredPrice({
+    quantity: item.quantity,
+    price: item.product.price,
+    offerPrice: item.product.offer_price,
+    offerLimitQty: item.product.offer_limit_qty,
+    unit: item.product.unit
+  }), [item.quantity, item.product.price, item.product.offer_price, item.product.offer_limit_qty, item.product.unit]);
+
   return (
     <Card style={styles.card}>
       <Link href={`/product/${item.product.id}`} asChild>
@@ -49,8 +59,36 @@ export const CartItem = memo(function CartItem({
           )}
           <View style={styles.info}>
             <Text style={styles.title} numberOfLines={1}>{item.product.title}</Text>
-            <Text style={styles.meta}>{item.product.seller || 'OmniQ'}{item.size ? ` · Size ${item.size}` : ""}{item.color ? ` · ${item.color}` : ""}</Text>
-            <Text style={styles.price}>{formatCurrency(item.product.price)}</Text>
+            <Text style={styles.meta}>
+              {item.product.seller || 'OmniQ'}
+              {item.size ? ` · Size ${item.size}` : ""}
+              {item.color ? ` · ${item.color}` : ""}
+            </Text>
+
+            {pricing.hasActiveOffer ? (
+              <View style={styles.offerContainer}>
+                <View style={styles.offerPriceRow}>
+                  <Text style={styles.price}>{formatCurrency(pricing.totalPrice)}</Text>
+                  <Text style={styles.standardStrikePrice}>{formatCurrency(pricing.standardTotalPrice)}</Text>
+                </View>
+
+                <View style={styles.offerBreakdownBox}>
+                  <Text style={styles.offerBreakdownText}>
+                    {pricing.regularQty > 0
+                      ? `${pricing.offerQty} ${pricing.unit} @ ₹${pricing.offerPrice} + ${pricing.regularQty} ${pricing.unit} @ ₹${pricing.regularPrice}`
+                      : `${pricing.offerQty} ${pricing.unit} @ ₹${pricing.offerPrice}/${pricing.unit} (Offer applied)`}
+                  </Text>
+                </View>
+
+                {pricing.totalSavings > 0 ? (
+                  <View style={styles.savingsPill}>
+                    <Text style={styles.savingsPillText}>Saved {formatCurrency(pricing.totalSavings)}</Text>
+                  </View>
+                ) : null}
+              </View>
+            ) : (
+              <Text style={styles.price}>{formatCurrency(item.product.price * item.quantity)}</Text>
+            )}
           </View>
         </Pressable>
       </Link>
@@ -69,7 +107,10 @@ export const CartItem = memo(function CartItem({
     prev.item.product.id === next.item.product.id &&
     prev.item.quantity === next.item.quantity &&
     prev.item.size === next.item.size &&
-    prev.item.color === next.item.color
+    prev.item.color === next.item.color &&
+    prev.item.product.price === next.item.product.price &&
+    prev.item.product.offer_price === next.item.product.offer_price &&
+    prev.item.product.offer_limit_qty === next.item.product.offer_limit_qty
   );
 });
 
@@ -128,9 +169,49 @@ const getStyles = (colors: any) => StyleSheet.create({
   },
   price: {
     color: colors.textPrimary,
-    fontSize: 22,
-    fontWeight: "700",
+    fontSize: 20,
+    fontWeight: "700"
+  },
+  offerContainer: {
+    gap: 4,
     marginTop: 4
+  },
+  offerPriceRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 8
+  },
+  standardStrikePrice: {
+    fontSize: 14,
+    color: colors.textMuted || colors.textSecondary,
+    textDecorationLine: "line-through",
+    fontWeight: "500"
+  },
+  offerBreakdownBox: {
+    backgroundColor: "rgba(22, 163, 74, 0.08)",
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    alignSelf: "flex-start",
+    borderWidth: 1,
+    borderColor: "rgba(22, 163, 74, 0.25)"
+  },
+  offerBreakdownText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#16A34A"
+  },
+  savingsPill: {
+    backgroundColor: "rgba(234, 88, 12, 0.12)",
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    borderRadius: 4,
+    alignSelf: "flex-start"
+  },
+  savingsPillText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#EA580C"
   },
   qty: {
     flexDirection: "row",

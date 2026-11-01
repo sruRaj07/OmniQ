@@ -76,12 +76,16 @@ export function ProductForm({ initialData, onCloseEdit, onSaved }: ProductFormPr
   const [title, setTitle] = useState("");
   const [price, setPrice] = useState("");
   const [comparePrice, setComparePrice] = useState("");
+  const [unit, setUnit] = useState("kg");
+  const [enableOffer, setEnableOffer] = useState(false);
+  const [offerPrice, setOfferPrice] = useState("");
+  const [offerLimitQty, setOfferLimitQty] = useState("2");
   const [stock, setStock] = useState("");
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
   const [images, setImages] = useState<PickedImage[]>([]);
   const [isCompressing, setIsCompressing] = useState(false);
-  const [availableTags, setAvailableTags] = useState<string[]>(["grocery", "kitchen"]);
+  const [availableTags, setAvailableTags] = useState<string[]>(["Grocery", "Kitchen", "Vegetables", "Pooja"]);
 
   useEffect(() => {
     // Dynamically fetch tag pills from the backend so adding new categories in future requires zero frontend app changes
@@ -103,6 +107,10 @@ export function ProductForm({ initialData, onCloseEdit, onSaved }: ProductFormPr
       setTitle(initialData.title || "");
       setPrice(initialData.price?.toString() || "");
       setComparePrice(initialData.compare_price?.toString() || "");
+      setUnit(initialData.unit || "kg");
+      setEnableOffer(!!(initialData.offer_price && initialData.offer_limit_qty));
+      setOfferPrice(initialData.offer_price ? initialData.offer_price.toString() : "");
+      setOfferLimitQty(initialData.offer_limit_qty ? initialData.offer_limit_qty.toString() : "2");
       setStock(initialData.stock?.toString() || "");
       setCategory(initialData.category || "");
       setDescription(initialData.description || "");
@@ -111,6 +119,10 @@ export function ProductForm({ initialData, onCloseEdit, onSaved }: ProductFormPr
       setTitle("");
       setPrice("");
       setComparePrice("");
+      setUnit("kg");
+      setEnableOffer(false);
+      setOfferPrice("");
+      setOfferLimitQty("2");
       setStock("");
       setCategory("");
       setDescription("");
@@ -160,7 +172,7 @@ export function ProductForm({ initialData, onCloseEdit, onSaved }: ProductFormPr
     setImages(images.filter((_, i) => i !== index));
   };
   const normalizedCat = category.trim().toLowerCase();
-  const hasActiveTag = availableTags.includes(normalizedCat);
+  const hasActiveTag = availableTags.some((t) => t.toLowerCase() === normalizedCat);
 
   const handleSelectTag = (tag: string) => {
     setCategory(tag.toLowerCase());
@@ -186,6 +198,24 @@ export function ProductForm({ initialData, onCloseEdit, onSaved }: ProductFormPr
       Alert.alert("Validation Error", "Description must be at least 10 characters long.");
       return;
     }
+    if (enableOffer) {
+      const offP = Number(offerPrice);
+      const sellP = Number(price);
+      const offL = Number(offerLimitQty);
+      if (!offerPrice.trim() || isNaN(offP) || offP <= 0) {
+        Alert.alert("Invalid Offer Price", "Please enter a valid positive daily offer price.");
+        return;
+      }
+      if (offP >= sellP) {
+        Alert.alert("Invalid Offer Price", "Daily offer price must be strictly lower than your selling price.");
+        return;
+      }
+      if (!offerLimitQty.trim() || isNaN(offL) || offL <= 0) {
+        Alert.alert("Invalid Offer Quota", "Please enter a valid positive maximum offer quota (e.g. 2 kg).");
+        return;
+      }
+    }
+
     setIsLoading(true);
     try {
       const formData = new FormData();
@@ -195,6 +225,15 @@ export function ProductForm({ initialData, onCloseEdit, onSaved }: ProductFormPr
       formData.append("stock", finalStock);
       formData.append("category", finalCategory);
       formData.append("description", description.trim());
+      formData.append("unit", unit.trim() || "kg");
+
+      if (enableOffer) {
+        formData.append("offer_price", offerPrice.trim());
+        formData.append("offer_limit_qty", offerLimitQty.trim());
+      } else if (isEditing) {
+        formData.append("offer_price", "");
+        formData.append("offer_limit_qty", "");
+      }
 
       // SKU is required by the validator in the backend
       formData.append("sku", `SKU-${Date.now().toString().slice(-6)}`);
@@ -265,6 +304,24 @@ export function ProductForm({ initialData, onCloseEdit, onSaved }: ProductFormPr
     return { invalid: false, percent: Math.round(((mrp - sell) / mrp) * 100) };
   }, [comparePrice, price]);
 
+  const offerPreview = React.useMemo(() => {
+    if (!enableOffer) return null;
+    const sellP = Number(price);
+    const offP = Number(offerPrice);
+    const limit = Number(offerLimitQty);
+    if (!Number.isFinite(sellP) || !Number.isFinite(offP) || !Number.isFinite(limit) || sellP <= 0 || offP <= 0 || limit <= 0) {
+      return null;
+    }
+    if (offP >= sellP) {
+      return `⚠️ Offer price (₹${offP}) should be lower than regular selling price (₹${sellP}).`;
+    }
+    const sampleQty = limit + 1;
+    const sampleTotal = (limit * offP) + (1 * sellP);
+    const sampleStandard = sampleQty * sellP;
+    const sampleSavings = sampleStandard - sampleTotal;
+    return `Customer buys ${sampleQty} ${unit} -> ${limit} ${unit} @ ₹${offP} + 1 ${unit} @ ₹${sellP} = ₹${sampleTotal} (Saves ₹${sampleSavings}!). Quota resets for each separate cart order.`;
+  }, [enableOffer, price, offerPrice, offerLimitQty, unit]);
+
   return (
     <View style={styles.stack}>
       <Field label="Product title" required colors={colors}>
@@ -276,14 +333,34 @@ export function ProductForm({ initialData, onCloseEdit, onSaved }: ProductFormPr
         />
       </Field>
 
+      <Field label="Unit of Measurement" hint="Applied to pricing, offers, and cart line items" colors={colors}>
+        <View style={styles.unitsGrid}>
+          {["kg", "g", "piece", "packet", "bundle"].map((u) => {
+            const isSelected = unit === u;
+            return (
+              <TouchableOpacity
+                key={u}
+                style={[styles.unitPill, isSelected && styles.unitPillSelected]}
+                onPress={() => setUnit(u)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.unitPillText, isSelected && styles.unitPillTextSelected]}>
+                  {u}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </Field>
+
       <View style={styles.priceRow}>
         <View style={styles.priceCol}>
-          <Field label="Selling price" required colors={colors}>
+          <Field label={`Selling price (₹/${unit})`} required colors={colors}>
             <Input placeholder="₹0" keyboardType="numeric" value={price} onChangeText={setPrice} />
           </Field>
         </View>
         <View style={styles.priceCol}>
-          <Field label="M.R.P." required colors={colors}>
+          <Field label={`M.R.P. (₹/${unit})`} required colors={colors}>
             <Input placeholder="₹0" keyboardType="numeric" value={comparePrice} onChangeText={setComparePrice} />
           </Field>
         </View>
@@ -308,13 +385,68 @@ export function ProductForm({ initialData, onCloseEdit, onSaved }: ProductFormPr
         </View>
       ) : null}
 
+      {/* Special Tiered Daily Offer Section */}
+      <View style={styles.offerCardWrapper}>
+        <TouchableOpacity
+          style={styles.offerToggleHeader}
+          onPress={() => setEnableOffer(!enableOffer)}
+          activeOpacity={0.8}
+        >
+          <View style={styles.offerToggleLeft}>
+            <View style={[styles.offerToggleCheckbox, enableOffer && styles.offerToggleCheckboxActive]}>
+              {enableOffer ? <CheckIcon size={12} color="#FFFFFF" strokeWidth={3} /> : null}
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.offerToggleTitle}>⚡ Enable Special Daily Offer</Text>
+              <Text style={styles.offerToggleSub}>
+                Sell up to a set quantity at an offer price, with extra quantity billed at regular price
+              </Text>
+            </View>
+          </View>
+        </TouchableOpacity>
+
+        {enableOffer ? (
+          <View style={styles.offerInputsContainer}>
+            <View style={styles.priceRow}>
+              <View style={styles.priceCol}>
+                <Field label={`Offer Price (₹/${unit})`} required colors={colors}>
+                  <Input
+                    placeholder="e.g. 8"
+                    keyboardType="numeric"
+                    value={offerPrice}
+                    onChangeText={setOfferPrice}
+                  />
+                </Field>
+              </View>
+              <View style={styles.priceCol}>
+                <Field label={`Offer Quota (Max ${unit})`} required colors={colors}>
+                  <Input
+                    placeholder="e.g. 2"
+                    keyboardType="numeric"
+                    value={offerLimitQty}
+                    onChangeText={setOfferLimitQty}
+                  />
+                </Field>
+              </View>
+            </View>
+
+            {offerPreview ? (
+              <View style={styles.offerLivePreviewBox}>
+                <Text style={styles.offerLivePreviewTitle}>✨ Customer Experience Preview:</Text>
+                <Text style={styles.offerLivePreviewText}>{offerPreview}</Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+      </View>
+
       <Field label="Stock" hint="Left blank, we start you at 10 units." colors={colors}>
         <Input placeholder="10" keyboardType="numeric" value={stock} onChangeText={setStock} />
       </Field>
 
       <Field label="Category" required colors={colors}>
         <Input
-          placeholder="e.g. grocery, kitchen"
+          placeholder="e.g. grocery, kitchen, vegetables, pooja"
           value={category}
           onChangeText={(text) => setCategory(text.toLowerCase())}
           autoCapitalize="none"
@@ -326,7 +458,7 @@ export function ProductForm({ initialData, onCloseEdit, onSaved }: ProductFormPr
               <View style={styles.activeTagRow}>
                 <TouchableOpacity style={styles.selectedTagPill} onPress={handleRemoveTag} activeOpacity={0.8}>
                   <CategorySvgIcon category={normalizedCat} size={16} showBackground={false} style={{ marginRight: 6 }} />
-                  <Text style={styles.selectedTagText}>{normalizedCat}</Text>
+                  <Text style={styles.selectedTagText}>{category ? category.charAt(0).toUpperCase() + category.slice(1) : normalizedCat}</Text>
                   <View style={styles.tagCloseBtn}>
                     <XIcon size={11} color="#FFFFFF" strokeWidth={3} />
                   </View>
@@ -675,5 +807,96 @@ const getStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.accent,
     alignItems: "center",
     justifyContent: "center"
+  },
+  unitsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACE.sm,
+    marginTop: 2
+  },
+  unitPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: RADIUS.pill,
+    backgroundColor: colors.bgSecondary,
+    borderWidth: 1,
+    borderColor: colors.border2
+  },
+  unitPillSelected: {
+    backgroundColor: withAlpha(colors.accent, 0.15),
+    borderColor: colors.accent
+  },
+  unitPillText: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: "600"
+  },
+  unitPillTextSelected: {
+    color: colors.accent,
+    fontWeight: "800"
+  },
+  offerCardWrapper: {
+    backgroundColor: colors.card,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: "rgba(22, 163, 74, 0.35)",
+    overflow: "hidden",
+    marginVertical: SPACE.xs
+  },
+  offerToggleHeader: {
+    padding: SPACE.md,
+    backgroundColor: "rgba(22, 163, 74, 0.08)"
+  },
+  offerToggleLeft: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12
+  },
+  offerToggleCheckbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: "#16A34A",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 2
+  },
+  offerToggleCheckboxActive: {
+    backgroundColor: "#16A34A"
+  },
+  offerToggleTitle: {
+    color: colors.textPrimary,
+    fontWeight: "800",
+    fontSize: 14,
+    marginBottom: 2
+  },
+  offerToggleSub: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 16
+  },
+  offerInputsContainer: {
+    padding: SPACE.md,
+    gap: SPACE.sm
+  },
+  offerLivePreviewBox: {
+    backgroundColor: "rgba(22, 163, 74, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(22, 163, 74, 0.25)",
+    borderRadius: RADIUS.md,
+    padding: SPACE.md,
+    marginTop: SPACE.xs,
+    gap: 4
+  },
+  offerLivePreviewTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#16A34A"
+  },
+  offerLivePreviewText: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.textPrimary
   }
 });

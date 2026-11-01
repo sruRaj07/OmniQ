@@ -9,6 +9,9 @@ export type Product = {
   description: string;
   price: number;
   compare_price?: number;
+  offer_price?: number | null;
+  offer_limit_qty?: number | null;
+  unit?: string | null;
   images: string[];
   /** Compressed ~400px WebP served instead of `images[0]` on 2G/3G. */
   thumbnail_url?: string | null;

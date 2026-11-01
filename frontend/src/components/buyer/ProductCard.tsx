@@ -29,9 +29,21 @@ export const ProductCard = React.memo(function ProductCard({ product, index = 0,
   // Shown only when the M.R.P. genuinely exceeds the selling price, so a card never
   // advertises a discount that isn't there.
   const comparePrice = Number(product.compare_price) || 0;
+  const hasOffer =
+    product.offer_price != null &&
+    product.offer_limit_qty != null &&
+    Number(product.offer_limit_qty) > 0 &&
+    Number(product.offer_price) > 0 &&
+    Number(product.offer_price) < product.price;
+
+  const effectiveSellingPrice = hasOffer ? Number(product.offer_price) : product.price;
+  const unit = product.unit || "kg";
+
   const discountPercent =
-    comparePrice > product.price
-      ? Math.round(((comparePrice - product.price) / comparePrice) * 100)
+    comparePrice > effectiveSellingPrice
+      ? Math.round(((comparePrice - effectiveSellingPrice) / comparePrice) * 100)
+      : hasOffer
+      ? Math.round(((product.price - Number(product.offer_price)) / product.price) * 100)
       : 0;
 
   return (
@@ -58,6 +70,12 @@ export const ProductCard = React.memo(function ProductCard({ product, index = 0,
               ) : (
                 <Text style={styles.placeholder}>📦</Text>
               )}
+
+              {hasOffer ? (
+                <View style={styles.dealPillAbsolute}>
+                  <Text style={styles.dealPillText}>Offer: Max {product.offer_limit_qty}{unit}</Text>
+                </View>
+              ) : null}
             </View>
 
             {/* Details */}
@@ -78,19 +96,41 @@ export const ProductCard = React.memo(function ProductCard({ product, index = 0,
                 </View>
               ) : null}
 
-              <View style={styles.priceRow}>
-                {discountPercent > 0 ? (
-                  <Text style={styles.discount}>-{discountPercent}%</Text>
-                ) : null}
-                <Text style={styles.newPrice}>
-                  {formatCurrency(product.price)}
-                </Text>
-              </View>
-              {product.compare_price ? (
-                <Text style={styles.oldPrice}>
-                  M.R.P: <Text style={styles.oldPriceStrike}>{formatCurrency(product.compare_price)}</Text>
-                </Text>
-              ) : null}
+              {hasOffer ? (
+                <View>
+                  <View style={styles.priceRow}>
+                    {discountPercent > 0 ? (
+                      <Text style={styles.discount}>-{discountPercent}%</Text>
+                    ) : null}
+                    <Text style={[styles.newPrice, { color: "#16A34A" }]}>
+                      {formatCurrency(Number(product.offer_price))}
+                      <Text style={styles.unitText}>/{unit}</Text>
+                    </Text>
+                    <Text style={styles.dealOldPriceStrike}>
+                      {formatCurrency(product.price)}
+                    </Text>
+                  </View>
+                  <Text style={styles.tierHintText} numberOfLines={1}>
+                    Up to {product.offer_limit_qty}{unit} · then {formatCurrency(product.price)}/{unit}
+                  </Text>
+                </View>
+              ) : (
+                <View>
+                  <View style={styles.priceRow}>
+                    {discountPercent > 0 ? (
+                      <Text style={styles.discount}>-{discountPercent}%</Text>
+                    ) : null}
+                    <Text style={styles.newPrice}>
+                      {formatCurrency(product.price)}
+                    </Text>
+                  </View>
+                  {product.compare_price ? (
+                    <Text style={styles.oldPrice}>
+                      M.R.P: <Text style={styles.oldPriceStrike}>{formatCurrency(product.compare_price)}</Text>
+                    </Text>
+                  ) : null}
+                </View>
+              )}
 
               {/* The fee depends on the whole cart, so the card states the rule rather than
                   promising free delivery on an item that would not qualify on its own. */}
@@ -109,13 +149,15 @@ export const ProductCard = React.memo(function ProductCard({ product, index = 0,
   return (
     prev.product.id === next.product.id &&
     prev.product.price === next.product.price &&
-    // The card now derives a discount badge from compare_price and renders images[0],
-    // so both have to be compared or an edited price or replaced photo would not repaint.
     prev.product.compare_price === next.product.compare_price &&
-    prev.product.images?.[0] === next.product.images?.[0] &&
+    prev.product.offer_price === next.product.offer_price &&
+    prev.product.offer_limit_qty === next.product.offer_limit_qty &&
+    prev.product.unit === next.product.unit &&
     prev.product.title === next.product.title &&
     prev.product.rating === next.product.rating &&
     prev.product.reviews === next.product.reviews &&
+    prev.product.thumbnail_url === next.product.thumbnail_url &&
+    prev.product.images?.[0] === next.product.images?.[0] &&
     prev.index === next.index
   );
 });
@@ -216,6 +258,38 @@ const getStyles = (colors: any) => StyleSheet.create({
   // the label itself were cancelled.
   oldPriceStrike: {
     textDecorationLine: "line-through",
+  },
+  dealOldPriceStrike: {
+    textDecorationLine: "line-through",
+    color: colors.textMuted,
+    fontSize: 12,
+  },
+  unitText: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: colors.textSecondary,
+  },
+  tierHintText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#16A34A",
+    marginBottom: 2,
+  },
+  dealPillAbsolute: {
+    position: "absolute",
+    top: 6,
+    left: 6,
+    backgroundColor: "rgba(22, 163, 74, 0.92)",
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    borderRadius: 4,
+    zIndex: 2,
+  },
+  dealPillText: {
+    color: "#FFFFFF",
+    fontSize: 9,
+    fontWeight: "800",
+    textTransform: "uppercase",
   },
   deliveryText: {
     color: colors.textSecondary,

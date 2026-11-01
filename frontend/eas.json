@@ -13,6 +13,9 @@
     },
     "preview": {
       "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
       "env": {
         "EXPO_ENTRY_POINT": "./index.js",
         "EXPO_PUBLIC_SUPABASE_URL": "https://xrhqopzudhuwgbmmsbtz.supabase.co",

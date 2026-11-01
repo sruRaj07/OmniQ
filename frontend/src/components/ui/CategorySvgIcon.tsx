@@ -71,8 +71,40 @@ export function getCategoryConfig(catName: string): IconConfig {
     };
   }
 
-  // 4. Fruits & Vegetables / Organic Produce
-  if (cat.includes("fruit") || cat.includes("veg") || cat.includes("produce") || cat.includes("organic")) {
+  // 4. Vegetables / Fresh Greens / Sabzi
+  if (cat.includes("veg") || cat.includes("sabzi") || cat.includes("greens")) {
+    return {
+      color: "#15803D", // Forest Fresh Vegetable Green
+      bgTint: "#DCFCE7",
+      renderIcon: (size, color) => (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <Path d="M2.27 21.7s9.87-3.5 12.73-6.36a4.5 4.5 0 0 0-6.37-6.37C5.77 11.83 2.27 21.7 2.27 21.7Z" />
+          <Path d="M15 9l6-6" />
+          <Path d="M18 3l3 3" />
+          <Path d="M12 6l3-3" />
+        </Svg>
+      ),
+    };
+  }
+
+  // 5. Pooja & Devotional / Spiritual / Agarbatti / Incense / Worship
+  if (cat.includes("pooj") || cat.includes("puj") || cat.includes("devo") || cat.includes("spirit") || cat.includes("worship") || cat.includes("diya") || cat.includes("agarbatti") || cat.includes("incense") || cat.includes("dhoop")) {
+    return {
+      color: "#EA580C", // Sacred Saffron Orange / Diya Flame
+      bgTint: "#FFEDD5",
+      renderIcon: (size, color) => (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <Path d="M12 2c-.6 2-2 3.5-2 5a2 2 0 0 0 4 0c0-1.5-1.4-3-2-5Z" fill={color} />
+          <Path d="M4 14c0 3.31 3.58 6 8 6s8-2.69 8-6H4Z" />
+          <Path d="M12 20v2" />
+          <Path d="M8 22h8" />
+        </Svg>
+      ),
+    };
+  }
+
+  // 6. Fruits / Organic Produce
+  if (cat.includes("fruit") || cat.includes("produce") || cat.includes("organic")) {
     return {
       color: "#E11D48", // Ruby Apple Red
       bgTint: "#FFE4E6",

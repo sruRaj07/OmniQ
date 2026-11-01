@@ -63,6 +63,12 @@ export async function createProductController(request: Request, response: Respon
         sanitizedBody[key.trim()] = typeof request.body[key] === 'string' ? request.body[key].trim() : request.body[key];
       }
     }
+    if (sanitizedBody.offer_price === "" || sanitizedBody.offer_price === "null" || sanitizedBody.offer_price === "undefined") {
+      delete sanitizedBody.offer_price;
+    }
+    if (sanitizedBody.offer_limit_qty === "" || sanitizedBody.offer_limit_qty === "null" || sanitizedBody.offer_limit_qty === "undefined") {
+      delete sanitizedBody.offer_limit_qty;
+    }
     request.body = sanitizedBody;
 
     const files = request.files as Express.Multer.File[] | undefined;
@@ -117,6 +123,12 @@ export async function updateProductController(request: Request, response: Respon
       if (Object.prototype.hasOwnProperty.call(request.body, key)) {
         sanitizedBody[key.trim()] = typeof request.body[key] === 'string' ? request.body[key].trim() : request.body[key];
       }
+    }
+    if (sanitizedBody.offer_price === "" || sanitizedBody.offer_price === "null" || sanitizedBody.offer_price === "undefined") {
+      delete sanitizedBody.offer_price;
+    }
+    if (sanitizedBody.offer_limit_qty === "" || sanitizedBody.offer_limit_qty === "null" || sanitizedBody.offer_limit_qty === "undefined") {
+      delete sanitizedBody.offer_limit_qty;
     }
     request.body = sanitizedBody;
 

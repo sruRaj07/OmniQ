@@ -39,7 +39,7 @@ export function FreeDeliveryProgress({ subtotal, remaining, threshold }: FreeDel
     <View style={[styles.container, unlocked ? styles.containerUnlocked : null]}>
       <Text style={styles.message}>
         {unlocked ? (
-          <>🎉 Yay! You get <Text style={styles.highlight}>FREE delivery</Text> on this order.</>
+          <>🎉 Yay! You unlocked <Text style={styles.highlight}>FREE delivery</Text> on this order.</>
         ) : (
           <>Add <Text style={styles.highlight}>{formatCurrency(remaining)}</Text> more to get FREE delivery</>
         )}

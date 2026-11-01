@@ -20,6 +20,9 @@ export type ProductDto = {
   description?: string;
   price: number;
   compare_price?: number;
+  offer_price?: number | null;
+  offer_limit_qty?: number | null;
+  unit?: string | null;
   category: string;
   stock: number;
   images?: string[];
@@ -28,6 +31,18 @@ export type ProductDto = {
   created_at?: string;
   updated_at?: string;
 };
+
+let hasOfferColumnsInProducts: boolean | null = null;
+export async function checkProductsHasOfferColumns(): Promise<boolean> {
+  if (hasOfferColumnsInProducts !== null) return hasOfferColumnsInProducts;
+  try {
+    const { error } = await supabaseAdmin.from("products").select("offer_price").limit(0);
+    hasOfferColumnsInProducts = !error;
+  } catch {
+    hasOfferColumnsInProducts = false;
+  }
+  return hasOfferColumnsInProducts;
+}
 
 export async function listProducts(
   sellerId?: string,
@@ -43,7 +58,7 @@ export async function listProducts(
     }
   }
 
-  let query = supabaseAdmin.from("products").select("id, title, price, compare_price, images, seller_id, stock, category, created_at, updated_at, is_approved, is_flagged");
+  let query = supabaseAdmin.from("products").select("*");
   
   if (sellerId) {
     query = query.eq("seller_id", sellerId);
@@ -138,7 +153,9 @@ export async function createProduct(input: unknown, authUserId: string): Promise
   if (seller.status !== "approved") throw new Error("Your seller account is not approved yet.");
   const sellerId = seller.id;
 
-  const product = { 
+  const hasOfferCols = await checkProductsHasOfferColumns();
+
+  const product: any = { 
     id: parsed.sku.toLowerCase(), 
     seller_id: sellerId,
     title: parsed.title, 
@@ -150,6 +167,12 @@ export async function createProduct(input: unknown, authUserId: string): Promise
     images: parsed.images,
     is_approved: false
   };
+
+  if (hasOfferCols) {
+    if (parsed.offer_price !== undefined) product.offer_price = parsed.offer_price;
+    if (parsed.offer_limit_qty !== undefined) product.offer_limit_qty = parsed.offer_limit_qty;
+    if (parsed.unit !== undefined) product.unit = parsed.unit;
+  }
   
   const { data, error } = await supabaseAdmin.from("products").insert([product]).select().single();
   if (error) throw new Error(`Failed to create product: ${error.message}`);
@@ -188,6 +211,13 @@ export async function updateProduct(id: string, input: unknown, authUserId: stri
   if (parsed.category !== undefined) updates.category = parsed.category;
   if (parsed.stock !== undefined) updates.stock = parsed.stock;
   if (parsed.images !== undefined) updates.images = parsed.images;
+
+  const hasOfferCols = await checkProductsHasOfferColumns();
+  if (hasOfferCols) {
+    if (parsed.offer_price !== undefined) updates.offer_price = parsed.offer_price;
+    if (parsed.offer_limit_qty !== undefined) updates.offer_limit_qty = parsed.offer_limit_qty;
+    if (parsed.unit !== undefined) updates.unit = parsed.unit;
+  }
 
   const { data, error } = await supabaseAdmin.from("products").update(updates).eq("id", id).select().single();
   if (error) throw new Error(`Failed to update product: ${error.message}`);
@@ -279,8 +309,7 @@ export async function searchProducts(params: SearchParams): Promise<{ products: 
 
 export async function getCategoryTags(): Promise<string[]> {
   // Configured dynamic tag pills served to frontend product listing form.
-  // Currently restricted to 'grocery' and 'kitchen' per current active business strategy.
   // In the future, this array (or database table) can be expanded to dynamically add new tags without any frontend app changes!
-  const activeTags = ["Grocery", "Kitchen"];
+  const activeTags = ["Grocery", "Kitchen", "Vegetables", "Pooja"];
   return activeTags;
 }

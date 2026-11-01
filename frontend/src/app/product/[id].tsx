@@ -158,7 +158,15 @@ export default function ProductDetailScreen() {
   const stockLeft = product.stock_quantity ?? 0;
   const isOutOfStock = stockLeft <= 0;
   const isLowStock = !isOutOfStock && stockLeft <= LOW_STOCK_THRESHOLD;
-  const qualifiesForFreeDelivery = product.price >= FREE_DELIVERY_THRESHOLD;
+  const hasOffer =
+    product.offer_price != null &&
+    product.offer_limit_qty != null &&
+    Number(product.offer_limit_qty) > 0 &&
+    Number(product.offer_price) > 0 &&
+    Number(product.offer_price) < product.price;
+  const unit = product.unit || "kg";
+
+  const qualifiesForFreeDelivery = (hasOffer ? Number(product.offer_price) : product.price) >= FREE_DELIVERY_THRESHOLD;
   // Same cutoff the cart quotes, so the promise made here is the one checkout keeps.
   const deliveryWindow = new Date().getHours() < 12
     ? "Today, 12:00 PM – 7:00 PM"
@@ -245,17 +253,54 @@ export default function ProductDetailScreen() {
     */}
 
     <Card style={styles.pricingCard}>
-      <View style={styles.priceRow}>
-        <Text style={styles.price}>{formatCurrency(product.price)}</Text>
-        {product.compare_price ? (
-          <Text style={styles.compare}>{formatCurrency(product.compare_price)}</Text>
-        ) : null}
-        {savings > 0 ? (
-          <View style={styles.saveBadge}>
-            <Text style={styles.saveBadgeText}>SAVE {formatCurrency(savings)}</Text>
+      {hasOffer ? (
+        <View style={styles.offerSection}>
+          <View style={styles.offerBadgeRow}>
+            <View style={styles.offerDealTag}>
+              <Text style={styles.offerDealTagText}>🔥 SPECIAL DAILY OFFER</Text>
+            </View>
+            <Text style={styles.offerLimitTagText}>Limit: {product.offer_limit_qty} {unit}/order</Text>
           </View>
-        ) : null}
-      </View>
+
+          <View style={styles.priceRow}>
+            <Text style={[styles.price, { color: "#16A34A" }]}>
+              {formatCurrency(Number(product.offer_price))}
+              <Text style={styles.unitSubText}>/{unit}</Text>
+            </Text>
+            <Text style={styles.compare}>{formatCurrency(product.price)}/{unit}</Text>
+            <View style={styles.saveBadge}>
+              <Text style={styles.saveBadgeText}>
+                SAVE {Math.round(((product.price - Number(product.offer_price)) / product.price) * 100)}%
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.tierInfoBox}>
+            <Text style={styles.tierInfoTitle}>Special Pricing Rule:</Text>
+            <Text style={styles.tierInfoItem}>
+              • First <Text style={{ fontWeight: "700" }}>{product.offer_limit_qty} {unit}</Text> @ <Text style={{ fontWeight: "700", color: "#16A34A" }}>{formatCurrency(Number(product.offer_price))}/{unit}</Text>
+            </Text>
+            <Text style={styles.tierInfoItem}>
+              • Additional quantity @ <Text style={{ fontWeight: "700" }}>{formatCurrency(product.price)}/{unit}</Text>
+            </Text>
+            <Text style={styles.tierInfoReset}>
+              Offer quota resets for every separate cart order you make today!
+            </Text>
+          </View>
+        </View>
+      ) : (
+        <View style={styles.priceRow}>
+          <Text style={styles.price}>{formatCurrency(product.price)}</Text>
+          {product.compare_price ? (
+            <Text style={styles.compare}>{formatCurrency(product.compare_price)}</Text>
+          ) : null}
+          {savings > 0 ? (
+            <View style={styles.saveBadge}>
+              <Text style={styles.saveBadgeText}>SAVE {formatCurrency(savings)}</Text>
+            </View>
+          ) : null}
+        </View>
+      )}
       <Text style={styles.taxNote}>Inclusive of all taxes</Text>
 
       <View style={styles.pricingDivider} />
@@ -497,6 +542,64 @@ const getStyles = (colors: any) => StyleSheet.create({
   taxNote: {
     ...typography.small,
     color: colors.textMuted,
+    marginTop: 4
+  },
+  offerSection: {
+    gap: 8,
+    marginBottom: 4
+  },
+  offerBadgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 4
+  },
+  offerDealTag: {
+    backgroundColor: "#16A34A",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3
+  },
+  offerDealTagText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.5
+  },
+  offerLimitTagText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#EA580C"
+  },
+  unitSubText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: colors.textSecondary
+  },
+  tierInfoBox: {
+    backgroundColor: "rgba(22, 163, 74, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(22, 163, 74, 0.25)",
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 4,
+    gap: 3
+  },
+  tierInfoTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#16A34A",
+    marginBottom: 2
+  },
+  tierInfoItem: {
+    fontSize: 12,
+    color: colors.textPrimary,
+    lineHeight: 18
+  },
+  tierInfoReset: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontStyle: "italic",
     marginTop: 4
   },
   pricingDivider: {

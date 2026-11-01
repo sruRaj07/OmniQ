@@ -4,7 +4,7 @@
  */
 import type { Request, Response } from "express";
 import { fail, ok } from "../../../../shared/utils/responseFormatter";
-import { checkZone, lookupPincode } from "../services/locationService";
+import { checkZone, lookupPincode, calculateDelivery } from "../services/locationService";
 
 export async function zoneCheckController(request: Request, response: Response): Promise<void> {
   try {
@@ -12,6 +12,15 @@ export async function zoneCheckController(request: Request, response: Response):
     response.json(ok(result));
   } catch (error: any) {
     response.status(400).json(fail("ZONE_CHECK_VALIDATION_FAILED", error.message));
+  }
+}
+
+export async function calculateDeliveryController(request: Request, response: Response): Promise<void> {
+  try {
+    const result = await calculateDelivery(request.body);
+    response.json(ok(result));
+  } catch (error: any) {
+    response.status(400).json(fail("CALCULATE_DELIVERY_FAILED", error.message));
   }
 }
 
@@ -35,3 +44,4 @@ export async function pincodeLookupController(request: Request, response: Respon
     response.status(status).json(fail(code, message));
   }
 }
+

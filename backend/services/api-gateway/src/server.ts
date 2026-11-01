@@ -228,6 +228,7 @@ app.all("/users*", authMiddleware, createProxyMiddleware(proxyConfig(userTarget)
 
 // --- Location ---
 app.post("/location/zone-check", authMiddleware, zoneCheckLimiter, createProxyMiddleware(proxyConfig(locationTarget)));
+app.post("/location/calculate-delivery", authMiddleware, createProxyMiddleware(proxyConfig(locationTarget)));
 app.get("/location*", cacheMiddleware(60_000), createProxyMiddleware(proxyConfig(locationTarget)));
 app.all("/location*", authMiddleware, createProxyMiddleware(proxyConfig(locationTarget)));
 

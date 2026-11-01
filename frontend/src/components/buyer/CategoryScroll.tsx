@@ -55,6 +55,28 @@ function ElectricalIcon({
       <Path d="M13 2L3 14 12 14 11 22 21 10 12 10 13 2Z" />
     </Svg>;
 }
+function VegetablesIcon({
+  color = "#15803D",
+  size = 28
+}) {
+  return <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M2.27 21.7s9.87-3.5 12.73-6.36a4.5 4.5 0 0 0-6.37-6.37C5.77 11.83 2.27 21.7 2.27 21.7Z" />
+      <Path d="M15 9l6-6" />
+      <Path d="M18 3l3 3" />
+      <Path d="M12 6l3-3" />
+    </Svg>;
+}
+function PoojaIcon({
+  color = "#EA580C",
+  size = 28
+}) {
+  return <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M12 2c-.6 2-2 3.5-2 5a2 2 0 0 0 4 0c0-1.5-1.4-3-2-5Z" fill={color} />
+      <Path d="M4 14c0 3.31 3.58 6 8 6s8-2.69 8-6H4Z" />
+      <Path d="M12 20v2" />
+      <Path d="M8 22h8" />
+    </Svg>;
+}
 function OthersIcon({
   color = "#8B85FF",
   size = 28
@@ -81,6 +103,16 @@ const categories = [{
   label: "Kitchen",
   tint: "#F59E0B",
   bgTint: "rgba(245,158,11,0.12)"
+}, {
+  icon: VegetablesIcon,
+  label: "Vegetables",
+  tint: "#15803D",
+  bgTint: "rgba(21,128,61,0.12)"
+}, {
+  icon: PoojaIcon,
+  label: "Pooja",
+  tint: "#EA580C",
+  bgTint: "rgba(234,88,12,0.12)"
 }, {
   icon: ClothesIcon,
   label: "Clothes",
