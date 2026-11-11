@@ -5,6 +5,12 @@
 (function () {
   'use strict';
 
+  /* ---- Clean URL canonicalization (remove /index.html from address bar) ---- */
+  if (window.location.pathname.endsWith('/index.html') || window.location.pathname === '/index.html') {
+    const cleanPath = window.location.pathname.replace(/\/index\.html$/, '') || '/';
+    window.history.replaceState(null, '', cleanPath + window.location.search + window.location.hash);
+  }
+
   /* ---- Navbar scroll effect ---- */
   const navbar = document.querySelector('.navbar');
   if (navbar) {
