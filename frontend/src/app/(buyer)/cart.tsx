@@ -92,6 +92,13 @@ export default function CartScreen() {
   });
   const [errors, setErrors] = useState<AddressErrors>({});
   const [serviceError, setServiceError] = useState<string | null>(null);
+
+  // Mandatory real-time GPS location states
+  const [preciseLocation, setPreciseLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [isFetchingGps, setIsFetchingGps] = useState(false);
+  const [gpsError, setGpsError] = useState<string | null>(null);
+  const [needsGpsPrompt, setNeedsGpsPrompt] = useState(false);
+
   // Remembers what the pincode lookup last filled in, so we only overwrite our own suggestion
   // and never clobber a city/state the buyer typed by hand.
   const autoFilledRef = useRef({ city: "", state: "" });
@@ -101,6 +108,41 @@ export default function CartScreen() {
     touchedFieldsRef.current.add(field);
     setAddress(prev => ({ ...prev, [field]: value }));
     setErrors(prev => (prev[field] ? { ...prev, [field]: undefined } : prev));
+  };
+
+  const handleFetchPreciseLocation = () => {
+    setIsFetchingGps(true);
+    setGpsError(null);
+    setNeedsGpsPrompt(false);
+    setServiceError(null);
+
+    if (typeof navigator !== "undefined" && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setIsFetchingGps(false);
+          const lat = Number(pos.coords.latitude.toFixed(6));
+          const lng = Number(pos.coords.longitude.toFixed(6));
+          setPreciseLocation({ lat, lng });
+        },
+        (err) => {
+          setIsFetchingGps(false);
+          console.warn("GPS error:", err);
+          let message = "Could not fetch GPS location. Please allow location permissions in your browser/device.";
+          if (err.code === 1) {
+            message = "Location permission denied. Please allow location access in your browser or device settings.";
+          } else if (err.code === 2) {
+            message = "Location unavailable. Please ensure GPS/location services are turned on.";
+          } else if (err.code === 3) {
+            message = "Location request timed out. Please try again.";
+          }
+          setGpsError(message);
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    } else {
+      setIsFetchingGps(false);
+      setGpsError("Geolocation is not supported on this device/browser.");
+    }
   };
 
   const queryClient = useQueryClient();
@@ -114,15 +156,19 @@ export default function CartScreen() {
 
   const activePincode = (address.pincode || profile?.pincode || "").trim();
   const isValidPincode = PINCODE_PATTERN.test(activePincode);
+  const cartSellerId = cartLines[0]?.product?.seller_id;
 
-  const { data: deliveryData } = useQuery({
-    queryKey: ["calculateDelivery", activePincode, cartSubtotal],
-    enabled: isValidPincode && cartSubtotal > 0,
+  const { data: deliveryData, isFetching: isCalculatingDelivery } = useQuery({
+    queryKey: ["calculateDelivery", activePincode, cartSubtotal, cartSellerId, preciseLocation?.lat, preciseLocation?.lng],
+    enabled: (isValidPincode || !!preciseLocation) && cartSubtotal > 0,
     staleTime: 30_000,
     queryFn: async () => {
       const res = await apiClient.post("/location/calculate-delivery", {
         subtotal: cartSubtotal,
-        pincode: activePincode
+        pincode: activePincode || undefined,
+        sellerId: cartSellerId,
+        lat: preciseLocation?.lat,
+        lng: preciseLocation?.lng
       });
       return res.data?.data;
     }
@@ -226,6 +272,9 @@ export default function CartScreen() {
       Alert.alert("Cart Empty", "Please add some items to your cart first.");
       return;
     }
+    setNeedsGpsPrompt(false);
+    setGpsError(null);
+    setServiceError(null);
     setShowAddressModal(true);
   };
 
@@ -234,6 +283,18 @@ export default function CartScreen() {
     setErrors(validationErrors);
     if (Object.keys(validationErrors).length > 0) {
       setServiceError(null);
+      return;
+    }
+
+    // MANDATORY GPS CHECK: Every order requires the user to fetch precise location.
+    if (!preciseLocation) {
+      setNeedsGpsPrompt(true);
+      setServiceError("Please fetch your exact GPS location using the button above to continue.");
+      Alert.alert(
+        "Precise Location Required",
+        "OmniQ delivers from the nearest warehouse and calculates real road driving distance. Please tap 'Fetch Precise Location' to enable road-distance calculation and place your order.",
+        [{ text: "OK" }]
+      );
       return;
     }
 
@@ -256,13 +317,17 @@ export default function CartScreen() {
     const idempotencyKey = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
 
     try {
-      // Step 1: Verify pincode serviceability
-      const zoneCheckRes = await apiClient.post("/location/zone-check", { pincode: deliveryAddress.pincode });
+      // Step 1: Verify pincode & precise GPS serviceability
+      const zoneCheckRes = await apiClient.post("/location/zone-check", {
+        pincode: deliveryAddress.pincode,
+        lat: preciseLocation.lat,
+        lng: preciseLocation.lng
+      });
       const zoneData = zoneCheckRes.data?.data || zoneCheckRes.data;
       
       if (zoneData && zoneData.isServiceable === false) {
         setIsPlacingOrder(false);
-        setServiceError("Sorry, we do not deliver to this pincode at the moment.");
+        setServiceError("Sorry, we do not deliver to this location at the moment.");
         return;
       }
       
@@ -275,6 +340,8 @@ export default function CartScreen() {
         })),
         deliveryAddress,
         distanceKm: currentDistanceKm,
+        buyerLat: preciseLocation.lat,
+        buyerLng: preciseLocation.lng,
         paymentMethod: "CASH_ON_DELIVERY"
       };
       await apiClient.post("/orders", payload, { headers: { "Idempotency-Key": idempotencyKey } });
@@ -475,11 +542,99 @@ export default function CartScreen() {
               }}
             />
             {errors.pincode ? <Text style={styles.fieldError}>{errors.pincode}</Text> : null}
-            {deliveryData?.isServiceable && deliveryData?.nearestHub ? (
-              <View style={{ backgroundColor: "rgba(22, 163, 74, 0.08)", borderColor: "rgba(22, 163, 74, 0.25)", borderWidth: 1, borderRadius: 8, padding: 8, marginTop: 6, flexDirection: "row", alignItems: "center" }}>
+
+            {/* Precise Real-Time GPS Location Section (MANDATORY) */}
+            <View
+              style={[
+                styles.gpsSection,
+                needsGpsPrompt && !preciseLocation ? styles.gpsSectionPrompt : null
+              ]}
+            >
+              <View style={styles.gpsSectionHeader}>
+                <Text style={styles.gpsSectionTitle}>
+                  Precise Delivery Location <Text style={{ color: colors.danger }}>*</Text>
+                </Text>
+                {preciseLocation ? (
+                  <View style={styles.gpsVerifiedBadge}>
+                    <Text style={styles.gpsVerifiedText}>✓ GPS Captured</Text>
+                  </View>
+                ) : (
+                  <View style={styles.gpsRequiredBadge}>
+                    <Text style={styles.gpsRequiredText}>Required</Text>
+                  </View>
+                )}
+              </View>
+
+              <Text style={styles.gpsSectionSubtitle}>
+                Distance is calculated via driving paths from our nearest warehouse to your exact location.
+              </Text>
+
+              {preciseLocation ? (
+                <View style={styles.gpsSuccessBox}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.gpsCoordText}>
+                      📍 {preciseLocation.lat.toFixed(5)}, {preciseLocation.lng.toFixed(5)}
+                    </Text>
+                    {isCalculatingDelivery ? (
+                      <Text style={styles.gpsSubNote}>Calculating driving route distance...</Text>
+                    ) : deliveryData?.nearestHub ? (
+                      <Text style={styles.gpsSubNote}>
+                        Nearest Hub: <Text style={{ fontWeight: "700", color: colors.textPrimary }}>{deliveryData.nearestHub}</Text> ({deliveryData.distanceKm} km driving path)
+                      </Text>
+                    ) : null}
+                  </View>
+                  <Pressable
+                    style={styles.gpsRetakeBtn}
+                    onPress={handleFetchPreciseLocation}
+                    disabled={isFetchingGps}
+                  >
+                    {isFetchingGps ? (
+                      <ActivityIndicator size="small" color={colors.accent} />
+                    ) : (
+                      <Text style={styles.gpsRetakeText}>Update</Text>
+                    )}
+                  </Pressable>
+                </View>
+              ) : (
+                <Pressable
+                  style={[
+                    styles.gpsFetchBtn,
+                    needsGpsPrompt ? styles.gpsFetchBtnPrompt : null
+                  ]}
+                  onPress={handleFetchPreciseLocation}
+                  disabled={isFetchingGps}
+                >
+                  {isFetchingGps ? (
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                      <Text style={styles.gpsFetchBtnText}>Fetching Real-time GPS...</Text>
+                    </View>
+                  ) : (
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <Text style={{ fontSize: 16 }}>📍</Text>
+                      <Text style={styles.gpsFetchBtnText}>Fetch Precise Location</Text>
+                    </View>
+                  )}
+                </Pressable>
+              )}
+
+              {gpsError ? (
+                <Text style={styles.gpsErrorText}>{gpsError}</Text>
+              ) : null}
+
+              {needsGpsPrompt && !preciseLocation ? (
+                <Text style={styles.gpsPromptNotice}>
+                  ⚠️ Exact location is required to calculate driving path & confirm order.
+                </Text>
+              ) : null}
+            </View>
+
+            {/* Approximate pincode match fallback banner if GPS not yet captured */}
+            {!preciseLocation && deliveryData?.isServiceable && deliveryData?.nearestHub ? (
+              <View style={{ backgroundColor: "rgba(22, 163, 74, 0.08)", borderColor: "rgba(22, 163, 74, 0.25)", borderWidth: 1, borderRadius: 8, padding: 8, marginBottom: 8, flexDirection: "row", alignItems: "center" }}>
                 <Text style={{ fontSize: 13, marginRight: 6 }}>📍</Text>
                 <Text style={{ color: colors.textSecondary, fontSize: 12, flex: 1 }}>
-                  Nearest Hub: <Text style={{ fontWeight: "700", color: colors.textPrimary }}>{deliveryData.nearestHub}</Text> ({deliveryData.distanceKm} km away)
+                  Nearest Hub (approx from pincode): <Text style={{ fontWeight: "700", color: colors.textPrimary }}>{deliveryData.nearestHub}</Text> (~{deliveryData.distanceKm} km away)
                 </Text>
               </View>
             ) : null}
@@ -730,5 +885,122 @@ const getStyles = (colors: any) => StyleSheet.create({
     color: colors.textMuted,
     marginTop: 8,
     fontSize: 13
+  },
+  gpsSection: {
+    marginTop: 14,
+    marginBottom: 8,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border
+  },
+  gpsSectionPrompt: {
+    borderColor: colors.danger,
+    backgroundColor: "rgba(239, 68, 68, 0.05)"
+  },
+  gpsSectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4
+  },
+  gpsSectionTitle: {
+    color: colors.textPrimary,
+    fontSize: 13,
+    fontWeight: "700"
+  },
+  gpsSectionSubtitle: {
+    color: colors.textMuted,
+    fontSize: 12,
+    marginBottom: 10,
+    lineHeight: 16
+  },
+  gpsRequiredBadge: {
+    backgroundColor: "rgba(239, 68, 68, 0.15)",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6
+  },
+  gpsRequiredText: {
+    color: colors.danger,
+    fontSize: 11,
+    fontWeight: "700"
+  },
+  gpsVerifiedBadge: {
+    backgroundColor: "rgba(22, 163, 74, 0.15)",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6
+  },
+  gpsVerifiedText: {
+    color: "#16A34A",
+    fontSize: 11,
+    fontWeight: "700"
+  },
+  gpsSuccessBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 10,
+    borderRadius: 8,
+    backgroundColor: "rgba(22, 163, 74, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(22, 163, 74, 0.25)",
+    gap: 10
+  },
+  gpsCoordText: {
+    color: colors.textPrimary,
+    fontSize: 13,
+    fontWeight: "700"
+  },
+  gpsSubNote: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    marginTop: 2
+  },
+  gpsRetakeBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card2
+  },
+  gpsRetakeText: {
+    color: colors.textPrimary,
+    fontSize: 12,
+    fontWeight: "600"
+  },
+  gpsFetchBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#2563EB",
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    gap: 8
+  },
+  gpsFetchBtnPrompt: {
+    backgroundColor: colors.danger
+  },
+  gpsFetchBtnText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700"
+  },
+  gpsErrorText: {
+    color: colors.danger,
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 8
+  },
+  gpsPromptNotice: {
+    color: colors.danger,
+    fontSize: 12,
+    fontWeight: "700",
+    marginTop: 8,
+    textAlign: "center"
   }
 });

@@ -6,8 +6,8 @@
  *
  * Author: OmniQ Team
  */
-import React, { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, View, Alert } from "react-native";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -20,7 +20,7 @@ import { useThemeColors } from "@/store/useThemeStore";
 import { apiClient } from "@/lib/apiClient";
 import { sellerProfileOf, useSellerStatus } from "@/hooks/useSellerStatus";
 import { RADIUS, SPACE, withAlpha } from "@/constants/sellerTheme";
-import { CheckIcon, StoreIcon } from "@/components/ui/SellerIcons";
+import { CheckIcon, MapPinIcon, StoreIcon } from "@/components/ui/SellerIcons";
 
 /** Where an existing seller account belongs, given its approval state. */
 function routeForSeller(profile: Record<string, any>): string {
@@ -33,12 +33,15 @@ const applySchema = z.object({
   description: z.string().optional(),
   category: z.string().min(2, "Category is required"),
   gstNumber: z.string().min(10, "Valid GST number is required"),
-  city: z.string().min(2, "City is required")
+  city: z.string().min(2, "City is required"),
+  lat: z.number().optional(),
+  lng: z.number().optional()
 });
 type ApplyFormData = z.infer<typeof applySchema>;
 
 const BENEFITS = [
   "List unlimited products with photo optimisation built in",
+  "Auto-assigned to nearest warehouse for fast local deliveries",
   "Get paid for every delivered order, tracked in the app",
   "Manage packing and dispatch from your phone",
 ];
@@ -48,6 +51,8 @@ export default function ApplySellerScreen() {
   const styles = useMemo(() => getStyles(colors), [colors]);
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [coords, setCoords] = useState<{ lat?: number; lng?: number }>({});
+  const [locStatus, setLocStatus] = useState<"idle" | "detecting" | "detected" | "denied">("idle");
   const { sellerProfile, isUnresolved, isError, isFetching, refetch } = useSellerStatus();
 
   // Last line of defence: this screen re-checks with the server on mount, so a seller who was
@@ -73,12 +78,46 @@ export default function ApplySellerScreen() {
     }
   });
 
+  const handleRequestLocation = useCallback(() => {
+    setLocStatus("detecting");
+    if (typeof navigator !== "undefined" && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = Number(pos.coords.latitude.toFixed(6));
+          const lng = Number(pos.coords.longitude.toFixed(6));
+          setCoords({ lat, lng });
+          setLocStatus("detected");
+        },
+        (err) => {
+          console.warn("Location error:", err);
+          setLocStatus("denied");
+          Alert.alert(
+            "Location Permission",
+            "Could not detect exact GPS coordinates. OmniQ will match your store to the nearest fulfillment warehouse using your city."
+          );
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+      );
+    } else {
+      setLocStatus("denied");
+      Alert.alert(
+        "Location Unavailable",
+        "GPS is not supported on this device. We will automatically assign your nearest warehouse using your city."
+      );
+    }
+  }, []);
+
   const onSubmit = async (data: ApplyFormData) => {
     setLoading(true);
     try {
-      await apiClient.post("/sellers/register", data);
+      const payload: any = { ...data };
+      if (coords.lat !== undefined && coords.lng !== undefined) {
+        payload.lat = coords.lat;
+        payload.lng = coords.lng;
+      }
+      await apiClient.post("/sellers/register", payload);
       await refetch();
-      Alert.alert("Success", "Your application has been submitted!");
+      Alert.alert("Success", "Your application has been submitted and assigned to your nearest fulfillment warehouse!");
       router.replace("/(seller)/pending" as any);
     } catch (error: any) {
       const payload = error?.response?.data?.error ?? error?.response?.data;
@@ -108,6 +147,7 @@ export default function ApplySellerScreen() {
       setLoading(false);
     }
   };
+
 
   // The application form is only correct for someone the server has confirmed has no seller
   // account. Until then this screen shows its own state rather than guessing — showing the
@@ -234,6 +274,51 @@ export default function ApplySellerScreen() {
           )}
         />
 
+        {/* Amazon-style Inventory / Dispatch location for warehouse assignment */}
+        <View style={styles.locationCard}>
+          <View style={styles.locationHeader}>
+            <View style={styles.locationIconWrap}>
+              <MapPinIcon size={18} color={colors.accent} strokeWidth={2.4} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.locationTitle}>Dispatch / Inventory Location</Text>
+              <Text style={styles.locationSubtitle}>
+                Where you store and pack items. Based on this, you will be assigned the nearest fulfillment warehouse or hub.
+              </Text>
+            </View>
+          </View>
+
+          {locStatus === "detected" && coords.lat !== undefined ? (
+            <View style={styles.locationSuccess}>
+              <CheckIcon size={14} color={colors.success} strokeWidth={3} />
+              <Text style={styles.locationSuccessText}>
+                Coordinates set ({coords.lat}, {coords.lng}) · Nearest warehouse will be linked
+              </Text>
+            </View>
+          ) : (
+            <Pressable
+              onPress={handleRequestLocation}
+              disabled={locStatus === "detecting"}
+              accessibilityRole="button"
+              style={({ pressed }) => [
+                styles.locationBtn,
+                locStatus === "detecting" && styles.locationBtnDisabled,
+                pressed && styles.pressed
+              ]}
+            >
+              {locStatus === "detecting" ? (
+                <ActivityIndicator size="small" color={colors.accent} />
+              ) : (
+                <MapPinIcon size={16} color={colors.accent} strokeWidth={2.4} />
+              )}
+              <Text style={styles.locationBtnText}>
+                {locStatus === "detecting" ? "Detecting location…" : "Detect My Inventory Location (GPS)"}
+              </Text>
+            </Pressable>
+          )}
+        </View>
+
+
         <Controller
           control={control}
           name="description"
@@ -317,4 +402,78 @@ const getStyles = (colors: any) =>
     textArea: { minHeight: 96, textAlignVertical: "top", paddingTop: 16, paddingBottom: 16 },
     error: { color: colors.danger, fontSize: 11.5, fontWeight: "700", marginLeft: 2 },
     actions: { gap: SPACE.md, marginTop: SPACE.sm },
+    pressed: { opacity: 0.8 },
+    locationCard: {
+      backgroundColor: colors.bgSecondary,
+      borderRadius: RADIUS.md,
+      padding: SPACE.md,
+      gap: SPACE.sm,
+      borderWidth: 1,
+      borderColor: colors.border
+    },
+    locationHeader: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: SPACE.sm
+    },
+    locationIconWrap: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: withAlpha(colors.accent, 0.12),
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: 2
+    },
+    locationTitle: {
+      color: colors.textPrimary,
+      fontSize: 13.5,
+      fontWeight: "800"
+    },
+    locationSubtitle: {
+      color: colors.textMuted,
+      fontSize: 11.5,
+      lineHeight: 16,
+      marginTop: 2
+    },
+    locationBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: SPACE.xs,
+      backgroundColor: withAlpha(colors.accent, 0.08),
+      borderWidth: 1,
+      borderColor: withAlpha(colors.accent, 0.3),
+      borderRadius: RADIUS.sm,
+      paddingVertical: 10,
+      paddingHorizontal: SPACE.md,
+      marginTop: SPACE.xs
+    },
+    locationBtnDisabled: {
+      opacity: 0.6
+    },
+    locationBtnText: {
+      color: colors.accent,
+      fontSize: 12.5,
+      fontWeight: "700"
+    },
+    locationSuccess: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: SPACE.xs,
+      backgroundColor: withAlpha(colors.success, 0.1),
+      borderColor: withAlpha(colors.success, 0.3),
+      borderWidth: 1,
+      borderRadius: RADIUS.sm,
+      paddingVertical: 8,
+      paddingHorizontal: SPACE.md,
+      marginTop: SPACE.xs
+    },
+    locationSuccessText: {
+      color: colors.success,
+      fontSize: 12,
+      fontWeight: "700",
+      flex: 1
+    }
   });
+

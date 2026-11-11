@@ -12,11 +12,12 @@ export const moderationSchema = z.object({
 export const zoneSchema = z.object({
   id: z.string().uuid().optional(),
   name: z.string().min(2),
-  centreLat: z.number(),
-  centreLng: z.number(),
-  radiusKm: z.number().positive(),
+  centreLat: z.number().optional().default(0),
+  centreLng: z.number().optional().default(0),
+  radiusKm: z.number().positive().optional().default(10),
   pinCodes: z.array(z.string()).default([])
 });
+
 
 // Zone ids arrive as a path parameter, so they are unvalidated strings until this runs. Without the
 // uuid check a malformed id reaches Postgres and comes back as a raw cast error ("invalid input

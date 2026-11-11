@@ -20,7 +20,7 @@ import { supabase } from "@/lib/supabase";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/apiClient";
 import { RADIUS, SPACE, withAlpha } from "@/constants/sellerTheme";
-import { confirmAction } from "@/utils/dialog";
+import { confirmAction, notify } from "@/utils/dialog";
 import {
   InfoIcon,
   LogOutIcon,
@@ -86,6 +86,51 @@ export default function SellerProfileScreen() {
       setIsEditingDescription(false);
     },
   });
+
+  const [detectingLocation, setDetectingLocation] = useState(false);
+
+  const assignLocationMutation = useMutation({
+    mutationFn: async (coords?: { lat?: number; lng?: number } | void) => {
+      const payload: any = {};
+      if (coords?.lat !== undefined && coords?.lng !== undefined) {
+        payload.lat = coords.lat;
+        payload.lng = coords.lng;
+      }
+      const res = await apiClient.patch("/sellers/me", payload);
+      return res.data;
+    },
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ["seller-profile"] });
+      const whName = res?.data?.assigned_warehouse?.name || "your nearest hub";
+      notify("Warehouse Assigned", `Your store is now linked to ${whName}.`);
+    },
+    onError: (err: any) => {
+      notify("Assignment Failed", err?.response?.data?.message || "Could not link nearest warehouse.");
+    }
+  });
+
+  const handleAutoAssignWarehouse = useCallback(() => {
+    setDetectingLocation(true);
+    if (typeof navigator !== "undefined" && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setDetectingLocation(false);
+          const lat = Number(pos.coords.latitude.toFixed(6));
+          const lng = Number(pos.coords.longitude.toFixed(6));
+          assignLocationMutation.mutate({ lat, lng });
+        },
+        () => {
+          setDetectingLocation(false);
+          // Fall back to city-based assignment
+          assignLocationMutation.mutate({});
+        },
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+      );
+    } else {
+      setDetectingLocation(false);
+      assignLocationMutation.mutate({});
+    }
+  }, [assignLocationMutation]);
 
   const handleEditDescription = useCallback(() => {
     setEditDescriptionValue(sellerData?.description || "");
@@ -220,6 +265,25 @@ export default function SellerProfileScreen() {
             <InfoRow icon={StoreIcon} label="Business name" value={sellerData?.business_name} />
             <InfoRow icon={MapPinIcon} label="City" value={sellerData?.city} />
             <InfoRow icon={InfoIcon} label="GST number" value={sellerData?.gst_number} fallback="Not registered" />
+            <InfoRow
+              icon={MapPinIcon}
+              label="Fulfillment warehouse"
+              value={sellerData?.assigned_warehouse?.name || (sellerData?.assigned_warehouse_id ? "Linked" : undefined)}
+              fallback="No warehouse assigned"
+            />
+            {!sellerData?.assigned_warehouse && !sellerData?.assigned_warehouse_id ? (
+              <Pressable
+                onPress={handleAutoAssignWarehouse}
+                disabled={detectingLocation || assignLocationMutation.isPending}
+                style={({ pressed }) => [styles.whLinkBtn, pressed && styles.pressed]}
+              >
+                <Text style={styles.whLinkText}>
+                  {detectingLocation || assignLocationMutation.isPending
+                    ? "Assigning nearest warehouse…"
+                    : "📍 Connect to Nearest Warehouse"}
+                </Text>
+              </Pressable>
+            ) : null}
           </Surface>
 
           <SectionHeader title="Contact" caption="Used for order and payout updates" style={styles.sectionHeader} />
@@ -297,5 +361,21 @@ const getStyles = (colors: any) =>
     solidLabel: { color: "#FFFFFF", fontWeight: "800", fontSize: 13.5 },
     pressed: { opacity: 0.82 },
     divider: { height: 1, backgroundColor: colors.border },
+    whLinkBtn: {
+      marginVertical: SPACE.sm,
+      paddingVertical: 10,
+      paddingHorizontal: SPACE.md,
+      backgroundColor: withAlpha(colors.accent, 0.1),
+      borderColor: withAlpha(colors.accent, 0.3),
+      borderWidth: 1,
+      borderRadius: RADIUS.sm,
+      alignItems: "center",
+      justifyContent: "center"
+    },
+    whLinkText: {
+      color: colors.accent,
+      fontSize: 13,
+      fontWeight: "700"
+    },
     actions: { marginTop: SPACE.xxl, gap: SPACE.md },
   });

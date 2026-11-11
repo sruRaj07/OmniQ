@@ -70,6 +70,25 @@ export default function AdminSellersScreen() {
     }
   });
 
+  const bulkAssignMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiClient.post("/sellers/bulk-assign-warehouses");
+      return res.data?.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["adminSellers"] });
+      queryClient.invalidateQueries({ queryKey: ["adminDashboard"] });
+      notify("Warehouses Assigned", data?.message || "Successfully assigned nearest warehouses.");
+    },
+    onError: (err: unknown) => {
+      notify("Bulk Assignment Failed", errorMessage(err, "Please try again."));
+    }
+  });
+
+  const unassignedCount = useMemo(() => {
+    return sellers.filter((s) => !s.assigned_warehouse && !s.assigned_warehouse_id).length;
+  }, [sellers]);
+
   // ⚡ PERFORMANCE: one pass over the sellers produces both the buckets and the tab counts, rather
   // than three filters plus three more for the badges.
   const { buckets, tabs } = useMemo(() => {
@@ -111,11 +130,32 @@ export default function AdminSellersScreen() {
               : "Every application has been reviewed"
           }
         />
+        {unassignedCount > 0 ? (
+          <View style={styles.alertBanner}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.alertTitle}>⚠️ Unassigned Warehouses</Text>
+              <Text style={styles.alertSubtitle}>
+                {unassignedCount} seller{unassignedCount === 1 ? "" : "s"} need a fulfillment warehouse assigned.
+              </Text>
+            </View>
+            <Pressable
+              onPress={() => bulkAssignMutation.mutate()}
+              disabled={bulkAssignMutation.isPending}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.alertBtn, pressed && styles.pressed]}
+            >
+              <Text style={styles.alertBtnText}>
+                {bulkAssignMutation.isPending ? "Assigning…" : "Auto-Assign All"}
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
         <SegmentedTabs items={tabs} value={activeTab} onChange={(key) => setActiveTab(key as TabKey)} />
       </View>
     ),
-    [styles, buckets.pending.length, tabs, activeTab]
+    [styles, buckets.pending.length, tabs, activeTab, unassignedCount, bulkAssignMutation]
   );
+
 
   const renderItem = useCallback(
     ({ item: seller }: { item: any }) => {
@@ -157,6 +197,35 @@ export default function AdminSellersScreen() {
               </Text>
             </View>
           ) : null}
+
+          <View style={styles.whRow}>
+            <Text style={styles.whLabel}>WAREHOUSE</Text>
+            <Text
+              style={[
+                styles.whValue,
+                !seller.assigned_warehouse && !seller.assigned_warehouse_id && styles.whUnassigned
+              ]}
+              numberOfLines={1}
+            >
+              {seller.assigned_warehouse?.name || (seller.assigned_warehouse_id ? "Assigned" : "Not assigned")}
+            </Text>
+            {!seller.assigned_warehouse && !seller.assigned_warehouse_id ? (
+              <Pressable
+                disabled={busy}
+                onPress={() =>
+                  updateStatus.mutate({
+                    id: seller.id,
+                    status: status === "approved" || status === "active" ? "approved" : status
+                  })
+                }
+                accessibilityRole="button"
+                style={({ pressed }) => [styles.whActionBtn, pressed && styles.pressed]}
+              >
+                <Text style={styles.whActionBtnText}>Auto-link</Text>
+              </Pressable>
+            ) : null}
+          </View>
+
 
           <View style={styles.actions}>
             {status === "pending" ? (
@@ -330,6 +399,51 @@ const getStyles = (colors: any) =>
     },
     gstLabel: { color: colors.textMuted, fontSize: 10, fontWeight: "800", letterSpacing: 0.8 },
     gstValue: { color: colors.textPrimary, fontSize: 12.5, fontWeight: "700", flex: 1 },
+
+    whRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: SPACE.sm,
+      paddingVertical: SPACE.sm,
+      paddingHorizontal: SPACE.md,
+      backgroundColor: withAlpha(colors.accent, 0.06),
+      borderColor: withAlpha(colors.accent, 0.2),
+      borderWidth: 1,
+      borderRadius: RADIUS.sm,
+      marginBottom: SPACE.lg
+    },
+    whLabel: { color: colors.accent, fontSize: 10, fontWeight: "800", letterSpacing: 0.8 },
+    whValue: { color: colors.textPrimary, fontSize: 12.5, fontWeight: "700", flex: 1 },
+    whUnassigned: { color: colors.warning, fontStyle: "italic" },
+    whActionBtn: {
+      paddingVertical: 4,
+      paddingHorizontal: 8,
+      backgroundColor: colors.accent,
+      borderRadius: RADIUS.xs
+    },
+    whActionBtnText: { color: "#FFFFFF", fontSize: 11, fontWeight: "800" },
+
+    alertBanner: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: SPACE.md,
+      backgroundColor: withAlpha(colors.warning, 0.12),
+      borderColor: withAlpha(colors.warning, 0.35),
+      borderWidth: 1,
+      borderRadius: RADIUS.md,
+      padding: SPACE.md,
+      marginBottom: SPACE.md
+    },
+    alertTitle: { color: colors.textPrimary, fontSize: 13, fontWeight: "800" },
+    alertSubtitle: { color: colors.textSecondary, fontSize: 11.5, marginTop: 2 },
+    alertBtn: {
+      backgroundColor: colors.warning,
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+      borderRadius: RADIUS.sm
+    },
+    alertBtnText: { color: "#000000", fontSize: 12, fontWeight: "800" },
 
     actions: { flexDirection: "row", gap: SPACE.md },
     btn: {

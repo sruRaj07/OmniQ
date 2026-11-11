@@ -8,7 +8,16 @@ import express from "express";
 import helmet from "helmet";
 import { ok } from "../../../shared/utils/responseFormatter";
 import { requireAuth, requireRole } from "../../../shared/utils/gatewayIdentity";
-import { listSellersController, registerSellerController, updateSellerStatusController, getSellerByIdController, getMySellerProfileController, updateMySellerProfileController } from "./controllers/sellerController";
+import {
+  listSellersController,
+  registerSellerController,
+  updateSellerStatusController,
+  getSellerByIdController,
+  getMySellerProfileController,
+  updateMySellerProfileController,
+  assignSellerWarehouseController,
+  bulkAssignWarehousesController
+} from "./controllers/sellerController";
 import { installGracefulShutdown } from "../../../shared/utils/gracefulShutdown";
 import { notFoundHandler, errorHandler } from "../../../shared/utils/httpErrors";
 
@@ -31,6 +40,10 @@ app.patch("/sellers/me", requireAuth, updateMySellerProfileController);
 // seller's GST number. The only consumer is the admin console (frontend/src/app/(admin)/sellers.tsx),
 // which needs pending sellers and GST to approve them, so admin-only is both correct and sufficient.
 // There is no buyer-facing seller directory; product responses do not embed seller records.
+// Admin only: bulk assign warehouses to unassigned sellers
+app.post("/sellers/bulk-assign-warehouses", requireRole("admin"), bulkAssignWarehousesController);
+app.patch("/sellers/:id/warehouse", requireRole("admin"), assignSellerWarehouseController);
+
 app.get("/sellers", requireRole("admin"), listSellersController);
 app.get("/sellers/:id", requireRole("admin"), getSellerByIdController);
 

@@ -39,7 +39,7 @@ async function getActiveDeliveryZones(): Promise<any[]> {
 
   const { data: zones, error } = await supabaseAdmin
     .from("delivery_zones")
-    .select("name, lat, lng, radius_km, supported_pincodes")
+    .select("id, name, lat, lng, radius_km, supported_pincodes")
     .eq("active", true)
     .is("deleted_at", null);
 
@@ -58,6 +58,68 @@ export function distanceKm(point: { lat: number; lng: number }, centre: { lat: n
     Math.sin(dLat / 2) ** 2 +
     Math.cos(toRad(point.lat)) * Math.cos(toRad(centre.lat)) * Math.sin(dLng / 2) ** 2;
   return 2 * earthKm * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/**
+ * Road-distance correction factor. Indian roads are rarely straight; multiplying
+ * the Haversine (great-circle) distance by this factor gives a reasonable estimate
+ * of actual driving distance when the routing API is unreachable.
+ */
+const ROAD_DISTANCE_FACTOR = 1.4;
+
+/** In-memory cache for OSRM road-distance lookups. Key = "lat1,lng1|lat2,lng2". */
+const roadDistanceCache = new Map<string, number>();
+const OSRM_TIMEOUT_MS = 3000;
+
+/**
+ * Calculates the actual driving/road distance between two GPS coordinates.
+ *
+ * Uses the free OSRM (Open Source Routing Machine) public API which returns real
+ * road-network distances — the path a delivery partner would actually drive.
+ *
+ * Fallback: If OSRM is unavailable (timeout, error, rate-limited), returns
+ * Haversine × 1.4 which is a standard road-distance correction factor.
+ */
+export async function roadDistanceKm(
+  from: { lat: number; lng: number },
+  to: { lat: number; lng: number }
+): Promise<number> {
+  // Quick validation
+  if (!from.lat || !from.lng || !to.lat || !to.lng) {
+    return distanceKm(from, to) * ROAD_DISTANCE_FACTOR;
+  }
+
+  // Check cache first
+  const cacheKey = `${from.lat.toFixed(5)},${from.lng.toFixed(5)}|${to.lat.toFixed(5)},${to.lng.toFixed(5)}`;
+  const cached = roadDistanceCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+
+  try {
+    // OSRM expects coordinates as lng,lat (not lat,lng)
+    const url = `https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=false`;
+    const response = await fetch(url, {
+      headers: { "User-Agent": "OmniQ-Ecommerce/1.0" },
+      signal: AbortSignal.timeout(OSRM_TIMEOUT_MS)
+    });
+
+    if (response.ok) {
+      const data = (await response.json()) as any;
+      if (data?.code === "Ok" && data?.routes?.[0]?.distance) {
+        // OSRM returns distance in metres
+        const km = Number((data.routes[0].distance / 1000).toFixed(1));
+        roadDistanceCache.set(cacheKey, km);
+        return km;
+      }
+    }
+  } catch {
+    // OSRM unavailable — fall through to Haversine approximation
+  }
+
+  // Fallback: Haversine × road correction factor
+  const straightLine = distanceKm(from, to);
+  const approx = Number((straightLine * ROAD_DISTANCE_FACTOR).toFixed(1));
+  roadDistanceCache.set(cacheKey, approx);
+  return approx;
 }
 
 /**
@@ -132,24 +194,40 @@ export async function checkZone(input: unknown) {
 
   // If pincode is provided, check against supported_pincodes array
   if (parsed.pincode) {
-    const matchedZone = zones.find(z => z.supported_pincodes && z.supported_pincodes.includes(parsed.pincode));
-    if (matchedZone) {
+    const matchedZones = zones.filter(z => z.supported_pincodes && z.supported_pincodes.includes(parsed.pincode));
+    if (matchedZones.length > 0) {
+      let closestZone = matchedZones[0];
       let dist: number | null = null;
-      if (parsed.lat !== undefined && parsed.lng !== undefined) {
-        dist = Number(distanceKm({ lat: parsed.lat, lng: parsed.lng }, { lat: matchedZone.lat, lng: matchedZone.lng }).toFixed(2));
-      } else {
-        const coords = await resolvePincodeCoordinates(parsed.pincode);
-        if (coords) {
-          dist = Number(distanceKm(coords, { lat: matchedZone.lat, lng: matchedZone.lng }).toFixed(2));
+      let userCoords = parsed.lat !== undefined && parsed.lng !== undefined
+        ? { lat: parsed.lat, lng: parsed.lng }
+        : await resolvePincodeCoordinates(parsed.pincode);
+
+      if (userCoords) {
+        let bestDist = Infinity;
+        for (const mz of matchedZones) {
+          const mzLat = Number(mz.lat);
+          const mzLng = Number(mz.lng);
+          if (!isNaN(mzLat) && !isNaN(mzLng) && (mzLat !== 0 || mzLng !== 0)) {
+            const d = distanceKm(userCoords, { lat: mzLat, lng: mzLng });
+            if (d < bestDist) {
+              bestDist = d;
+              closestZone = mz;
+            }
+          }
+        }
+        if (bestDist < Infinity) {
+          dist = Number(bestDist.toFixed(2));
         }
       }
+
       return {
         isServiceable: true,
-        zoneName: matchedZone.name,
+        zoneName: closestZone.name,
         distanceKm: dist
       };
     }
   }
+
 
   // If lat/lng is provided, check radius against closest zone
   if (parsed.lat !== undefined && parsed.lng !== undefined) {
@@ -205,41 +283,92 @@ export async function calculateDelivery(input: unknown): Promise<DeliveryCalcula
     };
   }
 
+  // Whether the coordinates came from precise GPS (not pincode geocoding).
+  // Precise GPS → use road-distance for accurate delivery fee.
+  const hasPreciseGps = parsed.lat !== undefined && parsed.lng !== undefined;
+
   let userCoords: { lat: number; lng: number } | null = null;
-  if (parsed.lat !== undefined && parsed.lng !== undefined) {
-    userCoords = { lat: parsed.lat, lng: parsed.lng };
+  if (hasPreciseGps) {
+    userCoords = { lat: parsed.lat!, lng: parsed.lng! };
   } else if (parsed.pincode) {
     userCoords = await resolvePincodeCoordinates(parsed.pincode);
   }
 
-  // Find nearest zone based on coordinates or pincode support
+  // Find warehouse: If sellerId or warehouseId is provided, calculate from that specific warehouse!
   let closestZone: any = null;
   let minDistance = Infinity;
 
-  // 1. Check direct pincode match first
-  if (parsed.pincode) {
-    const matched = zones.find(z => z.supported_pincodes && z.supported_pincodes.includes(parsed.pincode));
-    if (matched) {
-      closestZone = matched;
+  let targetWarehouseId = parsed.warehouseId;
+  if (!targetWarehouseId && parsed.sellerId) {
+    try {
+      const { data: seller } = await supabaseAdmin
+        .from("sellers")
+        .select("assigned_warehouse_id")
+        .eq("id", parsed.sellerId)
+        .maybeSingle();
+      if (seller?.assigned_warehouse_id) {
+        targetWarehouseId = seller.assigned_warehouse_id;
+      }
+    } catch {
+      // Fallback to normal zone selection
+    }
+  }
+
+  if (targetWarehouseId) {
+    const specificZone = zones.find((z) => z.id === targetWarehouseId);
+    if (specificZone) {
+      closestZone = specificZone;
       if (userCoords) {
-        minDistance = distanceKm(userCoords, { lat: matched.lat, lng: matched.lng });
+        const hubCoords = { lat: Number(specificZone.lat), lng: Number(specificZone.lng) };
+        // Use road distance for precise GPS, Haversine for pincode-resolved coords
+        minDistance = hasPreciseGps
+          ? await roadDistanceKm(userCoords, hubCoords)
+          : distanceKm(userCoords, hubCoords);
       } else {
-        // Conservative default within zone radius if precise coordinates cannot be resolved
-        minDistance = 2.5;
+        minDistance = 2.5; // Default within-zone estimate
       }
     }
   }
 
-  // 2. If coordinates are available, check all zones for closest distance
-  if (userCoords) {
-    for (const zone of zones) {
-      const dist = distanceKm(userCoords, { lat: zone.lat, lng: zone.lng });
-      if (dist < minDistance) {
-        minDistance = dist;
-        closestZone = zone;
+  // If no specific warehouse match, calculate against nearest zone based on coordinates or pincode support
+  if (!closestZone) {
+    // 1. If coordinates are available, find the closest active warehouse by real physical distance
+    if (userCoords) {
+      for (const zone of zones) {
+        const zLat = Number(zone.lat);
+        const zLng = Number(zone.lng);
+        if (!isNaN(zLat) && !isNaN(zLng) && (zLat !== 0 || zLng !== 0)) {
+          // For nearest-zone selection, always use cheap Haversine — road distance only for the final calculation
+          const dist = distanceKm(userCoords, { lat: zLat, lng: zLng });
+          if (dist < minDistance) {
+            minDistance = dist;
+            closestZone = zone;
+          }
+        }
+      }
+      // Now recalculate with road distance for the closest zone (if precise GPS)
+      if (closestZone && hasPreciseGps) {
+        minDistance = await roadDistanceKm(userCoords, { lat: Number(closestZone.lat), lng: Number(closestZone.lng) });
+      }
+    }
+
+    // 2. Pincode match fallback if coordinates didn't resolve or didn't match
+    if (parsed.pincode && (!closestZone || minDistance === Infinity)) {
+      const matched = zones.find(z => z.supported_pincodes && z.supported_pincodes.includes(parsed.pincode));
+      if (matched) {
+        closestZone = matched;
+        if (userCoords && matched.lat && matched.lng && Number(matched.lat) !== 0) {
+          minDistance = hasPreciseGps
+            ? await roadDistanceKm(userCoords, { lat: Number(matched.lat), lng: Number(matched.lng) })
+            : distanceKm(userCoords, { lat: Number(matched.lat), lng: Number(matched.lng) });
+        } else {
+          minDistance = 2.5;
+        }
       }
     }
   }
+
+
 
   if (!closestZone) {
     const defaultDetails = calculateDeliveryFeeDetails(parsed.subtotal, 0);

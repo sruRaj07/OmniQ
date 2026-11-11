@@ -43,6 +43,57 @@ function distanceKmBetween(point: { lat: number; lng: number }, centre: { lat: n
   return 2 * earthKm * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+/**
+ * Road-distance correction factor. Indian roads are rarely straight; multiplying
+ * the Haversine (great-circle) distance by this factor gives a reasonable estimate
+ * of actual driving distance when the routing API is unreachable.
+ */
+const ROAD_DISTANCE_FACTOR = 1.4;
+const OSRM_TIMEOUT_MS = 3000;
+const orderRoadDistanceCache = new Map<string, number>();
+
+/**
+ * Calculates actual driving/road distance between two GPS coordinates.
+ * Uses OSRM (free, no API key) for real road-network distance.
+ * Fallback: Haversine × 1.4 if OSRM is unavailable.
+ */
+async function roadDistanceKmBetween(
+  from: { lat: number; lng: number },
+  to: { lat: number; lng: number }
+): Promise<number> {
+  if (!from.lat || !from.lng || !to.lat || !to.lng) {
+    return distanceKmBetween(from, to) * ROAD_DISTANCE_FACTOR;
+  }
+
+  const cacheKey = `${from.lat.toFixed(5)},${from.lng.toFixed(5)}|${to.lat.toFixed(5)},${to.lng.toFixed(5)}`;
+  const cached = orderRoadDistanceCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=false`;
+    const response = await fetch(url, {
+      headers: { "User-Agent": "OmniQ-Ecommerce/1.0" },
+      signal: AbortSignal.timeout(OSRM_TIMEOUT_MS)
+    });
+
+    if (response.ok) {
+      const data = (await response.json()) as any;
+      if (data?.code === "Ok" && data?.routes?.[0]?.distance) {
+        const km = Number((data.routes[0].distance / 1000).toFixed(1));
+        orderRoadDistanceCache.set(cacheKey, km);
+        return km;
+      }
+    }
+  } catch {
+    // OSRM unavailable — fall through to Haversine approximation
+  }
+
+  const straightLine = distanceKmBetween(from, to);
+  const approx = Number((straightLine * ROAD_DISTANCE_FACTOR).toFixed(1));
+  orderRoadDistanceCache.set(cacheKey, approx);
+  return approx;
+}
+
 export const orderCreateSchema = z.object({
   items: z.array(z.object({ productId: z.string(), quantity: z.number().int().positive().max(100) })).min(1).max(50),
   deliveryAddress: z.record(z.string(), z.string()),
@@ -177,40 +228,74 @@ export async function placeOrder(buyerId: string, input: unknown, idempotencyKey
   }
   const sellerId = sellerIds[0];
 
-  // Option C: Delivery is computed from server-side subtotal and distance from nearest inventory hub.
+  // Option C: Delivery distance is calculated from the warehouse the seller is assigned to (Amazon-style)!
   let resolvedDistanceKm = parsed.distanceKm ?? 0;
   let nearestHubName: string | null = null;
 
   try {
-    const { data: zones } = await supabaseAdmin
-      .from("delivery_zones")
-      .select("name, lat, lng, radius_km, supported_pincodes")
-      .eq("active", true)
-      .is("deleted_at", null);
+    // 1. Fetch seller's assigned warehouse
+    let assignedWarehouse: { id: string; name: string; lat: number; lng: number } | null = null;
+    const { data: sellerRow } = await supabaseAdmin
+      .from("sellers")
+      .select("id, assigned_warehouse_id, assigned_warehouse:delivery_zones(id, name, lat, lng)")
+      .eq("id", sellerId)
+      .maybeSingle();
 
-    if (zones && zones.length > 0) {
-      const pincode = parsed.deliveryAddress?.pincode ? String(parsed.deliveryAddress.pincode).trim() : "";
+    if (sellerRow?.assigned_warehouse) {
+      assignedWarehouse = sellerRow.assigned_warehouse as any;
+    } else if (sellerRow?.assigned_warehouse_id) {
+      const { data: warehouseData } = await supabaseAdmin
+        .from("delivery_zones")
+        .select("id, name, lat, lng")
+        .eq("id", sellerRow.assigned_warehouse_id)
+        .maybeSingle();
+      if (warehouseData) assignedWarehouse = warehouseData as any;
+    }
 
-      if (parsed.buyerLat !== undefined && parsed.buyerLng !== undefined) {
-        let minDist = Infinity;
-        let closest = null;
-        for (const zone of zones) {
-          const d = distanceKmBetween({ lat: parsed.buyerLat, lng: parsed.buyerLng }, { lat: zone.lat, lng: zone.lng });
-          if (d < minDist) {
-            minDist = d;
-            closest = zone;
+    if (assignedWarehouse) {
+      nearestHubName = assignedWarehouse.name;
+      const hubCoords = { lat: Number(assignedWarehouse.lat), lng: Number(assignedWarehouse.lng) };
+
+      if (parsed.buyerLat !== undefined && parsed.buyerLng !== undefined && !isNaN(parsed.buyerLat) && !isNaN(parsed.buyerLng)) {
+        resolvedDistanceKm = await roadDistanceKmBetween({ lat: parsed.buyerLat, lng: parsed.buyerLng }, hubCoords);
+      } else if (!resolvedDistanceKm) {
+        resolvedDistanceKm = 2.5; // Default within-zone estimate
+      }
+    } else {
+      // Fallback: If seller hasn't been assigned a warehouse yet, find nearest active delivery zone
+      const { data: zones } = await supabaseAdmin
+        .from("delivery_zones")
+        .select("name, lat, lng, radius_km, supported_pincodes")
+        .eq("active", true)
+        .is("deleted_at", null);
+
+      if (zones && zones.length > 0) {
+        const pincode = parsed.deliveryAddress?.pincode ? String(parsed.deliveryAddress.pincode).trim() : "";
+
+        if (parsed.buyerLat !== undefined && parsed.buyerLng !== undefined) {
+          let minDist = Infinity;
+          let closest = null;
+          for (const zone of zones) {
+            const d = distanceKmBetween({ lat: parsed.buyerLat, lng: parsed.buyerLng }, { lat: Number(zone.lat), lng: Number(zone.lng) });
+            if (d < minDist) {
+              minDist = d;
+              closest = zone;
+            }
           }
-        }
-        if (closest) {
-          resolvedDistanceKm = Number(minDist.toFixed(1));
-          nearestHubName = closest.name;
-        }
-      } else if (pincode) {
-        const matched = zones.find((z) => z.supported_pincodes && z.supported_pincodes.includes(pincode));
-        if (matched) {
-          nearestHubName = matched.name;
-          if (!resolvedDistanceKm) {
-            resolvedDistanceKm = 2.5; // Default within-zone estimate
+          if (closest) {
+            resolvedDistanceKm = await roadDistanceKmBetween(
+              { lat: parsed.buyerLat, lng: parsed.buyerLng },
+              { lat: Number(closest.lat), lng: Number(closest.lng) }
+            );
+            nearestHubName = closest.name;
+          }
+        } else if (pincode) {
+          const matched = zones.find((z) => z.supported_pincodes && z.supported_pincodes.includes(pincode));
+          if (matched) {
+            nearestHubName = matched.name;
+            if (!resolvedDistanceKm) {
+              resolvedDistanceKm = 2.5; // Default within-zone estimate
+            }
           }
         }
       }
@@ -218,6 +303,7 @@ export async function placeOrder(buyerId: string, input: unknown, idempotencyKey
   } catch (err) {
     console.warn("[order] Failed to resolve distance from delivery zones:", err);
   }
+
 
   const deliveryDetails = calculateDeliveryFeeDetails(subtotal, resolvedDistanceKm);
   const deliveryFee = deliveryDetails.deliveryFee;

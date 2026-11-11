@@ -303,6 +303,89 @@ export async function moderateProduct(id: string, input: unknown) {
   return { id, status: "unchanged" };
 }
 
+function distanceKm(point: { lat: number; lng: number }, centre: { lat: number; lng: number }): number {
+  const toRad = (value: number): number => (value * Math.PI) / 180;
+  const earthKm = 6371;
+  const dLat = toRad(centre.lat - point.lat);
+  const dLng = toRad(centre.lng - point.lng);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(point.lat)) * Math.cos(toRad(centre.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * earthKm * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/**
+ * Reassigns sellers to their nearest active warehouse based on GPS coordinates or city.
+ */
+export async function reassignSellersToNearestWarehouse(): Promise<{ updated: number }> {
+  try {
+    const { data: zones } = await supabaseAdmin
+      .from("delivery_zones")
+      .select("id, name, lat, lng, supported_pincodes")
+      .eq("active", true)
+      .is("deleted_at", null);
+
+    if (!zones || zones.length === 0) return { updated: 0 };
+
+    const { data: sellers } = await supabaseAdmin
+      .from("sellers")
+      .select("id, city, lat, lng, assigned_warehouse_id");
+
+    if (!sellers || sellers.length === 0) return { updated: 0 };
+
+    let updatedCount = 0;
+
+    for (const seller of sellers) {
+      let closestZone: any = null;
+      let minDistance = Infinity;
+
+      const sellerLat = seller.lat !== null ? Number(seller.lat) : NaN;
+      const sellerLng = seller.lng !== null ? Number(seller.lng) : NaN;
+
+      if (!isNaN(sellerLat) && !isNaN(sellerLng)) {
+        for (const zone of zones) {
+          const zLat = Number(zone.lat);
+          const zLng = Number(zone.lng);
+          if (!isNaN(zLat) && !isNaN(zLng) && (zLat !== 0 || zLng !== 0)) {
+            const dist = distanceKm({ lat: sellerLat, lng: sellerLng }, { lat: zLat, lng: zLng });
+            if (dist < minDistance) {
+              minDistance = dist;
+              closestZone = zone;
+            }
+          }
+        }
+      }
+
+      // If coordinates didn't match or seller has no coordinates, match by city name
+      if (!closestZone && seller.city) {
+        const cleanCity = String(seller.city).trim().toLowerCase();
+        closestZone = zones.find((z) => {
+          const zName = String(z.name || "").trim().toLowerCase();
+          return zName === cleanCity || zName.includes(cleanCity) || cleanCity.includes(zName);
+        });
+      }
+
+      // Fallback: If only 1 warehouse exists
+      if (!closestZone && zones.length === 1) {
+        closestZone = zones[0];
+      }
+
+      if (closestZone && closestZone.id !== seller.assigned_warehouse_id) {
+        const { error } = await supabaseAdmin
+          .from("sellers")
+          .update({ assigned_warehouse_id: closestZone.id })
+          .eq("id", seller.id);
+        if (!error) updatedCount += 1;
+      }
+    }
+
+    return { updated: updatedCount };
+  } catch (err) {
+    console.warn("[admin] Auto-reassignment of sellers to warehouses failed:", err);
+    return { updated: 0 };
+  }
+}
+
 export async function upsertZone(input: unknown) {
   const parsed = zoneSchema.parse(input);
   
@@ -324,6 +407,10 @@ export async function upsertZone(input: unknown) {
       .maybeSingle();
     if (error) throw new Error(`Failed to update zone: ${error.message}`);
     if (!data) throw new Error("Zone not found. It may have been deleted by another admin.");
+
+    // Auto-reassign sellers after warehouse update
+    await reassignSellersToNearestWarehouse();
+
     return data;
   } else {
     const { data, error } = await supabaseAdmin
@@ -338,9 +425,14 @@ export async function upsertZone(input: unknown) {
       .select()
       .single();
     if (error) throw new Error(`Failed to create zone: ${error.message}`);
+
+    // Auto-reassign sellers after warehouse creation
+    await reassignSellersToNearestWarehouse();
+
     return data;
   }
 }
+
 
 /**
  * Removes a zone. This is a soft delete: `delivery_zones` already carries both `active` and
