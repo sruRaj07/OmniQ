@@ -63,7 +63,7 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
       },
-      "versionCode": 26,
+      "versionCode": 29,
       "jsEngine": "hermes",
       "//blockedPermissions": "Background location, camera, and audio recording are blocked to comply with Google Play least-privilege policies. Foreground GPS location is only requested on-demand when the buyer explicitly taps 'Fetch Precise Location' to compute exact road-distance delivery fees.",
       "blockedPermissions": [
