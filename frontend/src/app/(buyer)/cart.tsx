@@ -25,6 +25,7 @@ import { useCartStore } from "@/store/cartStore";
 import { formatCurrency } from "@/utils/formatCurrency";
 import { apiClient } from "@/lib/apiClient";
 import { RATE_PER_KM } from "@/constants/delivery";
+import { playOrderSuccessSound } from "@/utils/sound";
 
 type AddressField = "line1" | "line2" | "city" | "state" | "pincode" | "phone";
 type DeliveryAddress = Record<AddressField, string>;
@@ -249,6 +250,7 @@ export default function CartScreen() {
   };
 
   const triggerSuccessAnimation = () => {
+    playOrderSuccessSound();
     setShowSuccess(true);
     opacityAnim.value = withTiming(1, { duration: 300 });
     scaleAnim.value = withSpring(1, { damping: 10, stiffness: 50 }, () => {
