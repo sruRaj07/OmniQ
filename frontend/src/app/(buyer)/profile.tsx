@@ -407,7 +407,14 @@ export default function ProfileScreen() {
           }
         }) => <View style={styles.inputGroup}>
                   <Text style={styles.label}>Address</Text>
-                  <Input placeholder="Address" value={value} onChangeText={onChange} />
+                  <Input 
+                    placeholder="Complete Street Address, Area, Landmark" 
+                    value={value} 
+                    onChangeText={onChange} 
+                    multiline={true}
+                    numberOfLines={3}
+                    style={{ minHeight: 70, textAlignVertical: "top", paddingTop: 10 }}
+                  />
                   {errors.address && <Text style={styles.error}>{errors.address.message}</Text>}
                 </View>} />
 
@@ -717,19 +724,26 @@ const getStyles = (colors: any) => StyleSheet.create({
   detailRow: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "flex-start",
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
-    paddingBottom: 12
+    paddingBottom: 12,
+    gap: 12
   },
   detailLabel: {
     color: colors.textSecondary,
     fontWeight: "600",
-    fontSize: 15
+    fontSize: 15,
+    flexShrink: 0
   },
   detailValue: {
+    flex: 1,
+    flexShrink: 1,
     color: colors.textPrimary,
     fontWeight: "600",
-    fontSize: 15
+    fontSize: 15,
+    textAlign: "right",
+    lineHeight: 22
   },
   formContainer: {
     backgroundColor: colors.card,
