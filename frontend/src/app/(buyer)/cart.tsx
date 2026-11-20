@@ -26,6 +26,7 @@ import { formatCurrency } from "@/utils/formatCurrency";
 import { apiClient } from "@/lib/apiClient";
 import { RATE_PER_KM } from "@/constants/delivery";
 import { playOrderSuccessSound } from "@/utils/sound";
+import { fetchCurrentLocation } from "@/utils/location";
 
 type AddressField = "line1" | "line2" | "city" | "state" | "pincode" | "phone";
 type DeliveryAddress = Record<AddressField, string>;
@@ -111,38 +112,20 @@ export default function CartScreen() {
     setErrors(prev => (prev[field] ? { ...prev, [field]: undefined } : prev));
   };
 
-  const handleFetchPreciseLocation = () => {
+  const handleFetchPreciseLocation = async () => {
     setIsFetchingGps(true);
     setGpsError(null);
     setNeedsGpsPrompt(false);
     setServiceError(null);
 
-    if (typeof navigator !== "undefined" && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setIsFetchingGps(false);
-          const lat = Number(pos.coords.latitude.toFixed(6));
-          const lng = Number(pos.coords.longitude.toFixed(6));
-          setPreciseLocation({ lat, lng });
-        },
-        (err) => {
-          setIsFetchingGps(false);
-          console.warn("GPS error:", err);
-          let message = "Could not fetch GPS location. Please allow location permissions in your browser/device.";
-          if (err.code === 1) {
-            message = "Location permission denied. Please allow location access in your browser or device settings.";
-          } else if (err.code === 2) {
-            message = "Location unavailable. Please ensure GPS/location services are turned on.";
-          } else if (err.code === 3) {
-            message = "Location request timed out. Please try again.";
-          }
-          setGpsError(message);
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-      );
-    } else {
+    try {
+      const { lat, lng } = await fetchCurrentLocation();
+      setPreciseLocation({ lat, lng });
+    } catch (err: any) {
+      console.warn("GPS error:", err);
+      setGpsError(err?.message || "Could not fetch GPS location. Please allow location permissions.");
+    } finally {
       setIsFetchingGps(false);
-      setGpsError("Geolocation is not supported on this device/browser.");
     }
   };
 

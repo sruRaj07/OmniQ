@@ -36,6 +36,13 @@
         }
       ],
       "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "OmniQ needs your location to calculate delivery distance from the nearest warehouse.",
+          "locationWhenInUsePermission": "OmniQ needs your location to calculate delivery distance from the nearest warehouse."
+        }
+      ],
       "@react-native-google-signin/google-signin",
       [
         "@sentry/react-native/expo",
@@ -63,7 +70,7 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
       },
-      "versionCode": 29,
+      "versionCode": 34,
       "jsEngine": "hermes",
       "//blockedPermissions": "Background location, camera, and audio recording are blocked to comply with Google Play least-privilege policies. Foreground GPS location is only requested on-demand when the buyer explicitly taps 'Fetch Precise Location' to compute exact road-distance delivery fees.",
       "blockedPermissions": [

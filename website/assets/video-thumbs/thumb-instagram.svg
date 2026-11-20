@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 540 960" width="540" height="960">
+  <defs>
+    <linearGradient id="grad_ig" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="50%" stop-color="#E1306C" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#1e1b4b"/>
+    </linearGradient>
+    <linearGradient id="overlay_ig" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#000000" stop-opacity="0.2"/>
+      <stop offset="60%" stop-color="#000000" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.95"/>
+    </linearGradient>
+  </defs>
+  <rect width="540" height="960" fill="url(#grad_ig)"/>
+  <circle cx="270" cy="400" r="180" fill="#E1306C" opacity="0.2"/>
+  <rect width="540" height="960" fill="url(#overlay_ig)"/>
+  
+  <rect x="36" y="44" width="160" height="40" rx="20" fill="rgba(255,255,255,0.15)"/>
+  <text x="116" y="69" fill="#FFFFFF" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="15" font-weight="700" text-anchor="middle">Instagram Reel</text>
+  
+  <circle cx="270" cy="420" r="75" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.2)" stroke-width="2"/>
+  <text x="270" y="445" font-size="64" text-anchor="middle">🥦</text>
+  
+  <rect x="36" y="680" width="180" height="32" rx="16" fill="#E1306C" opacity="0.9"/>
+  <text x="126" y="701" fill="#FFFFFF" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="14" font-weight="700" text-anchor="middle">Fresh Groceries</text>
+  
+  <text x="36" y="750" fill="#FFFFFF" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="28" font-weight="800">Fresh Vegetables Daily</text>
+  <text x="36" y="790" fill="rgba(255,255,255,0.7)" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="18" font-weight="600">Sunita M. • Karandighi</text>
+  <text x="36" y="830" fill="#FBBF24" font-size="22">★★★★★</text>
+</svg>

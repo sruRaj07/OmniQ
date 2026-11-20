@@ -6,6 +6,7 @@
  *
  * Author: OmniQ Team
  */
+
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
@@ -21,6 +22,7 @@ import { apiClient } from "@/lib/apiClient";
 import { sellerProfileOf, useSellerStatus } from "@/hooks/useSellerStatus";
 import { RADIUS, SPACE, withAlpha } from "@/constants/sellerTheme";
 import { CheckIcon, MapPinIcon, StoreIcon } from "@/components/ui/SellerIcons";
+import { fetchCurrentLocation } from "@/utils/location";
 
 /** Where an existing seller account belongs, given its approval state. */
 function routeForSeller(profile: Record<string, any>): string {
@@ -78,31 +80,18 @@ export default function ApplySellerScreen() {
     }
   });
 
-  const handleRequestLocation = useCallback(() => {
+  const handleRequestLocation = useCallback(async () => {
     setLocStatus("detecting");
-    if (typeof navigator !== "undefined" && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const lat = Number(pos.coords.latitude.toFixed(6));
-          const lng = Number(pos.coords.longitude.toFixed(6));
-          setCoords({ lat, lng });
-          setLocStatus("detected");
-        },
-        (err) => {
-          console.warn("Location error:", err);
-          setLocStatus("denied");
-          Alert.alert(
-            "Location Permission",
-            "Could not detect exact GPS coordinates. OmniQ will match your store to the nearest fulfillment warehouse using your city."
-          );
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
-      );
-    } else {
+    try {
+      const { lat, lng } = await fetchCurrentLocation();
+      setCoords({ lat, lng });
+      setLocStatus("detected");
+    } catch (err: any) {
+      console.warn("Location error:", err);
       setLocStatus("denied");
       Alert.alert(
         "Location Unavailable",
-        "GPS is not supported on this device. We will automatically assign your nearest warehouse using your city."
+        err?.message || "Could not detect exact GPS coordinates. OmniQ will match your store to the nearest fulfillment warehouse using your city."
       );
     }
   }, []);

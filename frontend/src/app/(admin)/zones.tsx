@@ -16,6 +16,7 @@ import { useThemeColors } from "@/store/useThemeStore";
 import { apiClient } from "@/lib/apiClient";
 import { QueryBoundary, SkeletonRows } from "@/components/admin/AdminUI";
 import { notify } from "@/utils/dialog";
+import { fetchCurrentLocation, resolvePincodeToCoords } from "@/utils/location";
 
 const ZONES_KEY = ["adminZones"] as const;
 
@@ -71,6 +72,7 @@ export default function AdminZonesScreen() {
   const [newRadiusKm, setNewRadiusKm] = useState("10");
   const [initialPincode, setInitialPincode] = useState("");
   const [capturingGps, setCapturingGps] = useState(false);
+  const [resolvingPin, setResolvingPin] = useState(false);
   // Errors render inline rather than through Alert.alert. This console is used in a browser as
   // often as on a device, and react-native-web has no Alert implementation - an alert-only failure
   // path shows the admin nothing at all.
@@ -85,28 +87,42 @@ export default function AdminZonesScreen() {
   });
   const zones = zonesQuery.data;
 
-  const handleCaptureLocation = () => {
+  const handleCaptureLocation = async () => {
     setCapturingGps(true);
     setCreateError(null);
-    if (typeof navigator !== "undefined" && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setCapturingGps(false);
-          const lat = Number(pos.coords.latitude.toFixed(6));
-          const lng = Number(pos.coords.longitude.toFixed(6));
-          setNewZoneLat(lat);
-          setNewZoneLng(lng);
-        },
-        (err) => {
-          setCapturingGps(false);
-          console.warn("GPS error:", err);
-          setCreateError("Could not capture GPS location. Please check device location permissions.");
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-      );
-    } else {
+    try {
+      const { lat, lng } = await fetchCurrentLocation();
+      setNewZoneLat(lat);
+      setNewZoneLng(lng);
+    } catch (err: any) {
+      console.warn("GPS error:", err);
+      setCreateError(err?.message || "Could not capture GPS location. Please check device location permissions.");
+    } finally {
       setCapturingGps(false);
-      setCreateError("Geolocation is not supported on this device.");
+    }
+  };
+
+  const handleAutoFillFromPincode = async (pinOverride?: string) => {
+    const pin = (pinOverride || initialPincode).trim();
+    if (!PINCODE_PATTERN.test(pin)) {
+      setCreateError("Enter a valid 6-digit pincode first.");
+      return;
+    }
+    setResolvingPin(true);
+    setCreateError(null);
+    try {
+      const coords = await resolvePincodeToCoords(pin);
+      if (coords) {
+        setNewZoneLat(coords.lat);
+        setNewZoneLng(coords.lng);
+        notify("Coordinates Found", `Loaded coordinates for pincode ${pin}: ${coords.lat}° N, ${coords.lng}° E`);
+      } else {
+        setCreateError(`Could not find coordinates for pincode ${pin}. Enter manually.`);
+      }
+    } catch (err: any) {
+      setCreateError(err?.message || `Could not resolve pincode ${pin}`);
+    } finally {
+      setResolvingPin(false);
     }
   };
 
@@ -212,7 +228,7 @@ export default function AdminZonesScreen() {
 
           <Text style={styles.inputLabel}>Physical GPS Location</Text>
           <Text style={styles.helperText}>
-            Stand at the warehouse and tap below to register its exact coordinates so deliveries are dispatched from here.
+            Stand at the warehouse and tap below to auto-detect coordinates, or enter them manually.
           </Text>
           <TouchableOpacity
             style={[styles.gpsButton, capturingGps && styles.buttonDisabled]}
@@ -228,6 +244,37 @@ export default function AdminZonesScreen() {
               {capturingGps ? "Capturing exact GPS position…" : "📍 Capture My Exact GPS Location"}
             </Text>
           </TouchableOpacity>
+
+          <View style={styles.formRow}>
+            <View style={styles.formCol}>
+              <Text style={styles.inputLabel}>Latitude</Text>
+              <TextInput
+                style={styles.compactInput}
+                placeholder="e.g. 25.8400"
+                placeholderTextColor={colors.textSecondary}
+                value={newZoneLat !== null ? String(newZoneLat) : ""}
+                onChangeText={(val) => {
+                  const cleaned = val.replace(/[^0-9.-]/g, "");
+                  setNewZoneLat(cleaned ? Number(cleaned) : null);
+                }}
+                keyboardType="numeric"
+              />
+            </View>
+            <View style={styles.formCol}>
+              <Text style={styles.inputLabel}>Longitude</Text>
+              <TextInput
+                style={styles.compactInput}
+                placeholder="e.g. 88.0050"
+                placeholderTextColor={colors.textSecondary}
+                value={newZoneLng !== null ? String(newZoneLng) : ""}
+                onChangeText={(val) => {
+                  const cleaned = val.replace(/[^0-9.-]/g, "");
+                  setNewZoneLng(cleaned ? Number(cleaned) : null);
+                }}
+                keyboardType="numeric"
+              />
+            </View>
+          </View>
 
           {newZoneLat !== null && newZoneLng !== null ? (
             <View style={styles.gpsSuccessBadge}>
@@ -260,6 +307,24 @@ export default function AdminZonesScreen() {
                 maxLength={6}
                 onChangeText={setInitialPincode}
               />
+              {PINCODE_PATTERN.test(initialPincode.trim()) ? (
+                <TouchableOpacity
+                  style={styles.pincodeLookupButton}
+                  onPress={() => handleAutoFillFromPincode()}
+                  disabled={resolvingPin}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Auto-fill coordinates from pincode ${initialPincode}`}
+                >
+                  {resolvingPin ? (
+                    <ActivityIndicator size="small" color={colors.accent} />
+                  ) : (
+                    <MapPinIcon size={12} color={colors.accent} strokeWidth={2.4} />
+                  )}
+                  <Text style={styles.pincodeLookupText}>
+                    {resolvingPin ? "Finding coordinates…" : `📍 Auto-fill from ${initialPincode}`}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
           </View>
 
@@ -314,6 +379,11 @@ function ZoneCard({ zone }: { zone: Zone }) {
 
   const pins = zone.supported_pincodes || [];
   const [updatingGps, setUpdatingGps] = useState(false);
+  const [isEditingGps, setIsEditingGps] = useState(false);
+  const [resolvingPinInEdit, setResolvingPinInEdit] = useState(false);
+  const [editLat, setEditLat] = useState(zone.lat && Number(zone.lat) !== 0 ? String(zone.lat) : "");
+  const [editLng, setEditLng] = useState(zone.lng && Number(zone.lng) !== 0 ? String(zone.lng) : "");
+  const [editRadius, setEditRadius] = useState(String(zone.radius_km || 10));
 
   const updateZone = useMutation({
     mutationFn: async ({
@@ -364,6 +434,7 @@ function ZoneCard({ zone }: { zone: Zone }) {
     onSuccess: () => {
       setNewPin("");
       setIsEditingName(false);
+      setIsEditingGps(false);
       setCardError(null);
     },
     onError: (err: any, _vars, context) => {
@@ -377,29 +448,59 @@ function ZoneCard({ zone }: { zone: Zone }) {
     }
   }, queryClient);
 
-  const handleCalibrateGps = () => {
+  const handleAutoDetectInEdit = async () => {
     setUpdatingGps(true);
     setCardError(null);
-    if (typeof navigator !== "undefined" && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setUpdatingGps(false);
-          const lat = Number(pos.coords.latitude.toFixed(6));
-          const lng = Number(pos.coords.longitude.toFixed(6));
-          updateZone.mutate({ updatedLat: lat, updatedLng: lng });
-          notify("Location Updated", `Warehouse location set to ${lat}, ${lng}. Nearby sellers auto-assigned.`);
-        },
-        (err) => {
-          setUpdatingGps(false);
-          console.warn("GPS error:", err);
-          setCardError("Could not capture GPS location. Check device location permissions.");
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-      );
-    } else {
+    try {
+      const { lat, lng } = await fetchCurrentLocation();
+      setEditLat(String(lat));
+      setEditLng(String(lng));
+    } catch (err: any) {
+      console.warn("GPS error:", err);
+      setCardError(err?.message || "Could not detect GPS location. You can enter coordinates manually.");
+    } finally {
       setUpdatingGps(false);
-      setCardError("Geolocation is not supported on this device.");
     }
+  };
+
+  const handleAutoFillFromPincodeInEdit = async (pinToUse: string) => {
+    setResolvingPinInEdit(true);
+    setCardError(null);
+    try {
+      const coords = await resolvePincodeToCoords(pinToUse);
+      if (coords) {
+        setEditLat(String(coords.lat));
+        setEditLng(String(coords.lng));
+        notify("Coordinates Found", `Loaded coordinates for pincode ${pinToUse}: ${coords.lat}° N, ${coords.lng}° E`);
+      } else {
+        setCardError(`Could not find coordinates for pincode ${pinToUse}. Enter manually.`);
+      }
+    } catch (err: any) {
+      setCardError(err?.message || `Could not resolve pincode ${pinToUse}`);
+    } finally {
+      setResolvingPinInEdit(false);
+    }
+  };
+
+  const handleSaveCoordinates = () => {
+    const latNum = Number(editLat);
+    const lngNum = Number(editLng);
+    if (!editLat.trim() || isNaN(latNum) || latNum < -90 || latNum > 90) {
+      setCardError("Enter a valid Latitude between -90 and 90.");
+      return;
+    }
+    if (!editLng.trim() || isNaN(lngNum) || lngNum < -180 || lngNum > 180) {
+      setCardError("Enter a valid Longitude between -180 and 180.");
+      return;
+    }
+    const radNum = Number(editRadius) || 10;
+    setCardError(null);
+    updateZone.mutate({
+      updatedLat: latNum,
+      updatedLng: lngNum,
+      updatedRadiusKm: radNum
+    });
+    notify("Coordinates Saved", `Warehouse location set to ${latNum.toFixed(4)}, ${lngNum.toFixed(4)}.`);
   };
 
 
@@ -555,25 +656,137 @@ function ZoneCard({ zone }: { zone: Zone }) {
 
       {cardError ? <Text style={styles.errorText}>{cardError}</Text> : null}
 
-      {!isEditingName && (
+      {isEditingGps && (
+        <View style={styles.editGpsCard}>
+          <Text style={styles.editGpsTitle}>Calibrate Warehouse Coordinates</Text>
+          <Text style={styles.helperText}>
+            Auto-detect from your device's GPS or enter exact coordinates manually (e.g. from Google Maps).
+          </Text>
+
+          <TouchableOpacity
+            style={[styles.gpsButton, updatingGps && styles.buttonDisabled]}
+            onPress={handleAutoDetectInEdit}
+            disabled={updatingGps}
+          >
+            {updatingGps ? (
+              <ActivityIndicator size="small" color="#FFF" />
+            ) : (
+              <MapPinIcon size={16} color="#FFF" strokeWidth={2.4} />
+            )}
+            <Text style={styles.gpsButtonText}>
+              {updatingGps ? "Detecting GPS position…" : "📍 Auto-Detect Device GPS"}
+            </Text>
+          </TouchableOpacity>
+
+          <View style={styles.formRow}>
+            <View style={styles.formCol}>
+              <Text style={styles.inputLabel}>Latitude</Text>
+              <TextInput
+                style={styles.compactInput}
+                placeholder="e.g. 25.8400"
+                placeholderTextColor={colors.textSecondary}
+                value={editLat}
+                onChangeText={setEditLat}
+                keyboardType="numeric"
+              />
+            </View>
+            <View style={styles.formCol}>
+              <Text style={styles.inputLabel}>Longitude</Text>
+              <TextInput
+                style={styles.compactInput}
+                placeholder="e.g. 88.0050"
+                placeholderTextColor={colors.textSecondary}
+                value={editLng}
+                onChangeText={setEditLng}
+                keyboardType="numeric"
+              />
+            </View>
+          </View>
+
+          {pins.length > 0 ? (
+            <View style={{ marginTop: 8 }}>
+              <Text style={[styles.inputLabel, { marginTop: 4 }]}>Quick Auto-Fill From Assigned Pincodes:</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 }}>
+                {pins.slice(0, 4).map((p) => (
+                  <TouchableOpacity
+                    key={p}
+                    style={styles.pincodeLookupButton}
+                    onPress={() => handleAutoFillFromPincodeInEdit(p)}
+                    disabled={resolvingPinInEdit}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Auto-fill coordinates from pincode ${p}`}
+                  >
+                    {resolvingPinInEdit ? (
+                      <ActivityIndicator size="small" color={colors.accent} />
+                    ) : (
+                      <MapPinIcon size={12} color={colors.accent} strokeWidth={2.4} />
+                    )}
+                    <Text style={styles.pincodeLookupText}>Auto-fill from {p}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          ) : null}
+
+          <View style={{ marginTop: 8 }}>
+            <Text style={styles.inputLabel}>Coverage Radius (km)</Text>
+            <TextInput
+              style={styles.compactInput}
+              placeholder="10"
+              placeholderTextColor={colors.textSecondary}
+              value={editRadius}
+              onChangeText={setEditRadius}
+              keyboardType="numeric"
+            />
+          </View>
+
+          <View style={styles.editGpsActions}>
+            <TouchableOpacity
+              style={styles.ghostButton}
+              onPress={() => {
+                setIsEditingGps(false);
+                setCardError(null);
+              }}
+            >
+              <Text style={styles.ghostButtonText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.primaryButtonCompact, updateZone.isPending && styles.buttonDisabled]}
+              onPress={handleSaveCoordinates}
+              disabled={updateZone.isPending}
+            >
+              {updateZone.isPending ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <Text style={styles.primaryButtonText}>Save Coordinates</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {!isEditingName && !isEditingGps && (
         <View style={styles.cardFooter}>
           <TouchableOpacity style={styles.footerButton} onPress={() => setIsEditingName(true)}>
             <Text style={styles.footerButtonText}>Edit name</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.gpsFooterButton, updatingGps && styles.buttonDisabled]}
-            onPress={handleCalibrateGps}
-            disabled={updatingGps || updateZone.isPending}
+            style={styles.gpsFooterButton}
+            onPress={() => {
+              setIsEditingGps(true);
+              setCardError(null);
+              setEditLat(zone.lat && Number(zone.lat) !== 0 ? String(zone.lat) : "");
+              setEditLng(zone.lng && Number(zone.lng) !== 0 ? String(zone.lng) : "");
+              setEditRadius(String(zone.radius_km || 10));
+            }}
             accessibilityRole="button"
             accessibilityLabel={`Set GPS Location for ${zone.name}`}
           >
-            {updatingGps ? (
-              <ActivityIndicator size="small" color={colors.accent} />
-            ) : (
-              <MapPinIcon size={13} color={colors.accent} strokeWidth={2.4} />
-            )}
+            <MapPinIcon size={13} color={colors.accent} strokeWidth={2.4} />
             <Text style={styles.gpsFooterButtonText}>
-              {updatingGps ? "Calibrating…" : "Set GPS Location"}
+              {zone.lat && zone.lng && (Number(zone.lat) !== 0 || Number(zone.lng) !== 0)
+                ? "Edit GPS"
+                : "Set GPS Location"}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -1094,5 +1307,45 @@ const getStyles = (colors: any) => StyleSheet.create({
     color: "#FFF",
     fontWeight: "700",
     fontSize: 13
+  },
+  editGpsCard: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 12,
+    marginBottom: 4
+  },
+  editGpsTitle: {
+    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: "700",
+    marginBottom: 4
+  },
+  editGpsActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 14
+  },
+  pincodeLookupButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(59, 130, 246, 0.08)",
+    borderWidth: 1,
+    borderColor: colors.accent,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 6,
+    marginTop: 6,
+    alignSelf: "flex-start"
+  },
+  pincodeLookupText: {
+    color: colors.accent,
+    fontSize: 12,
+    fontWeight: "700"
   }
 });

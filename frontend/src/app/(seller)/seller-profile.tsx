@@ -21,6 +21,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/apiClient";
 import { RADIUS, SPACE, withAlpha } from "@/constants/sellerTheme";
 import { confirmAction, notify } from "@/utils/dialog";
+import { fetchCurrentLocation } from "@/utils/location";
 import {
   InfoIcon,
   LogOutIcon,
@@ -109,25 +110,16 @@ export default function SellerProfileScreen() {
     }
   });
 
-  const handleAutoAssignWarehouse = useCallback(() => {
+  const handleAutoAssignWarehouse = useCallback(async () => {
     setDetectingLocation(true);
-    if (typeof navigator !== "undefined" && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setDetectingLocation(false);
-          const lat = Number(pos.coords.latitude.toFixed(6));
-          const lng = Number(pos.coords.longitude.toFixed(6));
-          assignLocationMutation.mutate({ lat, lng });
-        },
-        () => {
-          setDetectingLocation(false);
-          // Fall back to city-based assignment
-          assignLocationMutation.mutate({});
-        },
-        { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
-      );
-    } else {
+    try {
+      const { lat, lng } = await fetchCurrentLocation();
       setDetectingLocation(false);
+      assignLocationMutation.mutate({ lat, lng });
+    } catch (err) {
+      console.warn("Location error:", err);
+      setDetectingLocation(false);
+      // Fall back to city-based assignment
       assignLocationMutation.mutate({});
     }
   }, [assignLocationMutation]);

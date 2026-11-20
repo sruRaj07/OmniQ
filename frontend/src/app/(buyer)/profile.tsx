@@ -42,9 +42,9 @@ function BellIcon({
   } = useAppTheme();
   const styles = getStyles(colors);
   return <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-      <Path d="M13.73 21a2 2 0 0 1-3.46 0" />
-    </Svg>;
+    <Path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+    <Path d="M13.73 21a2 2 0 0 1-3.46 0" />
+  </Svg>;
 }
 function SettingsIcon({
   color = "#F0F0FF",
@@ -55,9 +55,9 @@ function SettingsIcon({
   } = useAppTheme();
   const styles = getStyles(colors);
   return <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <Circle cx="12" cy="12" r="3" />
-      <Path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-    </Svg>;
+    <Circle cx="12" cy="12" r="3" />
+    <Path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+  </Svg>;
 }
 function ChevronDownIcon({
   color = "#F0F0FF",
@@ -68,8 +68,8 @@ function ChevronDownIcon({
   } = useAppTheme();
   const styles = getStyles(colors);
   return <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <Polyline points="6 9 12 15 18 9" />
-    </Svg>;
+    <Polyline points="6 9 12 15 18 9" />
+  </Svg>;
 }
 export default function ProfileScreen() {
   const {
@@ -238,7 +238,7 @@ export default function ProfileScreen() {
   const onSubmit = (data: ProfileFormData) => {
     updateProfileMutation.mutate(data);
   };
-  
+
   const handlePasswordReset = async () => {
     if (newPassword.length < 6) {
       Alert.alert("Error", "Password must be at least 6 characters.");
@@ -311,302 +311,302 @@ export default function ProfileScreen() {
     icon: UserIcon,
     label: "Profile"
   }]}>
-      {/* Top Header / Greeting */}
-      <View style={styles.header}>
-        <View style={styles.greetingContainer}>
-          <Text style={styles.greetingText}>Hello, {displayFirstName}</Text>
-          <ChevronDownIcon size={18} color={colors.textSecondary} />
-        </View>
-        <View style={styles.headerIcons}>
-          {/* Profile, orders and seller status all come from the server; this is where a user
+    {/* Top Header / Greeting */}
+    <View style={styles.header}>
+      <View style={styles.greetingContainer}>
+        <Text style={styles.greetingText}>Hello, {displayFirstName}</Text>
+        <ChevronDownIcon size={18} color={colors.textSecondary} />
+      </View>
+      <View style={styles.headerIcons}>
+        {/* Profile, orders and seller status all come from the server; this is where a user
               expects to confirm a change they just made elsewhere took effect. */}
-          <RefreshButton size={36} />
-          <TouchableOpacity style={styles.iconButton} onPress={() => setIsEditing(true)}>
-            <SettingsIcon size={24} color={colors.textPrimary} />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Quick Action Pills */}
-      <View style={styles.pillGrid}>
-        <TouchableOpacity style={styles.pill} onPress={() => router.push("/(buyer)/orders")}>
-          <Text style={styles.pillText}>Your Orders</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.pill} onPress={() => setIsEditing(true)}>
-          <Text style={styles.pillText}>Your Account</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.pill}
-          onPress={handleOpenSellerPortal}
-          disabled={isCheckingSellerPortal}
-        >
-          <Text style={styles.pillText}>
-            {isCheckingSellerPortal || isSellerLoading ? 'Checking…' : 'Seller Portal'}
-          </Text>
+        <RefreshButton size={36} />
+        <TouchableOpacity style={styles.iconButton} onPress={() => setIsEditing(true)}>
+          <SettingsIcon size={24} color={colors.textPrimary} />
         </TouchableOpacity>
       </View>
+    </View>
 
-      {/* Your Orders Horizontal Scroll */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Your Orders</Text>
-          <TouchableOpacity onPress={() => router.push("/(buyer)/orders")}>
-            <Text style={styles.seeAll}>See all</Text>
-          </TouchableOpacity>
-        </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
-          {isLoadingOrders ? <Text style={styles.meta}>Loading orders...</Text> : buyerOrders?.length > 0 ? buyerOrders.slice(0, 5).map((order: any) => {
+    {/* Quick Action Pills */}
+    <View style={styles.pillGrid}>
+      <TouchableOpacity style={styles.pill} onPress={() => router.push("/(buyer)/orders")}>
+        <Text style={styles.pillText}>Your Orders</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.pill} onPress={() => setIsEditing(true)}>
+        <Text style={styles.pillText}>Your Account</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={styles.pill}
+        onPress={handleOpenSellerPortal}
+        disabled={isCheckingSellerPortal}
+      >
+        <Text style={styles.pillText}>
+          {isCheckingSellerPortal || isSellerLoading ? 'Checking…' : 'Seller Portal'}
+        </Text>
+      </TouchableOpacity>
+    </View>
+
+    {/* Your Orders Horizontal Scroll */}
+    <View style={styles.section}>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Your Orders</Text>
+        <TouchableOpacity onPress={() => router.push("/(buyer)/orders")}>
+          <Text style={styles.seeAll}>See all</Text>
+        </TouchableOpacity>
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
+        {isLoadingOrders ? <Text style={styles.meta}>Loading orders...</Text> : buyerOrders?.length > 0 ? buyerOrders.slice(0, 5).map((order: any) => {
           const product = order.order_items?.[0]?.product;
           const imageUrl = product?.images?.[0] || product?.imageUrl;
           return <TouchableOpacity key={order.id} style={styles.orderCard}>
-                  {imageUrl ? <Image source={sizedImageUrl(imageUrl, { width: 160, quality: 60 })} style={styles.orderImage} contentFit="cover" transition={150} /> : <View style={styles.orderImagePlaceholder}>
-                      <BoxIcon color={colors.textMuted} size={40} />
-                    </View>}
-                </TouchableOpacity>;
+            {imageUrl ? <Image source={sizedImageUrl(imageUrl, { width: 160, quality: 60 })} style={styles.orderImage} contentFit="cover" transition={150} /> : <View style={styles.orderImagePlaceholder}>
+              <BoxIcon color={colors.textMuted} size={40} />
+            </View>}
+          </TouchableOpacity>;
         }) : <Card style={styles.emptyCard}>
-              <Text style={styles.meta}>No recent orders. Time to shop!</Text>
-            </Card>}
-        </ScrollView>
-      </View>
+          <Text style={styles.meta}>No recent orders. Time to shop!</Text>
+        </Card>}
+      </ScrollView>
+    </View>
 
 
 
-      {/* Account Settings & Details */}
-      <View style={[styles.section, {
+    {/* Account Settings & Details */}
+    <View style={[styles.section, {
       paddingBottom: 40
     }]}>
-        <Text style={styles.sectionTitle}>Account Information</Text>
-        
-        {isEditing ? <View style={styles.formContainer}>
-            <Controller control={control} name="fullName" render={({
+      <Text style={styles.sectionTitle}>Account Information</Text>
+
+      {isEditing ? <View style={styles.formContainer}>
+        <Controller control={control} name="fullName" render={({
           field: {
             onChange,
             value
           }
         }) => <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Full Name</Text>
-                  <Input placeholder="Full Name" value={value} onChangeText={onChange} autoCapitalize="words" />
-                  {errors.fullName && <Text style={styles.error}>{errors.fullName.message}</Text>}
-                </View>} />
+            <Text style={styles.label}>Full Name</Text>
+            <Input placeholder="Full Name" value={value} onChangeText={onChange} autoCapitalize="words" />
+            {errors.fullName && <Text style={styles.error}>{errors.fullName.message}</Text>}
+          </View>} />
 
-            <Controller control={control} name="phoneNumber" render={({
+        <Controller control={control} name="phoneNumber" render={({
           field: {
             onChange,
             value
           }
         }) => <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Phone Number</Text>
-                  <Input placeholder="Phone Number" value={value} onChangeText={onChange} keyboardType="phone-pad" />
-                  {errors.phoneNumber && <Text style={styles.error}>{errors.phoneNumber.message}</Text>}
-                </View>} />
+            <Text style={styles.label}>Phone Number</Text>
+            <Input placeholder="Phone Number" value={value} onChangeText={onChange} keyboardType="phone-pad" />
+            {errors.phoneNumber && <Text style={styles.error}>{errors.phoneNumber.message}</Text>}
+          </View>} />
 
-            <Controller control={control} name="address" render={({
+        <Controller control={control} name="address" render={({
           field: {
             onChange,
             value
           }
         }) => <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Address</Text>
-                  <Input 
-                    placeholder="Complete Street Address, Area, Landmark" 
-                    value={value} 
-                    onChangeText={onChange} 
-                    multiline={true}
-                    numberOfLines={3}
-                    style={{ minHeight: 70, textAlignVertical: "top", paddingTop: 10 }}
-                  />
-                  {errors.address && <Text style={styles.error}>{errors.address.message}</Text>}
-                </View>} />
+            <Text style={styles.label}>Address</Text>
+            <Input
+              placeholder="Complete Street Address, Area, Landmark"
+              value={value}
+              onChangeText={onChange}
+              multiline={true}
+              numberOfLines={3}
+              style={{ minHeight: 70, textAlignVertical: "top", paddingTop: 10 }}
+            />
+            {errors.address && <Text style={styles.error}>{errors.address.message}</Text>}
+          </View>} />
 
-            <Controller control={control} name="pincode" render={({
+        <Controller control={control} name="pincode" render={({
           field: {
             onChange,
             value
           }
         }) => <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Pincode</Text>
-                  <Input placeholder="Pincode" value={value} onChangeText={onChange} keyboardType="number-pad" />
-                  {errors.pincode && <Text style={styles.error}>{errors.pincode.message}</Text>}
-                </View>} />
+            <Text style={styles.label}>Pincode</Text>
+            <Input placeholder="Pincode" value={value} onChangeText={onChange} keyboardType="number-pad" />
+            {errors.pincode && <Text style={styles.error}>{errors.pincode.message}</Text>}
+          </View>} />
 
-            <Button onPress={handleSubmit(onSubmit)} style={styles.actionButton}>
-              {updateProfileMutation.isPending ? "Saving..." : "Save Details"}
-            </Button>
-            <Button variant="secondary" onPress={() => {
+        <Button onPress={handleSubmit(onSubmit)} style={styles.actionButton}>
+          {updateProfileMutation.isPending ? "Saving..." : "Save Details"}
+        </Button>
+        <Button variant="secondary" onPress={() => {
           reset();
           setIsEditing(false);
         }} style={styles.actionButton}>
-              Cancel
-            </Button>
-          </View> : <View style={styles.detailsContainer}>
-            {isLoading ? <Text style={styles.meta}>Loading details...</Text> : <>
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Email:</Text>
-                  <Text style={styles.detailValue}>{user?.email}</Text>
-                </View>
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Phone:</Text>
-                  <Text style={styles.detailValue}>{profile?.phone_number || "Not provided"}</Text>
-                </View>
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Address:</Text>
-                  <Text style={styles.detailValue}>{profile?.address || "Not provided"}</Text>
-                </View>
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Pincode:</Text>
-                  <Text style={styles.detailValue}>{profile?.pincode || "Not provided"}</Text>
-                </View>
-
-                <Button variant="secondary" onPress={() => setIsEditing(true)} style={styles.actionButton}>
-                  Edit Details
-                </Button>
-              </>}
-          </View>}
-
-        <View style={{ marginTop: 32 }}>
-          <Text style={styles.sectionTitle}>App Settings</Text>
-
-          <View style={styles.themeToggleContainer}>
-            <Text style={styles.detailLabel}>Security:</Text>
-            <Button variant="secondary" onPress={() => setShowPasswordResetModal(true)} style={{ minWidth: 140 }}>
-              Change Password
-            </Button>
+          Cancel
+        </Button>
+      </View> : <View style={styles.detailsContainer}>
+        {isLoading ? <Text style={styles.meta}>Loading details...</Text> : <>
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Email:</Text>
+            <Text style={styles.detailValue}>{user?.email}</Text>
           </View>
-        </View>
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Phone:</Text>
+            <Text style={styles.detailValue}>{profile?.phone_number || "Not provided"}</Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Address:</Text>
+            <Text style={styles.detailValue}>{profile?.address || "Not provided"}</Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Pincode:</Text>
+            <Text style={styles.detailValue}>{profile?.pincode || "Not provided"}</Text>
+          </View>
 
-        <View style={{
+          <Button variant="secondary" onPress={() => setIsEditing(true)} style={styles.actionButton}>
+            Edit Details
+          </Button>
+        </>}
+      </View>}
+
+      <View style={{ marginTop: 32 }}>
+        <Text style={styles.sectionTitle}>App Settings</Text>
+
+        <View style={styles.themeToggleContainer}>
+          <Text style={styles.detailLabel}>Security:</Text>
+          <Button variant="secondary" onPress={() => setShowPasswordResetModal(true)} style={{ minWidth: 140 }}>
+            Change Password
+          </Button>
+        </View>
+      </View>
+
+      <View style={{
         marginTop: 24
       }}>
-          <LocationGate pincode={profile?.pincode} city={profile?.address} />
-        </View>
+        <LocationGate pincode={profile?.pincode} city={profile?.address} />
+      </View>
 
-        {/* Data & Privacy Section */}
-        <View style={{ marginTop: 32 }}>
-          <Text style={styles.sectionTitle}>Data & Privacy</Text>
-          <Text style={[styles.meta, { textAlign: 'left', marginBottom: 16 }]}>
-            You can delete your account at any time. Deletion is immediate and permanent. You can also request a copy of your data.
-          </Text>
+      {/* Data & Privacy Section */}
+      <View style={{ marginTop: 32 }}>
+        <Text style={styles.sectionTitle}>Data & Privacy</Text>
+        <Text style={[styles.meta, { textAlign: 'left', marginBottom: 16 }]}>
+          You can delete your account at any time. Deletion is immediate and permanent. You can also request a copy of your data.
+        </Text>
 
-          <View style={styles.privacyCard}>
-            <View style={[styles.privacyRow, { borderBottomWidth: 0, paddingBottom: 0, marginBottom: 0 }]}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.privacyLabel}>Delete Account</Text>
-                <Text style={styles.privacyDesc}>Permanently remove your account and all associated data.</Text>
-              </View>
-              {/* Deliberately not gated on a `pending` account_deletion row. Deletion is immediate
+        <View style={styles.privacyCard}>
+          <View style={[styles.privacyRow, { borderBottomWidth: 0, paddingBottom: 0, marginBottom: 0 }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.privacyLabel}>Delete Account</Text>
+              <Text style={styles.privacyDesc}>Permanently remove your account and all associated data.</Text>
+            </View>
+            {/* Deliberately not gated on a `pending` account_deletion row. Deletion is immediate
                   now, so a leftover pending request from the old review-based flow is stale data -
                   and rendering a "Pending" badge in its place would hide the Delete button forever
                   for exactly those users. Play requires the path to always be reachable. */}
-              <Button variant="danger" onPress={handleDeleteAccountRequest} style={{ minWidth: 100 }}>
-                Delete
-              </Button>
-            </View>
+            <Button variant="danger" onPress={handleDeleteAccountRequest} style={{ minWidth: 100 }}>
+              Delete
+            </Button>
           </View>
         </View>
-
-        <Button variant="danger" onPress={handleSignOut} style={{
-        marginTop: 24
-      }}>
-          Sign Out
-        </Button>
       </View>
 
-      {/* Password Reset Modal */}
-      <Modal
-        visible={showPasswordResetModal}
-        animationType="fade"
-        transparent={true}
-        onRequestClose={() => setShowPasswordResetModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Change Password</Text>
-            <Text style={styles.meta}>Enter your new password below.</Text>
-            
-            <View style={{ marginTop: 24, marginBottom: 24 }}>
-              <Text style={styles.label}>New Password</Text>
-              <Input 
-                placeholder="At least 6 characters" 
-                value={newPassword} 
-                onChangeText={setNewPassword} 
-                secureTextEntry 
-              />
-            </View>
-            
-            <Button onPress={handlePasswordReset} style={{ marginBottom: 12 }}>
-              {isResettingPassword ? "Updating..." : "Update Password"}
-            </Button>
-            <Button variant="secondary" onPress={() => {
-              setShowPasswordResetModal(false);
-              setNewPassword("");
-            }}>
-              Cancel
-            </Button>
-          </View>
-        </View>
-      </Modal>
+      <Button variant="danger" onPress={handleSignOut} style={{
+        marginTop: 24
+      }}>
+        Sign Out
+      </Button>
+    </View>
 
-      {/* Delete Account Confirmation Modal */}
-      <Modal
-        visible={showDeleteModal}
-        animationType="fade"
-        transparent={true}
-        onRequestClose={() => setShowDeleteModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={[styles.modalTitle, { color: colors.danger }]}>⚠️ Delete Account</Text>
-            <Text style={[styles.meta, { textAlign: 'left', marginBottom: 8 }]}>
-              Please review the following before proceeding:
-            </Text>
-            <View style={{ marginBottom: 16 }}>
-              <Text style={styles.deleteTermItem}>• Your account is deleted immediately — there is no review step</Text>
-              <Text style={styles.deleteTermItem}>• Your name, email, phone number and saved addresses are erased</Text>
-              <Text style={styles.deleteTermItem}>• Your cart is emptied and you are signed out on this device</Text>
-              <Text style={styles.deleteTermItem}>• Past orders are kept for tax and accounting law, with every identifying detail stripped out</Text>
-              <Text style={styles.deleteTermItem}>• This cannot be undone and your account cannot be recovered</Text>
-            </View>
+    {/* Password Reset Modal */}
+    <Modal
+      visible={showPasswordResetModal}
+      animationType="fade"
+      transparent={true}
+      onRequestClose={() => setShowPasswordResetModal(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <Text style={styles.modalTitle}>Change Password</Text>
+          <Text style={styles.meta}>Enter your new password below.</Text>
 
-            <Text style={styles.label}>Type DELETE to confirm</Text>
-            <TextInput
-              style={styles.deleteConfirmInput}
-              placeholder="DELETE"
-              placeholderTextColor={colors.textMuted}
-              value={deleteConfirmText}
-              onChangeText={setDeleteConfirmText}
-              autoCapitalize="characters"
-              autoCorrect={false}
+          <View style={{ marginTop: 24, marginBottom: 24 }}>
+            <Text style={styles.label}>New Password</Text>
+            <Input
+              placeholder="At least 6 characters"
+              value={newPassword}
+              onChangeText={setNewPassword}
+              secureTextEntry
             />
-
-            <Text style={styles.label}>Reason (optional)</Text>
-            <TextInput
-              style={styles.deleteReasonInput}
-              placeholder="Tell us why you're leaving..."
-              placeholderTextColor={colors.textMuted}
-              value={deleteReason}
-              onChangeText={setDeleteReason}
-              multiline
-              numberOfLines={3}
-            />
-
-            <Button variant="danger" onPress={submitDeleteRequest} style={{ marginTop: 16, marginBottom: 12 }}>
-              {deleteAccountMutation.isPending ? "Deleting..." : "Permanently Delete My Account"}
-            </Button>
-            <Button variant="secondary" onPress={() => {
-              setShowDeleteModal(false);
-              setDeleteReason("");
-              // Clear the confirmation too. Leaving a stale "DELETE" in state would mean a buyer who
-              // typed it, backed out, then reopened the modal could delete their account with one
-              // tap and no second confirmation.
-              setDeleteConfirmText("");
-            }}>
-              Cancel
-            </Button>
           </View>
-        </View>
-      </Modal>
 
-    </Screen>;
+          <Button onPress={handlePasswordReset} style={{ marginBottom: 12 }}>
+            {isResettingPassword ? "Updating..." : "Update Password"}
+          </Button>
+          <Button variant="secondary" onPress={() => {
+            setShowPasswordResetModal(false);
+            setNewPassword("");
+          }}>
+            Cancel
+          </Button>
+        </View>
+      </View>
+    </Modal>
+
+    {/* Delete Account Confirmation Modal */}
+    <Modal
+      visible={showDeleteModal}
+      animationType="fade"
+      transparent={true}
+      onRequestClose={() => setShowDeleteModal(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <Text style={[styles.modalTitle, { color: colors.danger }]}>⚠️ Delete Account</Text>
+          <Text style={[styles.meta, { textAlign: 'left', marginBottom: 8 }]}>
+            Please review the following before proceeding:
+          </Text>
+          <View style={{ marginBottom: 16 }}>
+            <Text style={styles.deleteTermItem}>• Your account is deleted immediately — there is no review step</Text>
+            <Text style={styles.deleteTermItem}>• Your name, email, phone number and saved addresses are erased</Text>
+            <Text style={styles.deleteTermItem}>• Your cart is emptied and you are signed out on this device</Text>
+            <Text style={styles.deleteTermItem}>• Past orders are kept for tax and accounting law, with every identifying detail stripped out</Text>
+            <Text style={styles.deleteTermItem}>• This cannot be undone and your account cannot be recovered</Text>
+          </View>
+
+          <Text style={styles.label}>Type DELETE to confirm</Text>
+          <TextInput
+            style={styles.deleteConfirmInput}
+            placeholder="DELETE"
+            placeholderTextColor={colors.textMuted}
+            value={deleteConfirmText}
+            onChangeText={setDeleteConfirmText}
+            autoCapitalize="characters"
+            autoCorrect={false}
+          />
+
+          <Text style={styles.label}>Reason (optional)</Text>
+          <TextInput
+            style={styles.deleteReasonInput}
+            placeholder="Tell us why you're leaving..."
+            placeholderTextColor={colors.textMuted}
+            value={deleteReason}
+            onChangeText={setDeleteReason}
+            multiline
+            numberOfLines={3}
+          />
+
+          <Button variant="danger" onPress={submitDeleteRequest} style={{ marginTop: 16, marginBottom: 12 }}>
+            {deleteAccountMutation.isPending ? "Deleting..." : "Permanently Delete My Account"}
+          </Button>
+          <Button variant="secondary" onPress={() => {
+            setShowDeleteModal(false);
+            setDeleteReason("");
+            // Clear the confirmation too. Leaving a stale "DELETE" in state would mean a buyer who
+            // typed it, backed out, then reopened the modal could delete their account with one
+            // tap and no second confirmation.
+            setDeleteConfirmText("");
+          }}>
+            Cancel
+          </Button>
+        </View>
+      </View>
+    </Modal>
+
+  </Screen>;
 }
 const getStyles = (colors: any) => StyleSheet.create({
   header: {
