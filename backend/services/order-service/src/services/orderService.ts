@@ -48,50 +48,18 @@ function distanceKmBetween(point: { lat: number; lng: number }, centre: { lat: n
  * the Haversine (great-circle) distance by this factor gives a reasonable estimate
  * of actual driving distance when the routing API is unreachable.
  */
-const ROAD_DISTANCE_FACTOR = 1.4;
-const OSRM_TIMEOUT_MS = 3000;
-const orderRoadDistanceCache = new Map<string, number>();
-
 /**
- * Calculates actual driving/road distance between two GPS coordinates.
- * Uses OSRM (free, no API key) for real road-network distance.
- * Fallback: Haversine × 1.4 if OSRM is unavailable.
+ * Calculates direct great-circle (Haversine) distance between two GPS coordinates.
  */
 async function roadDistanceKmBetween(
   from: { lat: number; lng: number },
   to: { lat: number; lng: number }
 ): Promise<number> {
   if (!from.lat || !from.lng || !to.lat || !to.lng) {
-    return distanceKmBetween(from, to) * ROAD_DISTANCE_FACTOR;
+    return 0;
   }
-
-  const cacheKey = `${from.lat.toFixed(5)},${from.lng.toFixed(5)}|${to.lat.toFixed(5)},${to.lng.toFixed(5)}`;
-  const cached = orderRoadDistanceCache.get(cacheKey);
-  if (cached !== undefined) return cached;
-
-  try {
-    const url = `https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=false`;
-    const response = await fetch(url, {
-      headers: { "User-Agent": "OmniQ-Ecommerce/1.0" },
-      signal: AbortSignal.timeout(OSRM_TIMEOUT_MS)
-    });
-
-    if (response.ok) {
-      const data = (await response.json()) as any;
-      if (data?.code === "Ok" && data?.routes?.[0]?.distance) {
-        const km = Number((data.routes[0].distance / 1000).toFixed(1));
-        orderRoadDistanceCache.set(cacheKey, km);
-        return km;
-      }
-    }
-  } catch {
-    // OSRM unavailable — fall through to Haversine approximation
-  }
-
   const straightLine = distanceKmBetween(from, to);
-  const approx = Number((straightLine * ROAD_DISTANCE_FACTOR).toFixed(1));
-  orderRoadDistanceCache.set(cacheKey, approx);
-  return approx;
+  return Number(straightLine.toFixed(1));
 }
 
 export const orderCreateSchema = z.object({
@@ -237,13 +205,11 @@ export async function placeOrder(buyerId: string, input: unknown, idempotencyKey
     let assignedWarehouse: { id: string; name: string; lat: number; lng: number } | null = null;
     const { data: sellerRow } = await supabaseAdmin
       .from("sellers")
-      .select("id, assigned_warehouse_id, assigned_warehouse:delivery_zones(id, name, lat, lng)")
+      .select("id, assigned_warehouse_id")
       .eq("id", sellerId)
       .maybeSingle();
 
-    if (sellerRow?.assigned_warehouse) {
-      assignedWarehouse = sellerRow.assigned_warehouse as any;
-    } else if (sellerRow?.assigned_warehouse_id) {
+    if (sellerRow?.assigned_warehouse_id) {
       const { data: warehouseData } = await supabaseAdmin
         .from("delivery_zones")
         .select("id, name, lat, lng")
@@ -257,7 +223,14 @@ export async function placeOrder(buyerId: string, input: unknown, idempotencyKey
       const hubCoords = { lat: Number(assignedWarehouse.lat), lng: Number(assignedWarehouse.lng) };
 
       if (parsed.buyerLat !== undefined && parsed.buyerLng !== undefined && !isNaN(parsed.buyerLat) && !isNaN(parsed.buyerLng)) {
-        resolvedDistanceKm = await roadDistanceKmBetween({ lat: parsed.buyerLat, lng: parsed.buyerLng }, hubCoords);
+        const rawDist = await roadDistanceKmBetween({ lat: parsed.buyerLat, lng: parsed.buyerLng }, hubCoords);
+        const pincode = parsed.deliveryAddress?.pincode ? String(parsed.deliveryAddress.pincode).trim() : "";
+        // Safeguard against emulator/roaming GPS coordinates: if distance > 200km for local delivery, cap to reasonable within-zone estimate
+        if (rawDist > 200 && pincode) {
+          resolvedDistanceKm = 3.5;
+        } else {
+          resolvedDistanceKm = rawDist;
+        }
       } else if (!resolvedDistanceKm) {
         resolvedDistanceKm = 2.5; // Default within-zone estimate
       }

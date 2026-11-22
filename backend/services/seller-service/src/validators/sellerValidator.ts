@@ -23,6 +23,7 @@ export const sellerStatusSchema = z.object({
 
 export const sellerUpdateProfileSchema = z.object({
   description: z.string().optional(),
+  city: z.string().optional(),
   lat: z.number().min(-90).max(90).optional(),
   lng: z.number().min(-180).max(180).optional(),
   assignedWarehouseId: z.string().uuid().optional()

@@ -16,7 +16,7 @@ import { useThemeColors } from "@/store/useThemeStore";
 import { apiClient } from "@/lib/apiClient";
 import { QueryBoundary, SkeletonRows } from "@/components/admin/AdminUI";
 import { notify } from "@/utils/dialog";
-import { fetchCurrentLocation, resolvePincodeToCoords } from "@/utils/location";
+import { fetchCurrentLocation, resolvePincodeToCoords, isEmulatorOrForeignCoords } from "@/utils/location";
 
 const ZONES_KEY = ["adminZones"] as const;
 
@@ -92,11 +92,39 @@ export default function AdminZonesScreen() {
     setCreateError(null);
     try {
       const { lat, lng } = await fetchCurrentLocation();
+      if (isEmulatorOrForeignCoords({ lat, lng })) {
+        const pin = initialPincode.trim();
+        if (PINCODE_PATTERN.test(pin)) {
+          const coords = await resolvePincodeToCoords(pin);
+          if (coords) {
+            setNewZoneLat(coords.lat);
+            setNewZoneLng(coords.lng);
+            notify("Pincode Coordinates Used", `Detected emulator/foreign location. Auto-calibrated from warehouse pincode ${pin}: ${coords.lat}° N, ${coords.lng}° E`);
+            return;
+          }
+        }
+        notify("Emulator GPS Detected", "Detected Android emulator location outside India. Please enter pincode or coordinates manually.");
+      }
       setNewZoneLat(lat);
       setNewZoneLng(lng);
     } catch (err: any) {
       console.warn("GPS error:", err);
-      setCreateError(err?.message || "Could not capture GPS location. Please check device location permissions.");
+      // Auto-fallback: if initial pincode is entered, resolve coordinates from it
+      const pin = initialPincode.trim();
+      if (PINCODE_PATTERN.test(pin)) {
+        try {
+          const coords = await resolvePincodeToCoords(pin);
+          if (coords) {
+            setNewZoneLat(coords.lat);
+            setNewZoneLng(coords.lng);
+            notify("Pincode Coordinates Found", `Loaded coordinates from pincode ${pin}: ${coords.lat}° N, ${coords.lng}° E`);
+            return;
+          }
+        } catch {
+          // ignore
+        }
+      }
+      setCreateError(err?.message || "Could not capture GPS location. Please check device location permissions or enter coordinates manually.");
     } finally {
       setCapturingGps(false);
     }
@@ -453,10 +481,36 @@ function ZoneCard({ zone }: { zone: Zone }) {
     setCardError(null);
     try {
       const { lat, lng } = await fetchCurrentLocation();
+      if (isEmulatorOrForeignCoords({ lat, lng })) {
+        if (pins && pins.length > 0) {
+          const coords = await resolvePincodeToCoords(pins[0]);
+          if (coords) {
+            setEditLat(String(coords.lat));
+            setEditLng(String(coords.lng));
+            notify("Pincode Coordinates Used", `Detected emulator/foreign location. Auto-calibrated from warehouse pincode ${pins[0]}: ${coords.lat}° N, ${coords.lng}° E`);
+            return;
+          }
+        }
+        notify("Emulator GPS Detected", "Detected Android emulator location outside India. Please enter pincode or coordinates manually.");
+      }
       setEditLat(String(lat));
       setEditLng(String(lng));
     } catch (err: any) {
       console.warn("GPS error:", err);
+      // Auto-fallback: if warehouse has covered pincodes, resolve from the first pincode!
+      if (pins && pins.length > 0) {
+        try {
+          const coords = await resolvePincodeToCoords(pins[0]);
+          if (coords) {
+            setEditLat(String(coords.lat));
+            setEditLng(String(coords.lng));
+            notify("Coordinates Found", `Loaded coordinates from warehouse pincode ${pins[0]}: ${coords.lat}° N, ${coords.lng}° E`);
+            return;
+          }
+        } catch {
+          // ignore
+        }
+      }
       setCardError(err?.message || "Could not detect GPS location. You can enter coordinates manually.");
     } finally {
       setUpdatingGps(false);

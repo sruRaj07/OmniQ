@@ -61,65 +61,18 @@ export function distanceKm(point: { lat: number; lng: number }, centre: { lat: n
 }
 
 /**
- * Road-distance correction factor. Indian roads are rarely straight; multiplying
- * the Haversine (great-circle) distance by this factor gives a reasonable estimate
- * of actual driving distance when the routing API is unreachable.
- */
-const ROAD_DISTANCE_FACTOR = 1.4;
-
-/** In-memory cache for OSRM road-distance lookups. Key = "lat1,lng1|lat2,lng2". */
-const roadDistanceCache = new Map<string, number>();
-const OSRM_TIMEOUT_MS = 3000;
-
-/**
- * Calculates the actual driving/road distance between two GPS coordinates.
- *
- * Uses the free OSRM (Open Source Routing Machine) public API which returns real
- * road-network distances — the path a delivery partner would actually drive.
- *
- * Fallback: If OSRM is unavailable (timeout, error, rate-limited), returns
- * Haversine × 1.4 which is a standard road-distance correction factor.
+ * Calculates the direct great-circle (Haversine) distance between two GPS coordinates.
+ * Direct distance is predictable, fast, and does not fluctuate due to external routing engines.
  */
 export async function roadDistanceKm(
   from: { lat: number; lng: number },
   to: { lat: number; lng: number }
 ): Promise<number> {
-  // Quick validation
   if (!from.lat || !from.lng || !to.lat || !to.lng) {
-    return distanceKm(from, to) * ROAD_DISTANCE_FACTOR;
+    return 0;
   }
-
-  // Check cache first
-  const cacheKey = `${from.lat.toFixed(5)},${from.lng.toFixed(5)}|${to.lat.toFixed(5)},${to.lng.toFixed(5)}`;
-  const cached = roadDistanceCache.get(cacheKey);
-  if (cached !== undefined) return cached;
-
-  try {
-    // OSRM expects coordinates as lng,lat (not lat,lng)
-    const url = `https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=false`;
-    const response = await fetch(url, {
-      headers: { "User-Agent": "OmniQ-Ecommerce/1.0" },
-      signal: AbortSignal.timeout(OSRM_TIMEOUT_MS)
-    });
-
-    if (response.ok) {
-      const data = (await response.json()) as any;
-      if (data?.code === "Ok" && data?.routes?.[0]?.distance) {
-        // OSRM returns distance in metres
-        const km = Number((data.routes[0].distance / 1000).toFixed(1));
-        roadDistanceCache.set(cacheKey, km);
-        return km;
-      }
-    }
-  } catch {
-    // OSRM unavailable — fall through to Haversine approximation
-  }
-
-  // Fallback: Haversine × road correction factor
   const straightLine = distanceKm(from, to);
-  const approx = Number((straightLine * ROAD_DISTANCE_FACTOR).toFixed(1));
-  roadDistanceCache.set(cacheKey, approx);
-  return approx;
+  return Number(straightLine.toFixed(1));
 }
 
 /**
@@ -320,10 +273,19 @@ export async function calculateDelivery(input: unknown): Promise<DeliveryCalcula
       closestZone = specificZone;
       if (userCoords) {
         const hubCoords = { lat: Number(specificZone.lat), lng: Number(specificZone.lng) };
-        // Use road distance for precise GPS, Haversine for pincode-resolved coords
-        minDistance = hasPreciseGps
+        const rawDist = hasPreciseGps
           ? await roadDistanceKm(userCoords, hubCoords)
           : distanceKm(userCoords, hubCoords);
+
+        // Sanity safeguard: If coordinates yield an unrealistic distance (> 200 km)
+        // but buyer pincode is in the zone's supported pincodes, the GPS is an emulator or roaming device.
+        // Fall back to standard within-zone delivery distance so buyers are not overcharged.
+        const isSupportedPin = parsed.pincode && specificZone.supported_pincodes?.includes(parsed.pincode);
+        if (rawDist > 200 && isSupportedPin) {
+          minDistance = Math.min(specificZone.radius_km || 10, 3.5);
+        } else {
+          minDistance = rawDist;
+        }
       } else {
         minDistance = 2.5; // Default within-zone estimate
       }

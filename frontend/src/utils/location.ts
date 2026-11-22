@@ -16,6 +16,23 @@ export interface LatLng {
   lng: number;
 }
 
+/**
+ * Checks whether coordinates appear to be the default Google Android Emulator mock location
+ * (1600 Amphitheatre Pkwy, Mountain View, CA: ~37.422, ~-122.084) or outside India.
+ */
+export function isEmulatorOrForeignCoords(coords: LatLng): boolean {
+  if (!coords) return false;
+  // Android Studio default mock location: 37.422001, -122.084061
+  const isGoogleplex =
+    Math.abs(coords.lat - 37.422) < 0.1 && Math.abs(coords.lng - (-122.084)) < 0.1;
+
+  // Indian territory bounding box roughly: Lat 6° to 38° N, Lng 68° to 98° E
+  const isOutsideIndia =
+    coords.lat < 6 || coords.lat > 38 || coords.lng < 68 || coords.lng > 98;
+
+  return isGoogleplex || isOutsideIndia;
+}
+
 /** How long to wait for browser geolocation before trying IP fallback */
 const WEB_GPS_TIMEOUT_MS = 4000;
 /** How long to wait for native GPS */
@@ -24,9 +41,30 @@ const NATIVE_GPS_TIMEOUT_MS = 10000;
 // ─── IP Geolocation Fallback (for Web browsers without GPS hardware) ───
 async function fetchIpGeolocation(): Promise<LatLng | null> {
   // Provider 1: ipwho.is (Free, fast, supports CORS for browser fetch, accurate to city/ISP)
+  // Provider 1: geojs.io (Free, open-source, instant, CORS-enabled, not blocked by ad blockers)
+  try {
+    const res = await fetch("https://get.geojs.io/v1/ip/geo.json", {
+      signal: AbortSignal.timeout(3000),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const lat = parseFloat(data?.latitude);
+      const lng = parseFloat(data?.longitude);
+      if (!isNaN(lat) && !isNaN(lng) && (lat !== 0 || lng !== 0)) {
+        return {
+          lat: Number(lat.toFixed(6)),
+          lng: Number(lng.toFixed(6)),
+        };
+      }
+    }
+  } catch (err) {
+    console.warn("geojs lookup failed:", err);
+  }
+
+  // Provider 2: ipwho.is (Fast, supports CORS, accurate city/region)
   try {
     const res = await fetch("https://ipwho.is/", {
-      signal: AbortSignal.timeout(4000),
+      signal: AbortSignal.timeout(3500),
     });
     if (res.ok) {
       const data = await res.json();
@@ -42,6 +80,27 @@ async function fetchIpGeolocation(): Promise<LatLng | null> {
   }
 
   // Provider 2: ipapi.co fallback
+  // Provider 3: freeipapi.com
+  try {
+    const res = await fetch("https://freeipapi.com/api/json", {
+      signal: AbortSignal.timeout(3000),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const lat = parseFloat(data?.latitude);
+      const lng = parseFloat(data?.longitude);
+      if (!isNaN(lat) && !isNaN(lng) && (lat !== 0 || lng !== 0)) {
+        return {
+          lat: Number(lat.toFixed(6)),
+          lng: Number(lng.toFixed(6)),
+        };
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  // Provider 4: ipapi.co fallback
   try {
     const res = await fetch("https://ipapi.co/json/", {
       signal: AbortSignal.timeout(3000),
@@ -197,12 +256,38 @@ export async function fetchCurrentLocation(): Promise<LatLng> {
 
 /**
  * Resolves geographic coordinates for any 6-digit Indian pincode using OpenStreetMap Nominatim.
+ * Resolves geographic coordinates for any 6-digit Indian pincode.
+ * Tries Zippopotam first (dedicated fast zip code directory) then OpenStreetMap Nominatim.
  * Returns null if the pincode cannot be geocoded.
  */
 export async function resolvePincodeToCoords(pincode: string): Promise<LatLng | null> {
   const cleanPin = pincode.trim().replace(/[^0-9]/g, "");
   if (!/^[1-9][0-9]{5}$/.test(cleanPin)) return null;
 
+  // 1. Dedicated Zippopotam Indian Postal API
+  try {
+    const res = await fetch(`https://api.zippopotam.us/in/${cleanPin}`, {
+      signal: AbortSignal.timeout(3000),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const place = data?.places?.[0];
+      if (place?.latitude && place?.longitude) {
+        const lat = parseFloat(place.latitude);
+        const lng = parseFloat(place.longitude);
+        if (!isNaN(lat) && !isNaN(lng)) {
+          return {
+            lat: Number(lat.toFixed(6)),
+            lng: Number(lng.toFixed(6)),
+          };
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("Zippopotam pincode lookup failed:", err);
+  }
+
+  // 2. OpenStreetMap Nominatim fallback
   try {
     const res = await fetch(
       `https://nominatim.openstreetmap.org/search?postalcode=${cleanPin}&country=India&format=json`,
@@ -222,6 +307,8 @@ export async function resolvePincodeToCoords(pincode: string): Promise<LatLng | 
     }
   } catch (err) {
     console.warn("Pincode geocode lookup failed:", err);
+    console.warn("Nominatim pincode lookup failed:", err);
   }
+
   return null;
 }

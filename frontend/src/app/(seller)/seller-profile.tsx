@@ -9,7 +9,7 @@
  */
 import React, { useCallback, useMemo, useState } from "react";
 import { Link, useRouter } from "expo-router";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Button } from "@/components/ui/Button";
 import { Screen } from "@/components/shared/Screen";
 import { SELLER_NAV_ITEMS } from "@/components/seller/sellerNav";
@@ -50,6 +50,17 @@ function statusTone(status: string | undefined, colors: any) {
   }
 }
 
+function distanceKm(point: { lat: number; lng: number }, centre: { lat: number; lng: number }): number {
+  const toRad = (value: number): number => (value * Math.PI) / 180;
+  const earthKm = 6371;
+  const dLat = toRad(centre.lat - point.lat);
+  const dLng = toRad(centre.lng - point.lng);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(point.lat)) * Math.cos(toRad(centre.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * earthKm * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 export default function SellerProfileScreen() {
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
@@ -88,41 +99,114 @@ export default function SellerProfileScreen() {
     },
   });
 
+  const hasCoordinates =
+    sellerData?.lat !== null &&
+    sellerData?.lat !== undefined &&
+    sellerData?.lng !== null &&
+    sellerData?.lng !== undefined &&
+    Number(sellerData?.lat) !== 0 &&
+    Number(sellerData?.lng) !== 0;
+
+  const [isEditingLocation, setIsEditingLocation] = useState(false);
+  const [inputLat, setInputLat] = useState("");
+  const [inputLng, setInputLng] = useState("");
+  const [inputCity, setInputCity] = useState("");
   const [detectingLocation, setDetectingLocation] = useState(false);
+  const [assigningWarehouse, setAssigningWarehouse] = useState(false);
 
-  const assignLocationMutation = useMutation({
-    mutationFn: async (coords?: { lat?: number; lng?: number } | void) => {
-      const payload: any = {};
-      if (coords?.lat !== undefined && coords?.lng !== undefined) {
-        payload.lat = coords.lat;
-        payload.lng = coords.lng;
-      }
-      const res = await apiClient.patch("/sellers/me", payload);
-      return res.data;
-    },
-    onSuccess: (res) => {
-      queryClient.invalidateQueries({ queryKey: ["seller-profile"] });
-      const whName = res?.data?.assigned_warehouse?.name || "your nearest hub";
-      notify("Warehouse Assigned", `Your store is now linked to ${whName}.`);
-    },
-    onError: (err: any) => {
-      notify("Assignment Failed", err?.response?.data?.message || "Could not link nearest warehouse.");
-    }
-  });
-
-  const handleAutoAssignWarehouse = useCallback(async () => {
+  const handleDetectStoreLocation = useCallback(async () => {
     setDetectingLocation(true);
     try {
       const { lat, lng } = await fetchCurrentLocation();
-      setDetectingLocation(false);
-      assignLocationMutation.mutate({ lat, lng });
-    } catch (err) {
+      setInputLat(String(lat));
+      setInputLng(String(lng));
+      // Save coordinates to seller profile
+      const res = await apiClient.patch("/sellers/me", { lat, lng });
+      queryClient.invalidateQueries({ queryKey: ["seller-profile"] });
+      const wh = res?.data?.data?.assigned_warehouse;
+      if (wh) {
+        notify(
+          "Store Location Set",
+          `Coordinates captured: ${lat}° N, ${lng}° E. Automatically linked to ${wh.name}!`
+        );
+      } else {
+        notify(
+          "Store Location Set",
+          `Coordinates captured: ${lat}° N, ${lng}° E. Tap "Connect to Nearest Warehouse" to link your hub.`
+        );
+      }
+      setIsEditingLocation(false);
+    } catch (err: any) {
       console.warn("Location error:", err);
+      notify("Location Detection", err?.message || "Could not detect GPS coordinates. You can enter them manually below.");
+      setIsEditingLocation(true);
+    } finally {
       setDetectingLocation(false);
-      // Fall back to city-based assignment
-      assignLocationMutation.mutate({});
     }
-  }, [assignLocationMutation]);
+  }, [queryClient]);
+
+  const handleSaveManualLocation = useCallback(async () => {
+    const latNum = Number(inputLat.trim());
+    const lngNum = Number(inputLng.trim());
+    if (isNaN(latNum) || latNum < -90 || latNum > 90) {
+      notify("Invalid Latitude", "Please enter a valid Latitude between -90 and 90.");
+      return;
+    }
+    if (isNaN(lngNum) || lngNum < -180 || lngNum > 180) {
+      notify("Invalid Longitude", "Please enter a valid Longitude between -180 and 180.");
+      return;
+    }
+
+    try {
+      const payload: any = { lat: latNum, lng: lngNum };
+      if (inputCity.trim()) payload.city = inputCity.trim();
+      const res = await apiClient.patch("/sellers/me", payload);
+      queryClient.invalidateQueries({ queryKey: ["seller-profile"] });
+      const wh = res?.data?.data?.assigned_warehouse;
+      if (wh) {
+        notify("Location Saved", `Coordinates saved: ${latNum.toFixed(4)}° N, ${lngNum.toFixed(4)}° E. Linked to ${wh.name}!`);
+      } else {
+        notify("Location Saved", `Coordinates saved: ${latNum.toFixed(4)}° N, ${lngNum.toFixed(4)}° E.`);
+      }
+      setIsEditingLocation(false);
+    } catch (err: any) {
+      notify("Save Failed", err?.response?.data?.message || err?.message || "Could not save coordinates.");
+    }
+  }, [inputLat, inputLng, inputCity, queryClient]);
+
+  const handleConnectNearestWarehouse = useCallback(async () => {
+    const lat = hasCoordinates ? Number(sellerData.lat) : Number(inputLat);
+    const lng = hasCoordinates ? Number(sellerData.lng) : Number(inputLng);
+
+    if (isNaN(lat) || isNaN(lng) || (lat === 0 && lng === 0)) {
+      notify("Location Required", "Please capture or enter your store GPS coordinates first so we can calculate distances.");
+      setIsEditingLocation(true);
+      return;
+    }
+
+    setAssigningWarehouse(true);
+    try {
+      const res = await apiClient.patch("/sellers/me", { lat, lng });
+      queryClient.invalidateQueries({ queryKey: ["seller-profile"] });
+      const wh = res?.data?.data?.assigned_warehouse;
+      if (wh) {
+        const whLat = Number(wh.lat);
+        const whLng = Number(wh.lng);
+        let distText = "";
+        if (!isNaN(whLat) && !isNaN(whLng) && (whLat !== 0 || whLng !== 0)) {
+          const d = distanceKm({ lat, lng }, { lat: whLat, lng: whLng });
+          distText = ` (~${d.toFixed(1)} km away)`;
+        }
+        notify("Warehouse Connected!", `Your store is now linked to ${wh.name}${distText}. Customer orders will be fulfilled through this hub.`);
+      } else {
+        notify("Warehouse Connected", "Your store is now linked to your nearest fulfillment hub.");
+      }
+    } catch (err: any) {
+      notify("Connection Failed", err?.response?.data?.message || err?.message || "Could not link nearest warehouse.");
+    } finally {
+      setAssigningWarehouse(false);
+    }
+  }, [hasCoordinates, sellerData, inputLat, inputLng, queryClient]);
 
   const handleEditDescription = useCallback(() => {
     setEditDescriptionValue(sellerData?.description || "");
@@ -257,25 +341,181 @@ export default function SellerProfileScreen() {
             <InfoRow icon={StoreIcon} label="Business name" value={sellerData?.business_name} />
             <InfoRow icon={MapPinIcon} label="City" value={sellerData?.city} />
             <InfoRow icon={InfoIcon} label="GST number" value={sellerData?.gst_number} fallback="Not registered" />
-            <InfoRow
-              icon={MapPinIcon}
-              label="Fulfillment warehouse"
-              value={sellerData?.assigned_warehouse?.name || (sellerData?.assigned_warehouse_id ? "Linked" : undefined)}
-              fallback="No warehouse assigned"
-            />
-            {!sellerData?.assigned_warehouse && !sellerData?.assigned_warehouse_id ? (
-              <Pressable
-                onPress={handleAutoAssignWarehouse}
-                disabled={detectingLocation || assignLocationMutation.isPending}
-                style={({ pressed }) => [styles.whLinkBtn, pressed && styles.pressed]}
-              >
-                <Text style={styles.whLinkText}>
-                  {detectingLocation || assignLocationMutation.isPending
-                    ? "Assigning nearest warehouse…"
-                    : "📍 Connect to Nearest Warehouse"}
-                </Text>
-              </Pressable>
-            ) : null}
+            <View style={styles.divider} />
+
+            {/* Store Physical Location Section */}
+            <View style={styles.locationSection}>
+              <View style={styles.locationHeaderRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.sectionSublabel}>Store Physical GPS Location</Text>
+                  <Text style={[styles.locationCoordText, !hasCoordinates && styles.locationCoordEmpty]}>
+                    {hasCoordinates
+                      ? `📍 ${Number(sellerData?.lat).toFixed(4)}° N, ${Number(sellerData?.lng).toFixed(4)}° E`
+                      : "Location not captured yet"}
+                  </Text>
+                </View>
+                {!isEditingLocation ? (
+                  <Pressable
+                    onPress={() => {
+                      setInputLat(hasCoordinates ? String(sellerData?.lat) : "");
+                      setInputLng(hasCoordinates ? String(sellerData?.lng) : "");
+                      setInputCity(sellerData?.city || "");
+                      setIsEditingLocation(true);
+                    }}
+                    style={({ pressed }) => [styles.locationEditBtn, pressed && styles.pressed]}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.locationEditBtnText}>{hasCoordinates ? "Change" : "Set Location"}</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+
+              {isEditingLocation ? (
+                <View style={styles.locationEditBox}>
+                  <Text style={styles.locationHelperText}>
+                    Auto-detect your store coordinates using GPS or enter them manually.
+                  </Text>
+                  <Pressable
+                    onPress={handleDetectStoreLocation}
+                    disabled={detectingLocation}
+                    style={({ pressed }) => [
+                      styles.gpsDetectBtn,
+                      pressed && styles.pressed,
+                      detectingLocation && styles.disabled
+                    ]}
+                  >
+                    {detectingLocation ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <MapPinIcon size={14} color="#FFFFFF" strokeWidth={2.4} />
+                    )}
+                    <Text style={styles.gpsDetectBtnText}>
+                      {detectingLocation ? "Detecting Store GPS…" : "📍 Auto-Detect Store GPS"}
+                    </Text>
+                  </Pressable>
+
+                  <View style={styles.coordsRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.inputMiniLabel}>Latitude</Text>
+                      <TextInput
+                        style={styles.coordInput}
+                        placeholder="e.g. 25.8400"
+                        placeholderTextColor={colors.textMuted}
+                        value={inputLat}
+                        onChangeText={setInputLat}
+                        keyboardType="numeric"
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.inputMiniLabel}>Longitude</Text>
+                      <TextInput
+                        style={styles.coordInput}
+                        placeholder="e.g. 88.0050"
+                        placeholderTextColor={colors.textMuted}
+                        value={inputLng}
+                        onChangeText={setInputLng}
+                        keyboardType="numeric"
+                      />
+                    </View>
+                  </View>
+
+                  <View style={{ marginTop: 4 }}>
+                    <Text style={styles.inputMiniLabel}>City / Town</Text>
+                    <TextInput
+                      style={styles.coordInput}
+                      placeholder="e.g. Raiganj"
+                      placeholderTextColor={colors.textMuted}
+                      value={inputCity}
+                      onChangeText={setInputCity}
+                    />
+                  </View>
+
+                  <View style={styles.locationEditActions}>
+                    <Pressable
+                      onPress={() => setIsEditingLocation(false)}
+                      style={({ pressed }) => [styles.ghostBtn, pressed && styles.pressed]}
+                    >
+                      <Text style={styles.ghostLabel}>Cancel</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={handleSaveManualLocation}
+                      style={({ pressed }) => [styles.solidBtn, pressed && styles.pressed]}
+                    >
+                      <Text style={styles.solidLabel}>Save Location</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ) : null}
+            </View>
+
+            <View style={styles.divider} />
+
+            {/* Warehouse Connection Section */}
+            <View style={styles.warehouseSection}>
+              <Text style={styles.sectionSublabel}>Fulfillment Warehouse Hub</Text>
+              {sellerData?.assigned_warehouse || sellerData?.assigned_warehouse_id ? (
+                <View style={styles.whConnectedCard}>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Text style={styles.whConnectedName}>
+                        {sellerData.assigned_warehouse?.name || "Assigned Fulfillment Hub"}
+                      </Text>
+                      <View style={styles.connectedBadge}>
+                        <Text style={styles.connectedBadgeText}>CONNECTED</Text>
+                      </View>
+                    </View>
+                    {hasCoordinates && sellerData.assigned_warehouse?.lat && sellerData.assigned_warehouse?.lng && (Number(sellerData.assigned_warehouse.lat) !== 0 || Number(sellerData.assigned_warehouse.lng) !== 0) ? (
+                      <Text style={styles.whDistanceText}>
+                        📍 Calculated distance: ~
+                        {distanceKm(
+                          { lat: Number(sellerData.lat), lng: Number(sellerData.lng) },
+                          { lat: Number(sellerData.assigned_warehouse.lat), lng: Number(sellerData.assigned_warehouse.lng) }
+                        ).toFixed(1)}{" "}
+                        km from your store
+                      </Text>
+                    ) : (
+                      <Text style={styles.whDistanceText}>Dispatches and deliveries handled via this hub.</Text>
+                    )}
+                  </View>
+                  <Pressable
+                    onPress={handleConnectNearestWarehouse}
+                    disabled={assigningWarehouse}
+                    style={({ pressed }) => [styles.reconnectBtn, pressed && styles.pressed]}
+                  >
+                    <Text style={styles.reconnectBtnText}>
+                      {assigningWarehouse ? "Linking…" : "Re-link"}
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <View style={{ marginTop: 6 }}>
+                  <Text style={styles.whUnassignedText}>
+                    {hasCoordinates
+                      ? "Store location is captured. Connect to calculate physical distance and assign your nearest fulfillment hub."
+                      : "No warehouse assigned yet. Set your store location above first so we can connect to your nearest hub."}
+                  </Text>
+                  <Pressable
+                    onPress={hasCoordinates ? handleConnectNearestWarehouse : handleDetectStoreLocation}
+                    disabled={assigningWarehouse || detectingLocation}
+                    style={({ pressed }) => [
+                      styles.whConnectBtn,
+                      pressed && styles.pressed,
+                      (assigningWarehouse || detectingLocation) && styles.disabled
+                    ]}
+                  >
+                    <Text style={styles.whConnectBtnText}>
+                      {assigningWarehouse
+                        ? "Calculating distance & connecting…"
+                        : detectingLocation
+                        ? "Detecting store GPS…"
+                        : hasCoordinates
+                        ? "📍 Connect to Nearest Warehouse"
+                        : "📍 Step 1: Detect Store Location First"}
+                    </Text>
+                  </Pressable>
+                </View>
+              )}
+            </View>
           </Surface>
 
           <SectionHeader title="Contact" caption="Used for order and payout updates" style={styles.sectionHeader} />
@@ -368,6 +608,176 @@ const getStyles = (colors: any) =>
       color: colors.accent,
       fontSize: 13,
       fontWeight: "700"
+    },
+    locationSection: {
+      paddingVertical: SPACE.md,
+      gap: SPACE.xs
+    },
+    locationHeaderRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: SPACE.sm
+    },
+    sectionSublabel: {
+      color: colors.textMuted,
+      fontSize: 11,
+      fontWeight: "700",
+      letterSpacing: 0.4,
+      textTransform: "uppercase",
+      marginBottom: 3
+    },
+    locationCoordText: {
+      color: colors.textPrimary,
+      fontSize: 14,
+      fontWeight: "700"
+    },
+    locationCoordEmpty: {
+      color: colors.textMuted,
+      fontWeight: "500",
+      fontStyle: "italic"
+    },
+    locationEditBtn: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: RADIUS.sm,
+      backgroundColor: withAlpha(colors.accent, 0.1),
+      borderWidth: 1,
+      borderColor: withAlpha(colors.accent, 0.3)
+    },
+    locationEditBtnText: {
+      color: colors.accent,
+      fontSize: 12,
+      fontWeight: "700"
+    },
+    locationEditBox: {
+      marginTop: SPACE.sm,
+      padding: SPACE.md,
+      backgroundColor: colors.bgSecondary,
+      borderRadius: RADIUS.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      gap: SPACE.sm
+    },
+    locationHelperText: {
+      color: colors.textMuted,
+      fontSize: 12,
+      lineHeight: 16
+    },
+    gpsDetectBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      backgroundColor: colors.accent,
+      paddingVertical: 10,
+      paddingHorizontal: SPACE.md,
+      borderRadius: RADIUS.sm
+    },
+    gpsDetectBtnText: {
+      color: "#FFFFFF",
+      fontSize: 13,
+      fontWeight: "700"
+    },
+    coordsRow: {
+      flexDirection: "row",
+      gap: SPACE.sm
+    },
+    inputMiniLabel: {
+      color: colors.textSecondary,
+      fontSize: 11,
+      fontWeight: "600",
+      marginBottom: 4
+    },
+    coordInput: {
+      backgroundColor: colors.surface,
+      color: colors.textPrimary,
+      borderRadius: RADIUS.sm,
+      paddingHorizontal: SPACE.sm,
+      paddingVertical: 8,
+      fontSize: 13,
+      borderWidth: 1,
+      borderColor: colors.border
+    },
+    locationEditActions: {
+      flexDirection: "row",
+      justifyContent: "flex-end",
+      gap: SPACE.sm,
+      marginTop: 4
+    },
+    warehouseSection: {
+      paddingVertical: SPACE.md,
+      gap: SPACE.xs
+    },
+    whConnectedCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: SPACE.sm,
+      padding: SPACE.md,
+      backgroundColor: withAlpha(colors.success || "#16A34A", 0.08),
+      borderColor: withAlpha(colors.success || "#16A34A", 0.25),
+      borderWidth: 1,
+      borderRadius: RADIUS.md,
+      marginTop: 4
+    },
+    whConnectedName: {
+      color: colors.textPrimary,
+      fontSize: 14.5,
+      fontWeight: "800"
+    },
+    connectedBadge: {
+      backgroundColor: withAlpha(colors.success || "#16A34A", 0.15),
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4
+    },
+    connectedBadgeText: {
+      color: colors.success || "#16A34A",
+      fontSize: 10,
+      fontWeight: "800",
+      letterSpacing: 0.5
+    },
+    whDistanceText: {
+      color: colors.textSecondary,
+      fontSize: 12.5,
+      marginTop: 3,
+      fontWeight: "500"
+    },
+    reconnectBtn: {
+      paddingHorizontal: 10,
+      paddingVertical: 7,
+      borderRadius: RADIUS.sm,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border
+    },
+    reconnectBtnText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: "700"
+    },
+    whUnassignedText: {
+      color: colors.textMuted,
+      fontSize: 12.5,
+      lineHeight: 18,
+      marginBottom: 6
+    },
+    whConnectBtn: {
+      paddingVertical: 12,
+      paddingHorizontal: SPACE.md,
+      backgroundColor: colors.accent,
+      borderRadius: RADIUS.sm,
+      alignItems: "center",
+      justifyContent: "center"
+    },
+    whConnectBtnText: {
+      color: "#FFFFFF",
+      fontSize: 13.5,
+      fontWeight: "700"
+    },
+    disabled: {
+      opacity: 0.6
     },
     actions: { marginTop: SPACE.xxl, gap: SPACE.md },
   });

@@ -561,10 +561,10 @@ export default function CartScreen() {
                       📍 {preciseLocation.lat.toFixed(5)}, {preciseLocation.lng.toFixed(5)}
                     </Text>
                     {isCalculatingDelivery ? (
-                      <Text style={styles.gpsSubNote}>Calculating driving route distance...</Text>
+                      <Text style={styles.gpsSubNote}>Calculating distance...</Text>
                     ) : deliveryData?.nearestHub ? (
                       <Text style={styles.gpsSubNote}>
-                        Nearest Hub: <Text style={{ fontWeight: "700", color: colors.textPrimary }}>{deliveryData.nearestHub}</Text> ({deliveryData.distanceKm} km driving path)
+                        Nearest Hub: <Text style={{ fontWeight: "700", color: colors.textPrimary }}>{deliveryData.nearestHub}</Text> ({deliveryData.distanceKm} km away)
                       </Text>
                     ) : null}
                   </View>
