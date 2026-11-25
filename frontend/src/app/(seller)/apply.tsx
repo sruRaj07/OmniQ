@@ -23,6 +23,7 @@ import { sellerProfileOf, useSellerStatus } from "@/hooks/useSellerStatus";
 import { RADIUS, SPACE, withAlpha } from "@/constants/sellerTheme";
 import { CheckIcon, MapPinIcon, StoreIcon } from "@/components/ui/SellerIcons";
 import { fetchCurrentLocation } from "@/utils/location";
+import { LocationPickerModal, type SelectedLocationData } from "@/components/shared/LocationPickerModal";
 
 /** Where an existing seller account belongs, given its approval state. */
 function routeForSeller(profile: Record<string, any>): string {
@@ -68,6 +69,7 @@ export default function ApplySellerScreen() {
   const {
     control,
     handleSubmit,
+    setValue,
     formState: { errors }
   } = useForm<ApplyFormData>({
     resolver: zodResolver(applySchema),
@@ -79,6 +81,22 @@ export default function ApplySellerScreen() {
       city: ""
     }
   });
+
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const [selectedAddressText, setSelectedAddressText] = useState("");
+
+  const handleLocationSelected = useCallback(
+    (loc: SelectedLocationData) => {
+      setCoords({ lat: loc.lat, lng: loc.lng });
+      setSelectedAddressText(loc.formattedAddress);
+      setLocStatus("detected");
+      if (loc.city) {
+        setValue("city", loc.city);
+      }
+      setShowLocationPicker(false);
+    },
+    [setValue]
+  );
 
   const handleRequestLocation = useCallback(async () => {
     setLocStatus("detecting");
@@ -278,32 +296,60 @@ export default function ApplySellerScreen() {
           </View>
 
           {locStatus === "detected" && coords.lat !== undefined ? (
-            <View style={styles.locationSuccess}>
-              <CheckIcon size={14} color={colors.success} strokeWidth={3} />
-              <Text style={styles.locationSuccessText}>
-                Coordinates set ({coords.lat}, {coords.lng}) · Nearest warehouse will be linked
-              </Text>
+            <View style={{ backgroundColor: "rgba(22, 163, 74, 0.08)", borderColor: "rgba(22, 163, 74, 0.25)", borderWidth: 1, borderRadius: 8, padding: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                  <CheckIcon size={14} color={colors.success} strokeWidth={3} />
+                  <Text style={{ fontSize: 13, fontWeight: "700", color: colors.textPrimary }}>Store Location Verified</Text>
+                </View>
+                <Text style={{ fontSize: 12, color: colors.textSecondary }} numberOfLines={2}>
+                  📍 {selectedAddressText || `${coords.lat?.toFixed(4)}° N, ${coords.lng?.toFixed(4)}° E`}
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => setShowLocationPicker(true)}
+                style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, backgroundColor: colors.card2, borderWidth: 1, borderColor: colors.border }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: "600", color: colors.textPrimary }}>Change</Text>
+              </Pressable>
             </View>
           ) : (
-            <Pressable
-              onPress={handleRequestLocation}
-              disabled={locStatus === "detecting"}
-              accessibilityRole="button"
-              style={({ pressed }) => [
-                styles.locationBtn,
-                locStatus === "detecting" && styles.locationBtnDisabled,
-                pressed && styles.pressed
-              ]}
-            >
-              {locStatus === "detecting" ? (
-                <ActivityIndicator size="small" color={colors.accent} />
-              ) : (
-                <MapPinIcon size={16} color={colors.accent} strokeWidth={2.4} />
-              )}
-              <Text style={styles.locationBtnText}>
-                {locStatus === "detecting" ? "Detecting location…" : "Detect My Inventory Location (GPS)"}
-              </Text>
-            </Pressable>
+            <View style={{ gap: 8 }}>
+              <Pressable
+                onPress={() => setShowLocationPicker(true)}
+                accessibilityRole="button"
+                style={({ pressed }) => [
+                  styles.locationBtn,
+                  { backgroundColor: "#2563EB", borderColor: "#2563EB" },
+                  pressed && styles.pressed
+                ]}
+              >
+                <MapPinIcon size={16} color="#FFF" strokeWidth={2.4} />
+                <Text style={[styles.locationBtnText, { color: "#FFF" }]}>
+                  📍 Pick Store on Google Maps
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={handleRequestLocation}
+                disabled={locStatus === "detecting"}
+                accessibilityRole="button"
+                style={({ pressed }) => [
+                  styles.locationBtn,
+                  locStatus === "detecting" && styles.locationBtnDisabled,
+                  pressed && styles.pressed
+                ]}
+              >
+                {locStatus === "detecting" ? (
+                  <ActivityIndicator size="small" color={colors.accent} />
+                ) : (
+                  <MapPinIcon size={16} color={colors.accent} strokeWidth={2.4} />
+                )}
+                <Text style={styles.locationBtnText}>
+                  {locStatus === "detecting" ? "Detecting location…" : "📡 Auto-Detect Current GPS"}
+                </Text>
+              </Pressable>
+            </View>
           )}
         </View>
 
@@ -343,6 +389,14 @@ export default function ApplySellerScreen() {
           </Button>
         </View>
       </Surface>
+      <LocationPickerModal
+        visible={showLocationPicker}
+        title="Set Store Location"
+        subtitle="Search your shop, store, or market on Google Maps"
+        initialLocation={coords.lat !== undefined && coords.lng !== undefined ? { lat: coords.lat, lng: coords.lng } : undefined}
+        onClose={() => setShowLocationPicker(false)}
+        onSelect={handleLocationSelected}
+      />
     </Screen>
   );
 }

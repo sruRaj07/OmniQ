@@ -123,7 +123,7 @@ async function fetchIpGeolocation(): Promise<LatLng | null> {
 
 // ─── Web Geolocation Implementation ────────────────────────────────────
 async function webGetCurrentPosition(): Promise<LatLng> {
-  // 1. First try browser HTML5 Geolocation (works if user allows and device has Wi-Fi/GPS)
+  // 1. Try real browser HTML5 Geolocation with high accuracy (uses CoreLocation/Wi-Fi positioning on laptops/desktops)
   try {
     const browserPos = await new Promise<LatLng>((resolve, reject) => {
       if (typeof navigator === "undefined" || !navigator.geolocation) {
@@ -131,25 +131,25 @@ async function webGetCurrentPosition(): Promise<LatLng> {
       }
 
       const timer = setTimeout(() => {
-        reject(new Error("Browser geolocation timed out"));
-      }, WEB_GPS_TIMEOUT_MS);
+        reject(new Error("Browser location request timed out. Please allow location access or search your address."));
+      }, 12000);
 
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           clearTimeout(timer);
-          resolve({
-            lat: Number(pos.coords.latitude.toFixed(6)),
-            lng: Number(pos.coords.longitude.toFixed(6)),
-          });
+          // Check that coordinates are not obviously foreign or zero
+          const lat = Number(pos.coords.latitude.toFixed(6));
+          const lng = Number(pos.coords.longitude.toFixed(6));
+          resolve({ lat, lng });
         },
         (err) => {
           clearTimeout(timer);
           reject(err);
         },
         {
-          enableHighAccuracy: false, // laptops rarely have GPS; wifi/network is much faster
-          timeout: WEB_GPS_TIMEOUT_MS,
-          maximumAge: 120_000,
+          enableHighAccuracy: true, // Triggers Wi-Fi positioning & CoreLocation instead of ISP cell tower
+          timeout: 12000,
+          maximumAge: 0, // Fresh reading, not stale cached
         }
       );
     });
@@ -157,18 +157,20 @@ async function webGetCurrentPosition(): Promise<LatLng> {
     if (browserPos?.lat && browserPos?.lng) {
       return browserPos;
     }
-  } catch (browserErr) {
-    console.warn("Browser GPS unavailable or timed out. Falling back to IP Geolocation:", browserErr);
+  } catch (browserErr: any) {
+    console.warn("Browser GPS unavailable or timed out:", browserErr);
+    if (browserErr?.code === 1 || String(browserErr?.message || "").toLowerCase().includes("denied")) {
+      throw new Error(
+        "Location permission is blocked in your browser. Please allow location access or search your town/address in the search box."
+      );
+    }
   }
 
-  // 2. Fall back to network IP Geolocation (instant on desktop & laptop browsers)
-  const ipLocation = await fetchIpGeolocation();
-  if (ipLocation) {
-    return ipLocation;
-  }
-
+  // 2. Do NOT silently fall back to ISP IP Geolocation!
+  // In quick commerce (Zepto/Blinkit), an ISP IP address points 50-150 km away to the telecom POP (e.g. Siliguri or Kolkata).
+  // Asking the user to search their address is the standard quick commerce behavior.
   throw new Error(
-    "Could not automatically detect location on this browser. Please enter coordinates manually."
+    "Could not pinpoint your exact GPS position on this browser. Please type your area, town, or landmark in the search box above."
   );
 }
 

@@ -27,3 +27,18 @@ export const calculateDeliverySchema = z.object({
   message: "Either pincode or lat/lng must be provided to calculate delivery fee"
 });
 
+export const autocompleteQuerySchema = z.object({
+  input: z.string().min(1, "Input is required").max(200),
+  sessionToken: z.string().optional()
+});
+
+export const placeDetailsQuerySchema = z.object({
+  placeId: z.string().min(1, "Place ID is required").max(200),
+  sessionToken: z.string().optional()
+});
+
+export const reverseGeocodeQuerySchema = z.object({
+  lat: z.coerce.number().min(-90).max(90),
+  lng: z.coerce.number().min(-180).max(180)
+});
+

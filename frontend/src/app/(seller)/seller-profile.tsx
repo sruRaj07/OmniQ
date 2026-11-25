@@ -22,6 +22,7 @@ import { apiClient } from "@/lib/apiClient";
 import { RADIUS, SPACE, withAlpha } from "@/constants/sellerTheme";
 import { confirmAction, notify } from "@/utils/dialog";
 import { fetchCurrentLocation } from "@/utils/location";
+import { LocationPickerModal, type SelectedLocationData } from "@/components/shared/LocationPickerModal";
 import {
   InfoIcon,
   LogOutIcon,
@@ -107,82 +108,44 @@ export default function SellerProfileScreen() {
     Number(sellerData?.lat) !== 0 &&
     Number(sellerData?.lng) !== 0;
 
-  const [isEditingLocation, setIsEditingLocation] = useState(false);
-  const [inputLat, setInputLat] = useState("");
-  const [inputLng, setInputLng] = useState("");
-  const [inputCity, setInputCity] = useState("");
-  const [detectingLocation, setDetectingLocation] = useState(false);
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [assigningWarehouse, setAssigningWarehouse] = useState(false);
 
-  const handleDetectStoreLocation = useCallback(async () => {
-    setDetectingLocation(true);
-    try {
-      const { lat, lng } = await fetchCurrentLocation();
-      setInputLat(String(lat));
-      setInputLng(String(lng));
-      // Save coordinates to seller profile
-      const res = await apiClient.patch("/sellers/me", { lat, lng });
-      queryClient.invalidateQueries({ queryKey: ["seller-profile"] });
-      const wh = res?.data?.data?.assigned_warehouse;
-      if (wh) {
-        notify(
-          "Store Location Set",
-          `Coordinates captured: ${lat}° N, ${lng}° E. Automatically linked to ${wh.name}!`
-        );
-      } else {
-        notify(
-          "Store Location Set",
-          `Coordinates captured: ${lat}° N, ${lng}° E. Tap "Connect to Nearest Warehouse" to link your hub.`
-        );
+  const handleLocationSelected = useCallback(
+    async (loc: SelectedLocationData) => {
+      try {
+        const payload: any = { lat: loc.lat, lng: loc.lng };
+        if (loc.city) payload.city = loc.city;
+        const res = await apiClient.patch("/sellers/me", payload);
+        queryClient.invalidateQueries({ queryKey: ["seller-profile"] });
+        const wh = res?.data?.data?.assigned_warehouse;
+        if (wh) {
+          notify(
+            "Store Location Set",
+            `Location set to ${loc.formattedAddress}. Automatically linked to ${wh.name}!`
+          );
+        } else {
+          notify(
+            "Store Location Set",
+            `Location set to ${loc.formattedAddress}. Tap "Connect to Nearest Warehouse" to link your hub.`
+          );
+        }
+      } catch (err: any) {
+        notify("Save Failed", err?.response?.data?.message || err?.message || "Could not save store location.");
       }
-      setIsEditingLocation(false);
-    } catch (err: any) {
-      console.warn("Location error:", err);
-      notify("Location Detection", err?.message || "Could not detect GPS coordinates. You can enter them manually below.");
-      setIsEditingLocation(true);
-    } finally {
-      setDetectingLocation(false);
-    }
-  }, [queryClient]);
-
-  const handleSaveManualLocation = useCallback(async () => {
-    const latNum = Number(inputLat.trim());
-    const lngNum = Number(inputLng.trim());
-    if (isNaN(latNum) || latNum < -90 || latNum > 90) {
-      notify("Invalid Latitude", "Please enter a valid Latitude between -90 and 90.");
-      return;
-    }
-    if (isNaN(lngNum) || lngNum < -180 || lngNum > 180) {
-      notify("Invalid Longitude", "Please enter a valid Longitude between -180 and 180.");
-      return;
-    }
-
-    try {
-      const payload: any = { lat: latNum, lng: lngNum };
-      if (inputCity.trim()) payload.city = inputCity.trim();
-      const res = await apiClient.patch("/sellers/me", payload);
-      queryClient.invalidateQueries({ queryKey: ["seller-profile"] });
-      const wh = res?.data?.data?.assigned_warehouse;
-      if (wh) {
-        notify("Location Saved", `Coordinates saved: ${latNum.toFixed(4)}° N, ${lngNum.toFixed(4)}° E. Linked to ${wh.name}!`);
-      } else {
-        notify("Location Saved", `Coordinates saved: ${latNum.toFixed(4)}° N, ${lngNum.toFixed(4)}° E.`);
-      }
-      setIsEditingLocation(false);
-    } catch (err: any) {
-      notify("Save Failed", err?.response?.data?.message || err?.message || "Could not save coordinates.");
-    }
-  }, [inputLat, inputLng, inputCity, queryClient]);
+    },
+    [queryClient]
+  );
 
   const handleConnectNearestWarehouse = useCallback(async () => {
-    const lat = hasCoordinates ? Number(sellerData.lat) : Number(inputLat);
-    const lng = hasCoordinates ? Number(sellerData.lng) : Number(inputLng);
-
-    if (isNaN(lat) || isNaN(lng) || (lat === 0 && lng === 0)) {
-      notify("Location Required", "Please capture or enter your store GPS coordinates first so we can calculate distances.");
-      setIsEditingLocation(true);
+    if (!hasCoordinates) {
+      notify("Location Required", "Please set your store location first so we can find your nearest fulfillment hub.");
+      setShowLocationPicker(true);
       return;
     }
+
+    const lat = Number(sellerData.lat);
+    const lng = Number(sellerData.lng);
 
     setAssigningWarehouse(true);
     try {
@@ -197,7 +160,10 @@ export default function SellerProfileScreen() {
           const d = distanceKm({ lat, lng }, { lat: whLat, lng: whLng });
           distText = ` (~${d.toFixed(1)} km away)`;
         }
-        notify("Warehouse Connected!", `Your store is now linked to ${wh.name}${distText}. Customer orders will be fulfilled through this hub.`);
+        notify(
+          "Warehouse Connected!",
+          `Your store is now linked to ${wh.name}${distText}. Customer orders will be fulfilled through this hub.`
+        );
       } else {
         notify("Warehouse Connected", "Your store is now linked to your nearest fulfillment hub.");
       }
@@ -206,7 +172,7 @@ export default function SellerProfileScreen() {
     } finally {
       setAssigningWarehouse(false);
     }
-  }, [hasCoordinates, sellerData, inputLat, inputLng, queryClient]);
+  }, [hasCoordinates, sellerData, queryClient]);
 
   const handleEditDescription = useCallback(() => {
     setEditDescriptionValue(sellerData?.description || "");
@@ -347,105 +313,23 @@ export default function SellerProfileScreen() {
             <View style={styles.locationSection}>
               <View style={styles.locationHeaderRow}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.sectionSublabel}>Store Physical GPS Location</Text>
+                  <Text style={styles.sectionSublabel}>Store Physical Location</Text>
                   <Text style={[styles.locationCoordText, !hasCoordinates && styles.locationCoordEmpty]}>
                     {hasCoordinates
-                      ? `📍 ${Number(sellerData?.lat).toFixed(4)}° N, ${Number(sellerData?.lng).toFixed(4)}° E`
-                      : "Location not captured yet"}
+                      ? `📍 ${sellerData?.city ? `${sellerData.city} · ` : ""}${Number(sellerData?.lat).toFixed(4)}° N, ${Number(sellerData?.lng).toFixed(4)}° E`
+                      : "Location not set yet"}
                   </Text>
                 </View>
-                {!isEditingLocation ? (
-                  <Pressable
-                    onPress={() => {
-                      setInputLat(hasCoordinates ? String(sellerData?.lat) : "");
-                      setInputLng(hasCoordinates ? String(sellerData?.lng) : "");
-                      setInputCity(sellerData?.city || "");
-                      setIsEditingLocation(true);
-                    }}
-                    style={({ pressed }) => [styles.locationEditBtn, pressed && styles.pressed]}
-                    accessibilityRole="button"
-                  >
-                    <Text style={styles.locationEditBtnText}>{hasCoordinates ? "Change" : "Set Location"}</Text>
-                  </Pressable>
-                ) : null}
+                <Pressable
+                  onPress={() => setShowLocationPicker(true)}
+                  style={({ pressed }) => [styles.locationEditBtn, pressed && styles.pressed]}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.locationEditBtnText}>
+                    {hasCoordinates ? "Change on Map" : "Pick on Map"}
+                  </Text>
+                </Pressable>
               </View>
-
-              {isEditingLocation ? (
-                <View style={styles.locationEditBox}>
-                  <Text style={styles.locationHelperText}>
-                    Auto-detect your store coordinates using GPS or enter them manually.
-                  </Text>
-                  <Pressable
-                    onPress={handleDetectStoreLocation}
-                    disabled={detectingLocation}
-                    style={({ pressed }) => [
-                      styles.gpsDetectBtn,
-                      pressed && styles.pressed,
-                      detectingLocation && styles.disabled
-                    ]}
-                  >
-                    {detectingLocation ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
-                    ) : (
-                      <MapPinIcon size={14} color="#FFFFFF" strokeWidth={2.4} />
-                    )}
-                    <Text style={styles.gpsDetectBtnText}>
-                      {detectingLocation ? "Detecting Store GPS…" : "📍 Auto-Detect Store GPS"}
-                    </Text>
-                  </Pressable>
-
-                  <View style={styles.coordsRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.inputMiniLabel}>Latitude</Text>
-                      <TextInput
-                        style={styles.coordInput}
-                        placeholder="e.g. 25.8400"
-                        placeholderTextColor={colors.textMuted}
-                        value={inputLat}
-                        onChangeText={setInputLat}
-                        keyboardType="numeric"
-                      />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.inputMiniLabel}>Longitude</Text>
-                      <TextInput
-                        style={styles.coordInput}
-                        placeholder="e.g. 88.0050"
-                        placeholderTextColor={colors.textMuted}
-                        value={inputLng}
-                        onChangeText={setInputLng}
-                        keyboardType="numeric"
-                      />
-                    </View>
-                  </View>
-
-                  <View style={{ marginTop: 4 }}>
-                    <Text style={styles.inputMiniLabel}>City / Town</Text>
-                    <TextInput
-                      style={styles.coordInput}
-                      placeholder="e.g. Raiganj"
-                      placeholderTextColor={colors.textMuted}
-                      value={inputCity}
-                      onChangeText={setInputCity}
-                    />
-                  </View>
-
-                  <View style={styles.locationEditActions}>
-                    <Pressable
-                      onPress={() => setIsEditingLocation(false)}
-                      style={({ pressed }) => [styles.ghostBtn, pressed && styles.pressed]}
-                    >
-                      <Text style={styles.ghostLabel}>Cancel</Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={handleSaveManualLocation}
-                      style={({ pressed }) => [styles.solidBtn, pressed && styles.pressed]}
-                    >
-                      <Text style={styles.solidLabel}>Save Location</Text>
-                    </Pressable>
-                  </View>
-                </View>
-              ) : null}
             </View>
 
             <View style={styles.divider} />
@@ -465,14 +349,24 @@ export default function SellerProfileScreen() {
                       </View>
                     </View>
                     {hasCoordinates && sellerData.assigned_warehouse?.lat && sellerData.assigned_warehouse?.lng && (Number(sellerData.assigned_warehouse.lat) !== 0 || Number(sellerData.assigned_warehouse.lng) !== 0) ? (
-                      <Text style={styles.whDistanceText}>
-                        📍 Calculated distance: ~
-                        {distanceKm(
+                      (() => {
+                        const dist = distanceKm(
                           { lat: Number(sellerData.lat), lng: Number(sellerData.lng) },
                           { lat: Number(sellerData.assigned_warehouse.lat), lng: Number(sellerData.assigned_warehouse.lng) }
-                        ).toFixed(1)}{" "}
-                        km from your store
-                      </Text>
+                        );
+                        if (dist > 150) {
+                          return (
+                            <Text style={styles.whDistanceText}>
+                              📍 Assigned to {sellerData.assigned_warehouse?.name}. Tap "Re-link" after calibrating warehouse on Google Maps.
+                            </Text>
+                          );
+                        }
+                        return (
+                          <Text style={styles.whDistanceText}>
+                            📍 Calculated distance: ~{dist.toFixed(1)} km from your store
+                          </Text>
+                        );
+                      })()
                     ) : (
                       <Text style={styles.whDistanceText}>Dispatches and deliveries handled via this hub.</Text>
                     )}
@@ -491,26 +385,24 @@ export default function SellerProfileScreen() {
                 <View style={{ marginTop: 6 }}>
                   <Text style={styles.whUnassignedText}>
                     {hasCoordinates
-                      ? "Store location is captured. Connect to calculate physical distance and assign your nearest fulfillment hub."
-                      : "No warehouse assigned yet. Set your store location above first so we can connect to your nearest hub."}
+                      ? "Store location is set. Connect to calculate physical distance and assign your nearest fulfillment hub."
+                      : "No warehouse assigned yet. Pick your store location on the map first so we can connect to your nearest hub."}
                   </Text>
                   <Pressable
-                    onPress={hasCoordinates ? handleConnectNearestWarehouse : handleDetectStoreLocation}
-                    disabled={assigningWarehouse || detectingLocation}
+                    onPress={hasCoordinates ? handleConnectNearestWarehouse : () => setShowLocationPicker(true)}
+                    disabled={assigningWarehouse}
                     style={({ pressed }) => [
                       styles.whConnectBtn,
                       pressed && styles.pressed,
-                      (assigningWarehouse || detectingLocation) && styles.disabled
+                      assigningWarehouse && styles.disabled
                     ]}
                   >
                     <Text style={styles.whConnectBtnText}>
                       {assigningWarehouse
                         ? "Calculating distance & connecting…"
-                        : detectingLocation
-                        ? "Detecting store GPS…"
                         : hasCoordinates
                         ? "📍 Connect to Nearest Warehouse"
-                        : "📍 Step 1: Detect Store Location First"}
+                        : "📍 Step 1: Pick Store Location on Map"}
                     </Text>
                   </Pressable>
                 </View>
@@ -542,6 +434,22 @@ export default function SellerProfileScreen() {
               Sign out
             </Button>
           </View>
+          <LocationPickerModal
+            visible={showLocationPicker}
+            title="Set Store Location"
+            subtitle="Search shop address or use GPS to link nearest hub"
+            initialLocation={
+              hasCoordinates
+                ? {
+                    lat: Number(sellerData.lat),
+                    lng: Number(sellerData.lng),
+                    address: sellerData.city,
+                  }
+                : undefined
+            }
+            onClose={() => setShowLocationPicker(false)}
+            onSelect={handleLocationSelected}
+          />
         </>
       )}
     </Screen>

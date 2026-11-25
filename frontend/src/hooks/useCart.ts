@@ -53,6 +53,8 @@ export function useCart(distanceKm: number = 0) {
     standardSubtotal,
     totalSavings,
     platformFee: 0,
+    baseDeliveryFee: deliveryDetails.baseDeliveryFee,
+    distanceCharge: deliveryDetails.distanceCharge,
     deliveryFee: deliveryDetails.deliveryFee,
     standardDeliveryFee: deliveryDetails.standardDeliveryFee,
     distanceKm: deliveryDetails.distanceKm,

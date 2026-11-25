@@ -43,13 +43,11 @@ function distanceKmBetween(point: { lat: number; lng: number }, centre: { lat: n
   return 2 * earthKm * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+const orderDistanceCache = new Map<string, { km: number; cachedAt: number }>();
+const ORDER_DISTANCE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
 /**
- * Road-distance correction factor. Indian roads are rarely straight; multiplying
- * the Haversine (great-circle) distance by this factor gives a reasonable estimate
- * of actual driving distance when the routing API is unreachable.
- */
-/**
- * Calculates direct great-circle (Haversine) distance between two GPS coordinates.
+ * Calculates road driving distance using Google Distance Matrix API with fallback.
  */
 async function roadDistanceKmBetween(
   from: { lat: number; lng: number },
@@ -59,7 +57,38 @@ async function roadDistanceKmBetween(
     return 0;
   }
   const straightLine = distanceKmBetween(from, to);
-  return Number(straightLine.toFixed(1));
+  if (straightLine < 0.15) {
+    return Number(Math.max(0.1, straightLine).toFixed(1));
+  }
+
+  const cacheKey = `${from.lat.toFixed(4)},${from.lng.toFixed(4)}->${to.lat.toFixed(4)},${to.lng.toFixed(4)}`;
+  const cached = orderDistanceCache.get(cacheKey);
+  if (cached && Date.now() - cached.cachedAt < ORDER_DISTANCE_CACHE_TTL_MS) {
+    return cached.km;
+  }
+
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY || process.env.EXPO_PUBLIC_GOOGLE_MAPS_KEY;
+  if (!apiKey) {
+    return Number((straightLine * 1.25).toFixed(1));
+  }
+
+  try {
+    const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${from.lat},${from.lng}&destinations=${to.lat},${to.lng}&mode=driving&region=in&key=${apiKey}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(3500) });
+    if (res.ok) {
+      const data = (await res.json()) as any;
+      const element = data?.rows?.[0]?.elements?.[0];
+      if (element?.status === "OK" && element?.distance?.value !== undefined) {
+        const roadKm = Number((element.distance.value / 1000).toFixed(1));
+        orderDistanceCache.set(cacheKey, { km: roadKm, cachedAt: Date.now() });
+        return roadKm;
+      }
+    }
+  } catch (err) {
+    console.warn("[orderService] Google Distance Matrix request failed:", err);
+  }
+
+  return Number((straightLine * 1.25).toFixed(1));
 }
 
 export const orderCreateSchema = z.object({
@@ -199,10 +228,13 @@ export async function placeOrder(buyerId: string, input: unknown, idempotencyKey
   // Option C: Delivery distance is calculated from the warehouse the seller is assigned to (Amazon-style)!
   let resolvedDistanceKm = parsed.distanceKm ?? 0;
   let nearestHubName: string | null = null;
+  let targetZone: { id?: string; name: string; lat: number; lng: number; radius_km?: number; supported_pincodes?: string[] } | null = null;
+  const pincode = parsed.deliveryAddress?.pincode ? String(parsed.deliveryAddress.pincode).trim() : "";
 
   try {
     // 1. Fetch seller's assigned warehouse
-    let assignedWarehouse: { id: string; name: string; lat: number; lng: number } | null = null;
+    let assignedWarehouse: { id: string; name: string; lat: number; lng: number; radius_km?: number; supported_pincodes?: string[] } | null = null;
+    let closestZoneMatched: { name: string; radius_km?: number; supported_pincodes?: string[] } | null = null;
     const { data: sellerRow } = await supabaseAdmin
       .from("sellers")
       .select("id, assigned_warehouse_id")
@@ -212,21 +244,21 @@ export async function placeOrder(buyerId: string, input: unknown, idempotencyKey
     if (sellerRow?.assigned_warehouse_id) {
       const { data: warehouseData } = await supabaseAdmin
         .from("delivery_zones")
-        .select("id, name, lat, lng")
+        .select("id, name, lat, lng, radius_km, supported_pincodes")
         .eq("id", sellerRow.assigned_warehouse_id)
         .maybeSingle();
       if (warehouseData) assignedWarehouse = warehouseData as any;
     }
 
     if (assignedWarehouse) {
+      targetZone = assignedWarehouse;
       nearestHubName = assignedWarehouse.name;
       const hubCoords = { lat: Number(assignedWarehouse.lat), lng: Number(assignedWarehouse.lng) };
 
       if (parsed.buyerLat !== undefined && parsed.buyerLng !== undefined && !isNaN(parsed.buyerLat) && !isNaN(parsed.buyerLng)) {
         const rawDist = await roadDistanceKmBetween({ lat: parsed.buyerLat, lng: parsed.buyerLng }, hubCoords);
-        const pincode = parsed.deliveryAddress?.pincode ? String(parsed.deliveryAddress.pincode).trim() : "";
         // Safeguard against emulator/roaming GPS coordinates: if distance > 200km for local delivery, cap to reasonable within-zone estimate
-        if (rawDist > 200 && pincode) {
+        if (rawDist > 200 && pincode && assignedWarehouse.supported_pincodes?.includes(pincode)) {
           resolvedDistanceKm = 3.5;
         } else {
           resolvedDistanceKm = rawDist;
@@ -243,8 +275,6 @@ export async function placeOrder(buyerId: string, input: unknown, idempotencyKey
         .is("deleted_at", null);
 
       if (zones && zones.length > 0) {
-        const pincode = parsed.deliveryAddress?.pincode ? String(parsed.deliveryAddress.pincode).trim() : "";
-
         if (parsed.buyerLat !== undefined && parsed.buyerLng !== undefined) {
           let minDist = Infinity;
           let closest = null;
@@ -256,6 +286,8 @@ export async function placeOrder(buyerId: string, input: unknown, idempotencyKey
             }
           }
           if (closest) {
+            closestZoneMatched = closest;
+            targetZone = closest as any;
             resolvedDistanceKm = await roadDistanceKmBetween(
               { lat: parsed.buyerLat, lng: parsed.buyerLng },
               { lat: Number(closest.lat), lng: Number(closest.lng) }
@@ -265,6 +297,8 @@ export async function placeOrder(buyerId: string, input: unknown, idempotencyKey
         } else if (pincode) {
           const matched = zones.find((z) => z.supported_pincodes && z.supported_pincodes.includes(pincode));
           if (matched) {
+            closestZoneMatched = matched;
+            targetZone = matched as any;
             nearestHubName = matched.name;
             if (!resolvedDistanceKm) {
               resolvedDistanceKm = 2.5; // Default within-zone estimate
@@ -275,6 +309,17 @@ export async function placeOrder(buyerId: string, input: unknown, idempotencyKey
     }
   } catch (err) {
     console.warn("[order] Failed to resolve distance from delivery zones:", err);
+  }
+
+  // Hyperlocal Zepto-style Serviceability Gate: orders outside delivery radius must be rejected
+  if (targetZone && resolvedDistanceKm !== undefined && resolvedDistanceKm > 0) {
+    const radiusKm = Number(targetZone.radius_km) || 15;
+    const isPinSupported = pincode && targetZone.supported_pincodes?.includes(pincode);
+    if (!isPinSupported && resolvedDistanceKm > radiusKm) {
+      throw new Error(
+        `Your delivery location is outside our delivery area. ${targetZone.name} delivers within ${radiusKm} km, but your address is ${resolvedDistanceKm.toFixed(1)} km away.`
+      );
+    }
   }
 
 
@@ -448,9 +493,9 @@ export async function cancelOrder(buyerId: string, orderId: string) {
   if (hour >= 12) {
     deliveryStart.setDate(deliveryStart.getDate() + 1);
   }
-  
+
   const cutoffTime = new Date(deliveryStart.getTime() - 12 * 60 * 60 * 1000);
-  
+
   if (new Date() >= cutoffTime) {
     throw new Error("Order can no longer be cancelled (past 12-hour cutoff)");
   }

@@ -7,7 +7,14 @@ import dotenv from "dotenv";
 import express from "express";
 import helmet from "helmet";
 import { ok } from "../../../shared/utils/responseFormatter";
-import { pincodeLookupController, zoneCheckController, calculateDeliveryController } from "./controllers/locationController";
+import {
+  pincodeLookupController,
+  zoneCheckController,
+  calculateDeliveryController,
+  placesAutocompleteController,
+  placeDetailsController,
+  reverseGeocodeController,
+} from "./controllers/locationController";
 import { installGracefulShutdown } from "../../../shared/utils/gracefulShutdown";
 import { notFoundHandler, errorHandler } from "../../../shared/utils/httpErrors";
 
@@ -20,6 +27,9 @@ app.use(express.json());
 app.get("/health", (_request, response) => response.json(ok({ service: "location-service", status: "ok", uptime: process.uptime(), version: "1.0.0" })));
 app.post("/location/zone-check", zoneCheckController);
 app.post("/location/calculate-delivery", calculateDeliveryController);
+app.get("/location/places/autocomplete", placesAutocompleteController);
+app.get("/location/places/details", placeDetailsController);
+app.get("/location/geocode", reverseGeocodeController);
 app.get("/location/pincode/:pincode", pincodeLookupController);
 
 // Terminal handlers: must come after every route so they only see what nothing else matched.

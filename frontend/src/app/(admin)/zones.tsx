@@ -17,6 +17,7 @@ import { apiClient } from "@/lib/apiClient";
 import { QueryBoundary, SkeletonRows } from "@/components/admin/AdminUI";
 import { notify } from "@/utils/dialog";
 import { fetchCurrentLocation, resolvePincodeToCoords, isEmulatorOrForeignCoords } from "@/utils/location";
+import { LocationPickerModal, type SelectedLocationData } from "@/components/shared/LocationPickerModal";
 
 const ZONES_KEY = ["adminZones"] as const;
 
@@ -73,10 +74,24 @@ export default function AdminZonesScreen() {
   const [initialPincode, setInitialPincode] = useState("");
   const [capturingGps, setCapturingGps] = useState(false);
   const [resolvingPin, setResolvingPin] = useState(false);
+  const [showZoneLocationModal, setShowZoneLocationModal] = useState(false);
+  const [zoneAddressText, setZoneAddressText] = useState("");
   // Errors render inline rather than through Alert.alert. This console is used in a browser as
   // often as on a device, and react-native-web has no Alert implementation - an alert-only failure
   // path shows the admin nothing at all.
   const [createError, setCreateError] = useState<string | null>(null);
+
+  const handleZoneLocationSelected = (loc: SelectedLocationData) => {
+    setNewZoneLat(loc.lat);
+    setNewZoneLng(loc.lng);
+    setZoneAddressText(loc.formattedAddress);
+    if (!newZoneName.trim() && (loc.area || loc.city)) {
+      setNewZoneName(`${loc.area || loc.city} Warehouse`);
+    }
+    if (loc.pincode && !initialPincode.trim()) {
+      setInitialPincode(loc.pincode);
+    }
+  };
 
   const zonesQuery = useQuery({
     queryKey: ZONES_KEY,
@@ -256,8 +271,20 @@ export default function AdminZonesScreen() {
 
           <Text style={styles.inputLabel}>Physical GPS Location</Text>
           <Text style={styles.helperText}>
-            Stand at the warehouse and tap below to auto-detect coordinates, or enter them manually.
+            Pick the hub location on Google Maps or use current GPS.
           </Text>
+          <TouchableOpacity
+            style={[styles.gpsButton, { backgroundColor: colors.accent, marginBottom: 8 }]}
+            onPress={() => setShowZoneLocationModal(true)}
+          >
+            <MapPinIcon size={16} color="#FFF" strokeWidth={2.4} />
+            <Text style={styles.gpsButtonText}>📍 Pick Hub on Google Map</Text>
+          </TouchableOpacity>
+          {zoneAddressText ? (
+            <View style={{ backgroundColor: colors.card2, padding: 10, borderRadius: 8, marginBottom: 8, borderWidth: 1, borderColor: colors.border }}>
+              <Text style={{ fontSize: 13, color: colors.textPrimary, fontWeight: "600" }}>📍 {zoneAddressText}</Text>
+            </View>
+          ) : null}
           <TouchableOpacity
             style={[styles.gpsButton, capturingGps && styles.buttonDisabled]}
             onPress={handleCaptureLocation}
@@ -269,7 +296,7 @@ export default function AdminZonesScreen() {
               <MapPinIcon size={16} color="#FFF" strokeWidth={2.4} />
             )}
             <Text style={styles.gpsButtonText}>
-              {capturingGps ? "Capturing exact GPS position…" : "📍 Capture My Exact GPS Location"}
+              {capturingGps ? "Capturing exact GPS position…" : "Use My Device GPS"}
             </Text>
           </TouchableOpacity>
 
@@ -392,6 +419,14 @@ export default function AdminZonesScreen() {
         </View>
       </QueryBoundary>
       <View style={{ height: 60 }} />
+      <LocationPickerModal
+        visible={showZoneLocationModal}
+        title="Pick Warehouse Location"
+        subtitle="Search location or drop pin for this warehouse"
+        initialLocation={newZoneLat !== null && newZoneLng !== null ? { lat: newZoneLat, lng: newZoneLng } : undefined}
+        onClose={() => setShowZoneLocationModal(false)}
+        onSelect={handleZoneLocationSelected}
+      />
     </Screen>
   );
 }
@@ -412,6 +447,16 @@ function ZoneCard({ zone }: { zone: Zone }) {
   const [editLat, setEditLat] = useState(zone.lat && Number(zone.lat) !== 0 ? String(zone.lat) : "");
   const [editLng, setEditLng] = useState(zone.lng && Number(zone.lng) !== 0 ? String(zone.lng) : "");
   const [editRadius, setEditRadius] = useState(String(zone.radius_km || 10));
+  const [showEditMapModal, setShowEditMapModal] = useState(false);
+  const [editAddressText, setEditAddressText] = useState("");
+
+  const handleEditMapLocationSelected = (loc: SelectedLocationData) => {
+    setEditLat(loc.lat.toFixed(6));
+    setEditLng(loc.lng.toFixed(6));
+    setEditAddressText(loc.formattedAddress);
+    setShowEditMapModal(false);
+    notify("Location Picked", `Set coordinates from Google Maps: ${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}`);
+  };
 
   const updateZone = useMutation({
     mutationFn: async ({
@@ -714,21 +759,35 @@ function ZoneCard({ zone }: { zone: Zone }) {
         <View style={styles.editGpsCard}>
           <Text style={styles.editGpsTitle}>Calibrate Warehouse Coordinates</Text>
           <Text style={styles.helperText}>
-            Auto-detect from your device's GPS or enter exact coordinates manually (e.g. from Google Maps).
+            Search warehouse address or drop pin on Google Maps for millimeter accuracy, or auto-detect via GPS.
           </Text>
 
           <TouchableOpacity
-            style={[styles.gpsButton, updatingGps && styles.buttonDisabled]}
+            style={[styles.gpsButton, { backgroundColor: "#2563EB", marginBottom: 8 }]}
+            onPress={() => setShowEditMapModal(true)}
+          >
+            <MapPinIcon size={16} color="#FFF" strokeWidth={2.4} />
+            <Text style={styles.gpsButtonText}>📍 Search & Pick on Google Maps</Text>
+          </TouchableOpacity>
+
+          {editAddressText ? (
+            <View style={{ backgroundColor: colors.card2, padding: 10, borderRadius: 8, marginBottom: 8, borderWidth: 1, borderColor: colors.border }}>
+              <Text style={{ fontSize: 13, color: colors.textPrimary, fontWeight: "600" }}>📍 {editAddressText}</Text>
+            </View>
+          ) : null}
+
+          <TouchableOpacity
+            style={[styles.gpsButton, updatingGps && styles.buttonDisabled, { backgroundColor: colors.card2, borderWidth: 1, borderColor: colors.border }]}
             onPress={handleAutoDetectInEdit}
             disabled={updatingGps}
           >
             {updatingGps ? (
-              <ActivityIndicator size="small" color="#FFF" />
+              <ActivityIndicator size="small" color={colors.accent} />
             ) : (
-              <MapPinIcon size={16} color="#FFF" strokeWidth={2.4} />
+              <MapPinIcon size={16} color={colors.textPrimary} strokeWidth={2.4} />
             )}
-            <Text style={styles.gpsButtonText}>
-              {updatingGps ? "Detecting GPS position…" : "📍 Auto-Detect Device GPS"}
+            <Text style={[styles.gpsButtonText, { color: colors.textPrimary }]}>
+              {updatingGps ? "Detecting GPS position…" : "📡 Auto-Detect Device GPS"}
             </Text>
           </TouchableOpacity>
 
@@ -890,6 +949,19 @@ function ZoneCard({ zone }: { zone: Zone }) {
           </Pressable>
         </Modal>
       )}
+
+      <LocationPickerModal
+        visible={showEditMapModal}
+        title={`Calibrate Location: ${zone.name}`}
+        subtitle="Search Google Maps or drop pin to set exact warehouse coordinates"
+        initialLocation={
+          editLat && editLng && !isNaN(Number(editLat)) && !isNaN(Number(editLng))
+            ? { lat: Number(editLat), lng: Number(editLng), address: zone.name }
+            : undefined
+        }
+        onClose={() => setShowEditMapModal(false)}
+        onSelect={handleEditMapLocationSelected}
+      />
     </View>
   );
 }

@@ -27,6 +27,7 @@ import { apiClient } from "@/lib/apiClient";
 import { RATE_PER_KM } from "@/constants/delivery";
 import { playOrderSuccessSound } from "@/utils/sound";
 import { fetchCurrentLocation } from "@/utils/location";
+import { LocationPickerModal, type SelectedLocationData } from "@/components/shared/LocationPickerModal";
 
 type AddressField = "line1" | "line2" | "city" | "state" | "pincode" | "phone";
 type DeliveryAddress = Record<AddressField, string>;
@@ -97,6 +98,8 @@ export default function CartScreen() {
 
   // Mandatory real-time GPS location states
   const [preciseLocation, setPreciseLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const [selectedAddressText, setSelectedAddressText] = useState<string>("");
   const [isFetchingGps, setIsFetchingGps] = useState(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
   const [needsGpsPrompt, setNeedsGpsPrompt] = useState(false);
@@ -110,6 +113,22 @@ export default function CartScreen() {
     touchedFieldsRef.current.add(field);
     setAddress(prev => ({ ...prev, [field]: value }));
     setErrors(prev => (prev[field] ? { ...prev, [field]: undefined } : prev));
+  };
+
+  const handleLocationSelected = (loc: SelectedLocationData) => {
+    setPreciseLocation({ lat: loc.lat, lng: loc.lng });
+    setSelectedAddressText(loc.formattedAddress);
+    setServiceError(null);
+    setNeedsGpsPrompt(false);
+    setGpsError(null);
+
+    // Auto-fill address form fields from geocoding
+    if (loc.pincode) updateField("pincode", loc.pincode);
+    if (loc.city) updateField("city", loc.city);
+    if (loc.state) updateField("state", loc.state);
+    if (loc.formattedAddress && !address.line1) {
+      updateField("line1", loc.formattedAddress);
+    }
   };
 
   const handleFetchPreciseLocation = async () => {
@@ -166,6 +185,8 @@ export default function CartScreen() {
     standardSubtotal,
     totalSavings,
     platformFee,
+    baseDeliveryFee,
+    distanceCharge,
     deliveryFee,
     standardDeliveryFee,
     ratePerKm,
@@ -420,25 +441,50 @@ export default function CartScreen() {
                 </View>
               ) : null}
 
-              {/* Delivery Charge */}
+              {/* Delivery Charge (₹25 for orders < ₹200, FREE for orders >= ₹200) */}
               <View style={styles.row}>
                 <View style={{ flex: 1, paddingRight: 8 }}>
-                  <Text style={styles.label}>Delivery charges</Text>
+                  <Text style={styles.label}>Delivery charge</Text>
+                  {baseDeliveryFee === 0 && subtotal >= freeDeliveryThreshold ? (
+                    <Text style={{ fontSize: 11, color: "#16A34A", marginTop: 1 }}>
+                      Free delivery applied (Order ≥ ₹{freeDeliveryThreshold})
+                    </Text>
+                  ) : (
+                    <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 1 }}>
+                      Standard delivery (Orders below ₹{freeDeliveryThreshold})
+                    </Text>
+                  )}
+                </View>
+                {baseDeliveryFee > 0 ? (
+                  <Text style={styles.value}>{formatCurrency(baseDeliveryFee)}</Text>
+                ) : (
+                  <View style={styles.deliveryFreeGroup}>
+                    <Text style={styles.strikePrice}>₹25</Text>
+                    <Text style={styles.free}>FREE</Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Distance Charge (based on driving distance @ ₹4/km) */}
+              <View style={styles.row}>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={styles.label}>Distance charge</Text>
                   {currentDistanceKm > 0 ? (
                     <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 1 }}>
                       {currentDistanceKm} km from {deliveryData?.nearestHub ?? "hub"} (@ ₹{ratePerKm}/km)
                     </Text>
-                  ) : null}
+                  ) : (
+                    <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 1 }}>
+                      Calculated at checkout after fetching location (@ ₹{ratePerKm}/km)
+                    </Text>
+                  )}
                 </View>
-                {deliveryFee > 0 ? (
-                  <Text style={styles.value}>{formatCurrency(deliveryFee)}</Text>
+                {distanceCharge > 0 ? (
+                  <Text style={styles.value}>{formatCurrency(distanceCharge)}</Text>
                 ) : (
-                  <View style={styles.deliveryFreeGroup}>
-                    {standardDeliveryFee > 0 ? (
-                      <Text style={styles.strikePrice}>{formatCurrency(standardDeliveryFee)}</Text>
-                    ) : null}
-                    <Text style={styles.free}>FREE</Text>
-                  </View>
+                  <Text style={[styles.value, { color: colors.textMuted }]}>
+                    {currentDistanceKm > 0 ? "₹0" : "Pending"}
+                  </Text>
                 )}
               </View>
 
@@ -528,7 +574,7 @@ export default function CartScreen() {
             />
             {errors.pincode ? <Text style={styles.fieldError}>{errors.pincode}</Text> : null}
 
-            {/* Precise Real-Time GPS Location Section (MANDATORY) */}
+            {/* Precise Delivery Location Section */}
             <View
               style={[
                 styles.gpsSection,
@@ -537,11 +583,11 @@ export default function CartScreen() {
             >
               <View style={styles.gpsSectionHeader}>
                 <Text style={styles.gpsSectionTitle}>
-                  Precise Delivery Location <Text style={{ color: colors.danger }}>*</Text>
+                  Delivery Location <Text style={{ color: colors.danger }}>*</Text>
                 </Text>
                 {preciseLocation ? (
                   <View style={styles.gpsVerifiedBadge}>
-                    <Text style={styles.gpsVerifiedText}>✓ GPS Captured</Text>
+                    <Text style={styles.gpsVerifiedText}>✓ Location Set</Text>
                   </View>
                 ) : (
                   <View style={styles.gpsRequiredBadge}>
@@ -557,27 +603,36 @@ export default function CartScreen() {
               {preciseLocation ? (
                 <View style={styles.gpsSuccessBox}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.gpsCoordText}>
-                      📍 {preciseLocation.lat.toFixed(5)}, {preciseLocation.lng.toFixed(5)}
+                    <Text style={styles.gpsCoordText} numberOfLines={2}>
+                      📍 {selectedAddressText || (address.city ? `${address.city}, ${address.pincode}` : "Pin set on map")}
                     </Text>
                     {isCalculatingDelivery ? (
-                      <Text style={styles.gpsSubNote}>Calculating distance...</Text>
-                    ) : deliveryData?.nearestHub ? (
-                      <Text style={styles.gpsSubNote}>
-                        Nearest Hub: <Text style={{ fontWeight: "700", color: colors.textPrimary }}>{deliveryData.nearestHub}</Text> ({deliveryData.distanceKm} km away)
+                      <Text style={styles.gpsSubNote}>Calculating driving distance...</Text>
+                    ) : deliveryData?.error || deliveryData?.isServiceable === false ? (
+                      <Text style={[styles.gpsSubNote, { color: colors.danger, fontWeight: "600" }]}>
+                        ⚠️ {deliveryData?.error || "Location outside service area"}
                       </Text>
+                    ) : deliveryData?.nearestHub ? (
+                      <>
+                        <Text style={styles.gpsSubNote}>
+                          Nearest Hub: <Text style={{ fontWeight: "700", color: colors.textPrimary }}>{deliveryData.nearestHub}</Text> ({deliveryData.distanceKm} km driving path)
+                        </Text>
+                        <View style={{ marginTop: 6, paddingTop: 6, borderTopWidth: 1, borderTopColor: "rgba(22, 163, 74, 0.2)", flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                          <Text style={{ fontSize: 12, fontWeight: "600", color: colors.textPrimary }}>
+                            Distance Charge ({deliveryData.distanceKm} km @ ₹{ratePerKm}/km):
+                          </Text>
+                          <Text style={{ fontSize: 13, fontWeight: "800", color: colors.textPrimary }}>
+                            {distanceCharge > 0 ? formatCurrency(distanceCharge) : "₹0"}
+                          </Text>
+                        </View>
+                      </>
                     ) : null}
                   </View>
                   <Pressable
                     style={styles.gpsRetakeBtn}
-                    onPress={handleFetchPreciseLocation}
-                    disabled={isFetchingGps}
+                    onPress={() => setShowLocationPicker(true)}
                   >
-                    {isFetchingGps ? (
-                      <ActivityIndicator size="small" color={colors.accent} />
-                    ) : (
-                      <Text style={styles.gpsRetakeText}>Update</Text>
-                    )}
+                    <Text style={styles.gpsRetakeText}>Change</Text>
                   </Pressable>
                 </View>
               ) : (
@@ -586,20 +641,12 @@ export default function CartScreen() {
                     styles.gpsFetchBtn,
                     needsGpsPrompt ? styles.gpsFetchBtnPrompt : null
                   ]}
-                  onPress={handleFetchPreciseLocation}
-                  disabled={isFetchingGps}
+                  onPress={() => setShowLocationPicker(true)}
                 >
-                  {isFetchingGps ? (
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                      <ActivityIndicator size="small" color="#FFFFFF" />
-                      <Text style={styles.gpsFetchBtnText}>Fetching Real-time GPS...</Text>
-                    </View>
-                  ) : (
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                      <Text style={{ fontSize: 16 }}>📍</Text>
-                      <Text style={styles.gpsFetchBtnText}>Fetch Precise Location</Text>
-                    </View>
-                  )}
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <Text style={{ fontSize: 16 }}>📍</Text>
+                    <Text style={styles.gpsFetchBtnText}>Select Delivery Location on Map</Text>
+                  </View>
                 </Pressable>
               )}
 
@@ -640,19 +687,55 @@ export default function CartScreen() {
               </Text>
             ) : null}
 
+            {/* Real-time Order Checkout Breakdown after location is set */}
+            {preciseLocation && (
+              <View style={{ marginTop: 14, padding: 12, backgroundColor: colors.card2, borderRadius: 8, borderWidth: 1, borderColor: colors.border }}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
+                  <Text style={{ color: colors.textSecondary, fontSize: 13 }}>Items Subtotal</Text>
+                  <Text style={{ color: colors.textPrimary, fontSize: 13, fontWeight: "600" }}>{formatCurrency(subtotal)}</Text>
+                </View>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
+                  <Text style={{ color: colors.textSecondary, fontSize: 13 }}>Delivery Charge (Orders &lt; ₹{freeDeliveryThreshold})</Text>
+                  <Text style={{ color: baseDeliveryFee > 0 ? colors.textPrimary : "#16A34A", fontSize: 13, fontWeight: "700" }}>
+                    {baseDeliveryFee > 0 ? formatCurrency(baseDeliveryFee) : "FREE"}
+                  </Text>
+                </View>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
+                  <Text style={{ color: colors.textSecondary, fontSize: 13 }}>Distance Charge ({currentDistanceKm} km @ ₹{ratePerKm}/km)</Text>
+                  <Text style={{ color: distanceCharge > 0 ? colors.textPrimary : colors.textMuted, fontSize: 13, fontWeight: "700" }}>
+                    {distanceCharge > 0 ? `+${formatCurrency(distanceCharge)}` : "₹0"}
+                  </Text>
+                </View>
+                <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 6 }} />
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                  <Text style={{ color: colors.textPrimary, fontSize: 14, fontWeight: "800" }}>Total to Pay</Text>
+                  <Text style={{ color: colors.accent, fontSize: 16, fontWeight: "800" }}>{formatCurrency(total)}</Text>
+                </View>
+              </View>
+            )}
+
             <View style={styles.modalActions}>
               <Button variant="secondary" style={styles.modalCancel} onPress={() => setShowAddressModal(false)}>
                 Cancel
               </Button>
               <Pressable style={styles.modalConfirm} onPress={submitOrder} disabled={isPlacingOrder}>
-                <Text style={styles.orderText}>{isPlacingOrder ? "Processing..." : "Confirm"}</Text>
+                <Text style={styles.orderText}>
+                  {isPlacingOrder ? "Processing..." : `Confirm Order — ${formatCurrency(total)}`}
+                </Text>
               </Pressable>
             </View>
           </ScrollView>
         </View>
       </Modal>
 
-      
+      <LocationPickerModal
+        visible={showLocationPicker}
+        title="Select Delivery Location"
+        subtitle="Search your town, colony, or landmark to calculate delivery fee"
+        initialLocation={undefined}
+        onClose={() => setShowLocationPicker(false)}
+        onSelect={handleLocationSelected}
+      />
     </>;
 }
 const getStyles = (colors: any) => StyleSheet.create({

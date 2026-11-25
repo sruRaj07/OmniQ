@@ -49,6 +49,10 @@ async function getActiveDeliveryZones(): Promise<any[]> {
   return result;
 }
 
+// Distance Matrix in-memory cache to stay inside Google Maps free $200 tier
+const distanceMatrixCache = new Map<string, { km: number; durationMins: number; cachedAt: number }>();
+const DISTANCE_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
 export function distanceKm(point: { lat: number; lng: number }, centre: { lat: number; lng: number }): number {
   const toRad = (value: number): number => (value * Math.PI) / 180;
   const earthKm = 6371;
@@ -61,8 +65,9 @@ export function distanceKm(point: { lat: number; lng: number }, centre: { lat: n
 }
 
 /**
- * Calculates the direct great-circle (Haversine) distance between two GPS coordinates.
- * Direct distance is predictable, fast, and does not fluctuate due to external routing engines.
+ * Calculates accurate driving distance using Google Distance Matrix API.
+ * Uses 24-hour in-memory caching and intelligent distance pruning to stay within
+ * Google Maps Platform's free tier.
  */
 export async function roadDistanceKm(
   from: { lat: number; lng: number },
@@ -71,8 +76,49 @@ export async function roadDistanceKm(
   if (!from.lat || !from.lng || !to.lat || !to.lng) {
     return 0;
   }
+
   const straightLine = distanceKm(from, to);
-  return Number(straightLine.toFixed(1));
+
+  // If points are within 150m, return immediately without consuming API quota
+  if (straightLine < 0.15) {
+    return Number(Math.max(0.1, straightLine).toFixed(1));
+  }
+
+  // Check in-memory cache
+  const cacheKey = `${from.lat.toFixed(4)},${from.lng.toFixed(4)}->${to.lat.toFixed(4)},${to.lng.toFixed(4)}`;
+  const cached = distanceMatrixCache.get(cacheKey);
+  if (cached && Date.now() - cached.cachedAt < DISTANCE_CACHE_TTL_MS) {
+    return cached.km;
+  }
+
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY || process.env.EXPO_PUBLIC_GOOGLE_MAPS_KEY;
+  if (!apiKey) {
+    return Number((straightLine * 1.25).toFixed(1));
+  }
+
+  try {
+    const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${from.lat},${from.lng}&destinations=${to.lat},${to.lng}&mode=driving&region=in&key=${apiKey}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(3500) });
+    if (res.ok) {
+      const data = (await res.json()) as any;
+      const element = data?.rows?.[0]?.elements?.[0];
+      if (element?.status === "OK" && element?.distance?.value !== undefined) {
+        const roadKm = Number((element.distance.value / 1000).toFixed(1));
+        const durationMins = Math.round((element.duration?.value || 0) / 60);
+        distanceMatrixCache.set(cacheKey, {
+          km: roadKm,
+          durationMins,
+          cachedAt: Date.now(),
+        });
+        return roadKm;
+      }
+    }
+  } catch (err) {
+    console.warn("[locationService] Google Distance Matrix request failed:", err);
+  }
+
+  // Graceful fallback: straight line with 1.25x road tortuosity
+  return Number((straightLine * 1.25).toFixed(1));
 }
 
 /**
@@ -343,6 +389,27 @@ export async function calculateDelivery(input: unknown): Promise<DeliveryCalcula
   }
 
   const finalDistance = Number(Math.max(0.1, minDistance).toFixed(1));
+  const serviceRadius = Number(closestZone.radius_km) || 15;
+  const isSupportedPin = parsed.pincode && closestZone.supported_pincodes?.includes(parsed.pincode);
+
+  // Hyperlocal Zepto-style Serviceability Gate:
+  // If buyer's location is beyond the darkstore / warehouse delivery radius,
+  // do NOT mark it serviceable and do NOT charge absurd delivery fees.
+  if (!isSupportedPin && finalDistance > serviceRadius) {
+    const defaultDetails = calculateDeliveryFeeDetails(parsed.subtotal, 0);
+    return {
+      ...defaultDetails,
+      isServiceable: false,
+      nearestHub: closestZone.name,
+      hubLat: closestZone.lat,
+      hubLng: closestZone.lng,
+      userLat: userCoords?.lat,
+      userLng: userCoords?.lng,
+      distanceKm: finalDistance,
+      error: `Outside delivery area. ${closestZone.name} serves within ${serviceRadius} km, but your address is ${finalDistance} km away.`
+    };
+  }
+
   const details = calculateDeliveryFeeDetails(parsed.subtotal, finalDistance);
 
   return {
@@ -354,4 +421,114 @@ export async function calculateDelivery(input: unknown): Promise<DeliveryCalcula
     userLng: userCoords?.lng,
     ...details
   };
+}
+
+function parseGoogleAddressComponents(components: any[] = []) {
+  let pincode = "";
+  let city = "";
+  let state = "";
+  let area = "";
+  let street = "";
+
+  for (const c of components) {
+    const types: string[] = c.types || [];
+    if (types.includes("postal_code")) pincode = c.long_name || c.short_name;
+    else if (types.includes("locality")) city = c.long_name;
+    else if (!city && (types.includes("administrative_area_level_2") || types.includes("sublocality_level_1"))) {
+      city = c.long_name;
+    } else if (types.includes("administrative_area_level_1")) state = c.long_name;
+    else if (types.includes("sublocality") || types.includes("neighborhood")) area = c.long_name;
+    else if (types.includes("route")) street = c.long_name;
+  }
+
+  return { pincode, city, state, area, street };
+}
+
+export async function autocompletePlaces(input: string, sessionToken?: string) {
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY || process.env.EXPO_PUBLIC_GOOGLE_MAPS_KEY;
+  if (!apiKey) return [];
+
+  try {
+    const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(input)}&components=country:in&key=${apiKey}${sessionToken ? `&sessiontoken=${sessionToken}` : ""}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(3500) });
+    if (!res.ok) return [];
+    const data = (await res.json()) as any;
+    if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
+      console.warn("[locationService] Places autocomplete status:", data.status, data.error_message);
+      return [];
+    }
+    return (data.predictions || []).map((p: any) => ({
+      placeId: p.place_id,
+      description: p.description,
+      mainText: p.structured_formatting?.main_text || p.description,
+      secondaryText: p.structured_formatting?.secondary_text || "",
+    }));
+  } catch (err) {
+    console.warn("[locationService] Places autocomplete failed:", err);
+    return [];
+  }
+}
+
+export async function getPlaceDetails(placeId: string, sessionToken?: string) {
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY || process.env.EXPO_PUBLIC_GOOGLE_MAPS_KEY;
+  if (!apiKey) return null;
+
+  try {
+    const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=geometry,formatted_address,address_components&key=${apiKey}${sessionToken ? `&sessiontoken=${sessionToken}` : ""}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
+    if (!res.ok) return null;
+    const data = (await res.json()) as any;
+    if (data.status !== "OK" || !data.result) {
+      console.warn("[locationService] Place details status:", data.status, data.error_message);
+      return null;
+    }
+    const result = data.result;
+    const loc = result.geometry?.location;
+    const { pincode, city, state, area, street } = parseGoogleAddressComponents(result.address_components);
+
+    return {
+      lat: Number(loc?.lat),
+      lng: Number(loc?.lng),
+      formattedAddress: result.formatted_address || "",
+      city,
+      state,
+      pincode,
+      area,
+      street,
+    };
+  } catch (err) {
+    console.warn("[locationService] Place details failed:", err);
+    return null;
+  }
+}
+
+export async function reverseGeocodeCoords(lat: number, lng: number) {
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY || process.env.EXPO_PUBLIC_GOOGLE_MAPS_KEY;
+  if (!apiKey) return null;
+
+  try {
+    const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
+    if (!res.ok) return null;
+    const data = (await res.json()) as any;
+    if (data.status !== "OK" || !Array.isArray(data.results) || data.results.length === 0) {
+      return null;
+    }
+    const best = data.results[0];
+    const { pincode, city, state, area, street } = parseGoogleAddressComponents(best.address_components);
+
+    return {
+      lat,
+      lng,
+      formattedAddress: best.formatted_address || "",
+      city,
+      state,
+      pincode,
+      area,
+      street,
+    };
+  } catch (err) {
+    console.warn("[locationService] Reverse geocode failed:", err);
+    return null;
+  }
 }
